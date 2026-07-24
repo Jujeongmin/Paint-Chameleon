@@ -144,12 +144,26 @@ describe("transform", () => {
     expect(state.rotY).toBe(0);
   });
 
+  // The local test harness's $room-scoped calls (getMyState/updateMyState)
+  // and joinGame's $global.updateRoomUserState spawn write are backed by
+  // different room keys in this offline runtime (confirmed by reading
+  // node_modules/@agent8/gameserver-node/dist/runtime/RoomContext.js and
+  // GlobalContext.js — RoomContext.setRoomId exists but is never called from
+  // anywhere in the package, so $room always operates on the fixed
+  // 'test-room' key regardless of the real matchmaking roomId). That means
+  // server.getMyState() right after joinGame() alone always reads back {}
+  // in this harness — real production state sharing is unaffected, this is
+  // purely a local/offline-runtime quirk. Every test below therefore makes
+  // one throwaway updateTransform call first to establish a $room-visible
+  // baseline position before asserting anything.
   test("updateTransform keeps a small, plausible move exactly", async (server) => {
     server.connect({ account: "user-ivan" });
     await server.joinGame("ivan");
-    const spawn = (await server.getMyState()).pos;
 
-    const target = [spawn[0] + 0.1, 0, spawn[2] + 0.1];
+    await server.updateTransform({ pos: [0, 0, 0], rotY: 0, pose: 0, moving: false });
+    const baseline = (await server.getMyState()).pos;
+
+    const target = [baseline[0] + 0.1, 0, baseline[2] + 0.1];
     await server.updateTransform({ pos: target, rotY: 0, pose: 0, moving: true });
     const state = await server.getMyState();
 
@@ -160,15 +174,17 @@ describe("transform", () => {
   test("updateTransform clamps a physically impossible jump", async (server) => {
     server.connect({ account: "user-judy" });
     await server.joinGame("judy");
-    const spawn = (await server.getMyState()).pos;
+
+    await server.updateTransform({ pos: [0, 0, 0], rotY: 0, pose: 0, moving: false });
+    const baseline = (await server.getMyState()).pos;
 
     // 500 units in one update is impossible at any plausible speed this soon
-    // after spawn — no legitimate client could produce this.
-    const target = [spawn[0] + 500, 0, spawn[2]];
+    // after the baseline call — no legitimate client could produce this.
+    const target = [baseline[0] + 500, 0, baseline[2]];
     await server.updateTransform({ pos: target, rotY: 0, pose: 0, moving: true });
     const state = await server.getMyState();
 
-    const movedDist = Math.hypot(state.pos[0] - spawn[0], state.pos[2] - spawn[2]);
+    const movedDist = Math.hypot(state.pos[0] - baseline[0], state.pos[2] - baseline[2]);
     expect(movedDist < 5).toBe(true);
     expect(state.pos[0] === target[0]).toBe(false);
   });
