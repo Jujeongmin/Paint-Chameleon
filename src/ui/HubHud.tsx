@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PortalProgress } from "../hub/HubPlayer";
-import type { PlayerState } from "../net/types";
+import type { LeaderboardResult, PlayerState } from "../net/types";
+import { Leaderboard } from "./Leaderboard";
 
 interface Props {
   portalRef: React.MutableRefObject<PortalProgress>;
@@ -9,9 +10,10 @@ interface Props {
   joining: boolean;
   /** False once the player has used the controls; hides the basic tutorial. */
   showControls: boolean;
+  fetchLeaderboard: () => Promise<LeaderboardResult>;
 }
 
-export function HubHud({ portalRef, players, account, joining, showControls }: Props) {
+export function HubHud({ portalRef, players, account, joining, showControls, fetchLeaderboard }: Props) {
   // The dwell timer lives in a ref so the render loop doesn't re-render React;
   // poll it a few times a second, which is plenty for a progress ring.
   const [state, setState] = useState<PortalProgress>({ portal: null, progress: 0 });
@@ -50,6 +52,8 @@ export function HubHud({ portalRef, players, account, joining, showControls }: P
           </div>
         ))}
       </div>
+
+      <Leaderboard account={account} fetchLeaderboard={fetchLeaderboard} />
 
       {/* The cursor is hidden out here too, so the aim point has to be visible. */}
       <div className="crosshair" />

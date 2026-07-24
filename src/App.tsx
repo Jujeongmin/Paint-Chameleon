@@ -303,6 +303,7 @@ export default function App() {
           account={account}
           joining={joining}
           showControls={!controlsLearned}
+          fetchLeaderboard={game.fetchLeaderboard}
         />
       ) : (
         <>

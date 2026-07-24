@@ -812,3 +812,58 @@ body.hide-cursor canvas {
 .mute-toggle:hover {
   border-color: var(--accent);
 }
+
+.leaderboard {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 200px;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+}
+
+.leaderboard-heading {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.leaderboard-empty {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.leaderboard-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 3px 0;
+}
+
+.leaderboard-rank {
+  width: 18px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.leaderboard-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard-total {
+  color: var(--muted);
+}
+
+.leaderboard-divider {
+  margin: 6px 0;
+  border-top: 1px solid var(--line);
+}
