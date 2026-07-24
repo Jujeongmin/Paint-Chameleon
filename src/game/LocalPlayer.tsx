@@ -8,6 +8,7 @@ import { CAMERA, MOVE, NET_EPSILON, NET_THROTTLE_MS, STAND_POSE, TAG, type Phase
 import { createMotionState, stepMotion } from "./movement";
 import { createFollowScratch, updateFollowCamera } from "./followCamera";
 import { surfaceFor, type PaintDab } from "./paint";
+import { playBrushTick } from "../audio/sound";
 import { useBrush, type Tool } from "./useBrush";
 import type { PlayerState } from "../net/types";
 
@@ -114,6 +115,7 @@ export function LocalPlayer({
       if (join && lastLocalUV.current) surface.stroke(lastLocalUV.current, dab);
       else surface.dab(dab);
       lastLocalUV.current = { u: dab.u, v: dab.v };
+      playBrushTick();
       onDab(dab, join);
     },
     [me.account, onDab]

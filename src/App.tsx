@@ -9,6 +9,7 @@ import type { PortalProgress } from "./hub/HubPlayer";
 import { Hud } from "./ui/Hud";
 import { HubHud } from "./ui/HubHud";
 import { PaintTools } from "./ui/PaintTools";
+import { MuteToggle } from "./ui/MuteToggle";
 import { PoseMenu } from "./ui/PoseMenu";
 import { hsvToRgb, rgbToHsv } from "./ui/ColorWheel";
 import { ConnectingScreen, NickScreen, ResultsOverlay, WaitingBanner } from "./ui/Screens";
@@ -292,6 +293,8 @@ export default function App() {
           </>
         )}
       </Canvas>
+
+      <MuteToggle />
 
       {inHub ? (
         <HubHud
