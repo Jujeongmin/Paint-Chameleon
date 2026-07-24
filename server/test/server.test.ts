@@ -143,4 +143,33 @@ describe("transform", () => {
     expect(state.pos[0]).toBe(0);
     expect(state.rotY).toBe(0);
   });
+
+  test("updateTransform keeps a small, plausible move exactly", async (server) => {
+    server.connect({ account: "user-ivan" });
+    await server.joinGame("ivan");
+    const spawn = (await server.getMyState()).pos;
+
+    const target = [spawn[0] + 0.1, 0, spawn[2] + 0.1];
+    await server.updateTransform({ pos: target, rotY: 0, pose: 0, moving: true });
+    const state = await server.getMyState();
+
+    expect(Math.abs(state.pos[0] - target[0]) < 1e-9).toBe(true);
+    expect(Math.abs(state.pos[2] - target[2]) < 1e-9).toBe(true);
+  });
+
+  test("updateTransform clamps a physically impossible jump", async (server) => {
+    server.connect({ account: "user-judy" });
+    await server.joinGame("judy");
+    const spawn = (await server.getMyState()).pos;
+
+    // 500 units in one update is impossible at any plausible speed this soon
+    // after spawn — no legitimate client could produce this.
+    const target = [spawn[0] + 500, 0, spawn[2]];
+    await server.updateTransform({ pos: target, rotY: 0, pose: 0, moving: true });
+    const state = await server.getMyState();
+
+    const movedDist = Math.hypot(state.pos[0] - spawn[0], state.pos[2] - spawn[2]);
+    expect(movedDist < 5).toBe(true);
+    expect(state.pos[0] === target[0]).toBe(false);
+  });
 });

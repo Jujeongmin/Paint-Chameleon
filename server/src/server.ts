@@ -18,6 +18,9 @@ import {
   TAG,
   SCORE,
   PAINT_LIMITS,
+  MOVE_SPEED_CAP,
+  SPEED_GRACE,
+  MIN_DT_MS,
   randomSpawn,
 } from "./rules";
 
@@ -37,6 +40,16 @@ function num(v: unknown, fallback = 0): number {
 function clamp01(v: unknown): number {
   const n = num(v);
   return n < 0 ? 0 : n > 1 ? 1 : n;
+}
+
+/** Clamp (x,z) to within maxDist of (px,pz) — the movement speed cap. */
+function clampMoveXZ(px: number, pz: number, x: number, z: number, maxDist: number): [number, number] {
+  const dx = x - px;
+  const dz = z - pz;
+  const dist = Math.hypot(dx, dz);
+  if (dist <= maxDist || dist === 0) return [x, z];
+  const scale = maxDist / dist;
+  return [px + dx * scale, pz + dz * scale];
 }
 
 // ------------------------------------------------------------- round helpers
@@ -246,15 +259,32 @@ export class Server {
 
   /**
    * Hot path — called at ~10Hz per client with { throttle }.
-   * Kept to a single state write; no reads, no validation round-trips.
+   *
+   * Reads the previous state before writing, unlike most of this file's
+   * setters: a reported position further than physically possible since the
+   * last update gets clamped to the reachable radius instead of trusted
+   * outright. The client fully owns its own position otherwise (see
+   * README's "known limitations"), and `requestTag`'s distance check reads
+   * this same `pos` field, so an unvalidated write is exploitable for both
+   * movement and tagging.
    */
   async updateTransform(t: { pos: number[]; rotY: number; pose: number; moving: boolean }): Promise<void> {
     const pos = Array.isArray(t?.pos) ? t.pos : [0, 0, 0];
+    const now = Date.now();
+
+    const prev = await $room.getMyState();
+    const prevPos = Array.isArray(prev.pos) ? prev.pos : [0, 0, 0];
+    const elapsed = Math.max(now - num(prev.lastMoveAt, now), MIN_DT_MS);
+    const maxDist = MOVE_SPEED_CAP * SPEED_GRACE * (elapsed / 1000);
+
+    const [x, z] = clampMoveXZ(num(prevPos[0]), num(prevPos[2]), num(pos[0]), num(pos[2]), maxDist);
+
     await $room.updateMyState({
-      pos: [num(pos[0]), num(pos[1]), num(pos[2])],
+      pos: [x, num(pos[1]), z],
       rotY: num(t?.rotY),
       pose: Math.max(0, Math.min(POSE_COUNT - 1, Math.floor(num(t?.pose)))),
       moving: !!t?.moving,
+      lastMoveAt: now,
     });
   }
 
