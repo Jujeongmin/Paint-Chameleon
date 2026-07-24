@@ -85,6 +85,7 @@ async function startRound(roomId: string, users: Array<Record<string, any>>, sta
       pos: isSeeker ? [0, 0, 0] : randomSpawn(),
       rotY: 0,
       lastTagAt: 0,
+      lastMoveAt: now,
     });
   }
 
@@ -222,6 +223,7 @@ export class Server {
       pose: 0,
       moving: false,
       lastTagAt: 0,
+      lastMoveAt: Date.now(),
     });
 
     return { roomId };
