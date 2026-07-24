@@ -39,6 +39,19 @@ export const SCORE = {
 /** Paint is cosmetic — the server only relays it, so these bound abuse, not fairness. */
 export const PAINT_LIMITS = { maxBatch: 32, maxRadius: 120 };
 
+/**
+ * src/game/constants.ts의 MOVE.seekerSpeed(둘 중 더 빠른 쪽)와 동기화 유지 —
+ * check:sync가 검사. 역할별로 나누지 않고 더 빠른 쪽을 공통 상한으로 쓴다: 이
+ * 테스트 하네스는 블랙박스라 실제 라운드 진행 없이는 "seeker" 역할을 만들 방법이
+ * 없어 역할별 값을 검증할 수 없고, 통합 상한을 써도 hider가 자기 실제 속도(6.0)
+ * 보다 살짝 더 여유(6.8까지)를 갖는 정도의 미미한 손해만 있다.
+ */
+export const MOVE_SPEED_CAP = 6.8;
+/** 네트워크 지터/전송 버스트에 대한 여유 배수. */
+export const SPEED_GRACE = 1.5;
+/** elapsed 계산의 하한(ms) — 버스트 전송으로 elapsed≈0이 되어 정상 이동까지 clamp되는 것 방지. */
+export const MIN_DT_MS = 50;
+
 function rng(seed: number) {
   return () => {
     seed = (seed + 0x6d2b79f5) | 0;

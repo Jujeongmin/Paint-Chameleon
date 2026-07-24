@@ -10,11 +10,12 @@
  */
 
 import { MAP_BOXES as CLIENT_BOXES, ARENA as CLIENT_ARENA } from "../src/game/map";
-import { POSES } from "../src/game/constants";
+import { POSES, MOVE } from "../src/game/constants";
 import {
   MAP_BOXES as SERVER_BOXES,
   ARENA as SERVER_ARENA,
   POSE_COUNT as SERVER_POSE_COUNT,
+  MOVE_SPEED_CAP,
   isOpen,
 } from "../server/src/rules";
 
@@ -81,6 +82,21 @@ if (SERVER_POSE_COUNT !== POSES.length) {
   );
 } else {
   pass(`both sides agree on ${POSES.length} poses`);
+}
+
+console.log("\nmovement speed cap");
+
+// The server clamps reported movement to this speed regardless of role (see
+// the movement-validation design doc) — it must never be slower than the
+// fastest real role, or legitimate seekers get clamped mid-chase.
+const fastestClientSpeed = Math.max(MOVE.hiderSpeed, MOVE.seekerSpeed);
+if (MOVE_SPEED_CAP < fastestClientSpeed) {
+  fail(
+    `server caps movement at ${MOVE_SPEED_CAP}u/s, but the client's fastest role moves at ` +
+      `${fastestClientSpeed}u/s — legitimate players would get clamped`
+  );
+} else {
+  pass(`server cap ${MOVE_SPEED_CAP}u/s covers the client's fastest role (${fastestClientSpeed}u/s)`);
 }
 
 console.log("\nspawn safety");
