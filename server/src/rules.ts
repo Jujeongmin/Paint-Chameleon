@@ -51,6 +51,8 @@ export const MOVE_SPEED_CAP = 6.8;
 export const SPEED_GRACE = 1.5;
 /** elapsed 계산의 하한(ms) — 버스트 전송으로 elapsed≈0이 되어 정상 이동까지 clamp되는 것 방지. */
 export const MIN_DT_MS = 50;
+/** elapsed calculation ceiling (ms) — idle time must not bank an unbounded movement allowance; a legitimate player who was standing still always starts their next move from rest (one frame's worth of distance), so a 1s ceiling gives ample headroom for lag/idle without reopening the teleport hole. */
+export const MAX_DT_MS = 1000;
 
 function rng(seed: number) {
   return () => {

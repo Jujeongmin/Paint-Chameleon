@@ -138,9 +138,10 @@ describe("transform", () => {
     server.connect({ account: "user-heidi" });
     await server.joinGame("heidi");
 
-    await server.updateTransform({ pos: [NaN, Infinity, 3], rotY: NaN, pose: 1, moving: false } as any);
+    await server.updateTransform({ pos: [NaN, Infinity, 0.1], rotY: NaN, pose: 1, moving: false } as any);
     const state = await server.getMyState();
     expect(state.pos[0]).toBe(0);
+    expect(state.pos[2]).toBe(0.1);
     expect(state.rotY).toBe(0);
   });
 
@@ -185,6 +186,11 @@ describe("transform", () => {
     const state = await server.getMyState();
 
     const movedDist = Math.hypot(state.pos[0] - baseline[0], state.pos[2] - baseline[2]);
+    // Holds as long as the real wall-clock gap between the baseline call and this
+    // call stays under ~490ms (5 units / ~10.2 units-per-second cap, i.e.
+    // MOVE_SPEED_CAP * SPEED_GRACE) — comfortably far from normal in-process test
+    // execution time, so this isn't flaky in practice. Worth knowing before
+    // "tuning" the timing constants without realizing this margin exists.
     expect(movedDist < 5).toBe(true);
     expect(state.pos[0] === target[0]).toBe(false);
   });

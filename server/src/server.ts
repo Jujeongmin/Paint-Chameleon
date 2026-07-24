@@ -21,6 +21,7 @@ import {
   MOVE_SPEED_CAP,
   SPEED_GRACE,
   MIN_DT_MS,
+  MAX_DT_MS,
   randomSpawn,
 } from "./rules";
 
@@ -172,6 +173,7 @@ export class Server {
       rotY: Math.PI,
       pose: 0,
       moving: false,
+      lastMoveAt: Date.now(),
     });
 
     return { roomId };
@@ -276,7 +278,7 @@ export class Server {
 
     const prev = await $room.getMyState();
     const prevPos = Array.isArray(prev.pos) ? prev.pos : [0, 0, 0];
-    const elapsed = Math.max(now - num(prev.lastMoveAt, now), MIN_DT_MS);
+    const elapsed = Math.min(Math.max(now - num(prev.lastMoveAt, now), MIN_DT_MS), MAX_DT_MS);
     const maxDist = MOVE_SPEED_CAP * SPEED_GRACE * (elapsed / 1000);
 
     const [x, z] = clampMoveXZ(num(prevPos[0]), num(prevPos[2]), num(pos[0]), num(pos[2]), maxDist);
