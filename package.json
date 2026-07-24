@@ -11,7 +11,8 @@
     "check:sync": "tsx scripts/check-sync.ts",
     "check:movement": "tsx scripts/check-movement.ts",
     "check:hub": "tsx scripts/check-hub.ts",
-    "check": "tsc --noEmit && npm run check:sync && npm run check:movement && npm run check:hub && npm run server:test",
+    "check:audio": "tsx scripts/check-audio.ts",
+    "check": "tsc --noEmit && npm run check:sync && npm run check:movement && npm run check:hub && npm run check:audio && npm run server:test",
     "deploy": "npx -y @agent8/deploy"
   },
   "dependencies": {
