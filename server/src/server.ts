@@ -136,20 +136,28 @@ async function endRound(roomId: string, users: Array<Record<string, any>>, state
     results.push({ account: state.seeker, nick: "", caught: false, gained, seeker: true });
   }
 
-  // The seeker's own result entry carries an empty nick (the results overlay
-  // looks it up from the room's player list instead), but the leaderboard
-  // collection outlives the room, so every entry needs a real one.
-  for (const r of results) {
-    const nick = r.seeker ? users.find((u) => u.account === r.account)?.nick ?? "" : r.nick;
-    await upsertLeaderboard(r.account, nick, r.gained);
-  }
-
   await $global.updateRoomState(roomId, {
     phase: "results" as Phase,
     phaseEndsAt: now + PHASE_SECONDS.results * 1000,
     scores,
     lastResults: results,
   });
+
+  // The seeker's own result entry carries an empty nick (the results overlay
+  // looks it up from the room's player list instead), but the leaderboard
+  // collection outlives the room, so every entry needs a real one. This runs
+  // after the phase transition above and never lets a failure escape: the
+  // round must always be able to end even if a leaderboard write doesn't —
+  // it's a non-critical, best-effort panel that re-polls on its own.
+  for (const r of results) {
+    const nick = r.seeker ? users.find((u) => u.account === r.account)?.nick ?? "" : r.nick;
+    try {
+      await upsertLeaderboard(r.account, nick, r.gained);
+    } catch {
+      // Best-effort — a transient collection-write failure must not corrupt
+      // or re-trigger this round's results, which have already been published.
+    }
+  }
 }
 
 /** Add this round's points onto the account's permanent leaderboard total. */
