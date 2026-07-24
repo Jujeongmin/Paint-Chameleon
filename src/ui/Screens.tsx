@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { PlayerState, RoomInfo } from "../net/types";
+import { unlockAudio } from "../audio/sound";
 
 export function ConnectingScreen({ message }: { message?: string }) {
   return (
@@ -25,6 +26,7 @@ export function NickScreen({
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    unlockAudio();
     onJoin(nick.trim() || "카멜레온");
   };
 

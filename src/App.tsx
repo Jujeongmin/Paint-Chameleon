@@ -24,6 +24,7 @@ import { clearAllSurfaces, surfaceFor, type PaintDab } from "./game/paint";
 import { useControlsLearned } from "./game/input";
 import type { Tool } from "./game/useBrush";
 import type { WireDab } from "./net/types";
+import { playCatch, playResults, playRoundStart } from "./audio/sound";
 import "./ui/ui.css";
 
 export default function App() {
@@ -55,6 +56,10 @@ export default function App() {
   const pending = useRef<WireDab[]>([]);
   /** Written by HubPlayer every frame; the hub HUD polls it. */
   const portalRef = useRef<PortalProgress>({ portal: null, progress: 0 });
+  /** Sound: last phase seen, so a transition sound fires exactly once. */
+  const prevPhase = useRef<string | null>(null);
+  /** Sound: last known caught flag per account, so a catch sound fires once per catch. */
+  const prevCaught = useRef<Map<string, boolean>>(new Map());
 
   const inHub = room?.kind === "hub";
   const phase = room?.phase ?? "lobby";
@@ -77,6 +82,36 @@ export default function App() {
     clearAllSurfaces();
     pending.current = [];
   }, [phase, inHub]);
+
+  // Round-transition stingers. Skipped in the hub, which has no rounds.
+  useEffect(() => {
+    if (inHub) return;
+    const prev = prevPhase.current;
+    prevPhase.current = phase;
+    if (prev === phase) return;
+
+    if (phase === "hiding") {
+      playRoundStart();
+    } else if (phase === "results") {
+      const won = isSeeker
+        ? (room?.lastResults ?? []).some((r: any) => r.account === account && r.gained > 0)
+        : !me?.caught;
+      playResults(won);
+    }
+  }, [phase, inHub, isSeeker, room?.lastResults, account, me?.caught]);
+
+  // Catch stinger: your own catch, and everyone else's.
+  useEffect(() => {
+    if (inHub) return;
+    if (me?.caught && !prevCaught.current.get(account)) playCatch();
+    if (typeof me?.caught === "boolean") prevCaught.current.set(account, me.caught);
+
+    for (const p of players) {
+      if (p.account === account) continue;
+      if (p.caught && !prevCaught.current.get(p.account)) playCatch();
+      prevCaught.current.set(p.account, !!p.caught);
+    }
+  }, [me?.caught, players, inHub, account]);
 
   useEffect(() => {
     if (phase === "lobby") setReady(false);
