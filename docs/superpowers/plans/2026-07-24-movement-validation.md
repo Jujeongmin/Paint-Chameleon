@@ -156,12 +156,26 @@ git commit -m "Add server-side movement speed cap constants, guarded by check:sy
 non-finite positions`) 뒤에 추가:
 
 ```ts
+  // The local test harness's $room-scoped calls (getMyState/updateMyState)
+  // and joinGame's $global.updateRoomUserState spawn write are backed by
+  // different room keys in this offline runtime (confirmed by reading
+  // node_modules/@agent8/gameserver-node/dist/runtime/RoomContext.js and
+  // GlobalContext.js — RoomContext.setRoomId exists but is never called from
+  // anywhere in the package, so $room always operates on the fixed
+  // 'test-room' key regardless of the real matchmaking roomId). That means
+  // server.getMyState() right after joinGame() alone always reads back {}
+  // in this harness — real production state sharing is unaffected, this is
+  // purely a local/offline-runtime quirk. Every test below therefore makes
+  // one throwaway updateTransform call first to establish a $room-visible
+  // baseline position before asserting anything.
   test("updateTransform keeps a small, plausible move exactly", async (server) => {
     server.connect({ account: "user-ivan" });
     await server.joinGame("ivan");
-    const spawn = (await server.getMyState()).pos;
 
-    const target = [spawn[0] + 0.1, 0, spawn[2] + 0.1];
+    await server.updateTransform({ pos: [0, 0, 0], rotY: 0, pose: 0, moving: false });
+    const baseline = (await server.getMyState()).pos;
+
+    const target = [baseline[0] + 0.1, 0, baseline[2] + 0.1];
     await server.updateTransform({ pos: target, rotY: 0, pose: 0, moving: true });
     const state = await server.getMyState();
 
@@ -172,15 +186,17 @@ non-finite positions`) 뒤에 추가:
   test("updateTransform clamps a physically impossible jump", async (server) => {
     server.connect({ account: "user-judy" });
     await server.joinGame("judy");
-    const spawn = (await server.getMyState()).pos;
+
+    await server.updateTransform({ pos: [0, 0, 0], rotY: 0, pose: 0, moving: false });
+    const baseline = (await server.getMyState()).pos;
 
     // 500 units in one update is impossible at any plausible speed this soon
-    // after spawn — no legitimate client could produce this.
-    const target = [spawn[0] + 500, 0, spawn[2]];
+    // after the baseline call — no legitimate client could produce this.
+    const target = [baseline[0] + 500, 0, baseline[2]];
     await server.updateTransform({ pos: target, rotY: 0, pose: 0, moving: true });
     const state = await server.getMyState();
 
-    const movedDist = Math.hypot(state.pos[0] - spawn[0], state.pos[2] - spawn[2]);
+    const movedDist = Math.hypot(state.pos[0] - baseline[0], state.pos[2] - baseline[2]);
     expect(movedDist < 5).toBe(true);
     expect(state.pos[0] === target[0]).toBe(false);
   });
@@ -339,31 +355,20 @@ git commit -m "Clamp reported XZ movement to a physically plausible distance"
 - Consumes: Task 2에서 도입된 room-user state 필드 `lastMoveAt: number`.
 - Produces: 없음(이 태스크가 계획의 마지막 태스크).
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+**이 태스크는 전용 자동 테스트가 없다.** Task 2를 구현하면서 이 로컬 테스트
+하네스의 근본적인 한계가 드러났다: `server.getMyState()`가 읽는 `$room`-scoped
+상태와 `joinGame`/`startRound`가 `$global.updateRoomUserState(roomId, ...)`로
+쓰는 상태가 **서로 다른 room 키를 쓴다**(`node_modules/@agent8/gameserver-node/dist/
+runtime/RoomContext.js`의 `setRoomId`가 패키지 전체에서 한 번도 호출되지 않아,
+`$room`은 항상 고정된 `'test-room'` 키만 본다 — 실제 배포 환경은 영향 없음, 이
+로컬/오프라인 런타임만의 특성). 그 결과 `joinGame` 직후 `getMyState()`는 항상
+`{}`를 반환하고, `updateTransform` 내부의 `$room.getMyState()` 읽기도 스폰 시점에
+쓴 `lastMoveAt`을 볼 수 없다 — 즉 "스폰이 `lastMoveAt`을 리셋했는지"는 이 하네스
+안에서 어떤 방법으로도 관찰할 수 없다(리셋을 안 해도, 해도 첫 `updateTransform`
+호출의 `prev`는 항상 `{}`로 읽힌다). 그래서 이 태스크는 Task 2의 코드 리뷰만으로
+검증하고, 자동 테스트는 만들지 않는다.
 
-`server/test/server.test.ts`의 `describe("transform", ...)` 블록 안, Task 2에서 추가한
-두 테스트 뒤에 추가:
-
-```ts
-  test("joinGame sets lastMoveAt so movement math has a real baseline", async (server) => {
-    server.connect({ account: "user-mallory" });
-    const before = Date.now();
-    await server.joinGame("mallory");
-    const after = Date.now();
-
-    const state = await server.getMyState();
-    expect(typeof state.lastMoveAt === "number").toBe(true);
-    expect(state.lastMoveAt >= before && state.lastMoveAt <= after).toBe(true);
-  });
-```
-
-- [ ] **Step 2: 테스트가 실패하는지 확인**
-
-Run: `npm run server:test`
-Expected: FAIL — `joinGame`이 아직 `lastMoveAt`을 쓰지 않으므로
-`typeof state.lastMoveAt === "number"`가 `false`(값이 `undefined`).
-
-- [ ] **Step 3: `joinGame`에 `lastMoveAt` 추가**
+- [ ] **Step 1: `joinGame`에 `lastMoveAt` 추가**
 
 `server/src/server.ts`의 `joinGame` 안, `updateRoomUserState` 호출(현재 201~212번째
 줄 근처):
@@ -401,18 +406,11 @@ Expected: FAIL — `joinGame`이 아직 `lastMoveAt`을 쓰지 않으므로
     });
 ```
 
-- [ ] **Step 4: 테스트 통과 확인**
+- [ ] **Step 2: `startRound`의 스폰에도 동일하게 적용**
 
-Run: `npm run server:test`
-Expected: `joinGame sets lastMoveAt so movement math has a real baseline` PASS.
-
-- [ ] **Step 5: `startRound`의 스폰에도 동일하게 적용**
-
-이 스텝엔 전용 자동 테스트가 없다 — 기존 테스트 스위트가 `$roomTick`/`startRound`를
-직접 틱하지 않는 관례를 따른다(설계 문서의 "테스트" 절 참고). `updateTransform`이
-이미 clamp를 하므로 여기서 안 고쳐도 즉시 깨지는 건 아니지만, 고쳐두지 않으면 라운드가
-바뀔 때마다 "리스폰 직후 첫 리포트의 허용 반경이 부풀려지는" 허점이 열려 있는 채로
-남는다.
+`updateTransform`이 이미 clamp를 하므로 여기를 안 고쳐도 즉시 깨지는 건 아니지만,
+고쳐두지 않으면 라운드가 바뀔 때마다 "리스폰 직후 첫 리포트의 허용 반경이
+부풀려지는" 허점이 열려 있는 채로 남는다.
 
 `server/src/server.ts`의 `startRound` 함수(현재 59~89번째 줄) 안, 유저 루프:
 
@@ -451,20 +449,21 @@ Expected: `joinGame sets lastMoveAt so movement math has a real baseline` PASS.
   }
 ```
 
-- [ ] **Step 6: 전체 검증 스위트 확인**
+- [ ] **Step 3: 전체 검증 스위트 확인**
 
 Run: `npm run check`
 Expected: 타입체크·check:sync·check:movement·check:hub·server:test 전부 통과, exit code 0.
-`server:test` 요약에 이번 계획으로 추가된 테스트 3개(Task 2에서 2개 + Task 3에서 1개)를
-포함해 총 16개(기존 13개 + 신규 3개) 테스트가 전부 PASS로 나와야 한다.
+`server:test` 요약에 Task 2에서 추가된 테스트 2개를 포함해 총 15개(기존 13개 + 신규
+2개) 테스트가 전부 PASS로 나와야 한다 — 이 태스크(Task 3) 자체는 신규 테스트를
+추가하지 않는다(위 설명 참고).
 
-- [ ] **Step 7: 프로덕션 빌드 확인**
+- [ ] **Step 4: 프로덕션 빌드 확인**
 
 Run: `npx tsc --noEmit && npx vite build`
 Expected: 둘 다 성공(이번 계획은 클라이언트 코드를 안 건드리므로 빌드 산출물 크기는
 변하지 않아야 한다).
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add server/src/server.ts server/test/server.test.ts

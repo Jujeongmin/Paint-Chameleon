@@ -95,10 +95,20 @@ export const MIN_DT_MS = 50;
 2. **순간이동 clamp** — 첫 스폰 이후 물리적으로 불가능한 거리로 한 번에
    `updateTransform` 호출 시, 저장된 `pos`가 직전 위치에서 `maxDist` 이내로
    제한됨(요청한 좌표 그대로 저장되지 않음).
-3. **스폰이 `lastMoveAt`을 리셋함** — `joinGame` 직후 저장된 `lastMoveAt`이 (오래된
-   값이나 0이 아니라) 실제로 `now`에 가까운 값으로 설정되어 있음 — 이게 성립해야
-   위 "리스폰 처리" 절의 허점(탐지 유예 구간)이 안 생긴다. `startRound`도 동일한
-   패턴으로 구현하되, 기존 테스트 스위트가 `$roomTick`/`startRound`를 직접 틱하지
+
+   두 테스트 모두, 이 로컬 테스트 하네스 특유의 제약 때문에 `joinGame` 직후 곧바로
+   `getMyState()`를 읽으면 안 된다 — `$room`-scoped 상태(`getMyState`/`updateMyState`가
+   씀)와 `joinGame`이 `$global.updateRoomUserState(roomId, ...)`로 쓰는 상태가
+   서로 다른 room 키를 써서(`RoomContext.setRoomId`가 패키지 전체에서 호출되지
+   않음 — 실제 배포 환경은 무관, 로컬 오프라인 런타임 한정) `joinGame` 직후
+   `getMyState()`는 항상 `{}`를 반환한다. 그래서 각 테스트는 `updateTransform`을
+   한 번 호출해 `$room`에서 읽을 수 있는 기준점(baseline)을 먼저 만든 뒤, 그
+   기준점 대비로 다음 이동을 검증한다.
+3. **스폰의 `lastMoveAt` 리셋** — 위와 같은 이유로 "`joinGame`/`startRound`가
+   `lastMoveAt`을 실제로 리셋하는지"는 이 하네스로 관찰 불가능하다(리셋 여부와
+   무관하게 스폰 직후 첫 `updateTransform`의 `prev`는 항상 `{}`로 읽힌다). 이
+   항목은 자동 테스트 없이 코드 리뷰로만 검증한다. 기존 테스트 스위트가
+   `$roomTick`/`startRound`를 직접 틱하지
    않는 관례를 따라 이 항목은 코드 리뷰로 확인(별도 라운드-플로우 테스트는 만들지
    않음).
 
