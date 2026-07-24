@@ -30,3 +30,15 @@ export interface RoomInfo {
 export interface WireDab extends PaintDab {
   j?: boolean;
 }
+
+export interface RankedLeaderboardEntry {
+  account: string;
+  nick: string;
+  total: number;
+  rank: number;
+}
+
+export interface LeaderboardResult {
+  top: RankedLeaderboardEntry[];
+  me: RankedLeaderboardEntry | null;
+}

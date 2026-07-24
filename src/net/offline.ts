@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PHASE_SECONDS, SCORE, TAG, type Phase } from "../game/constants";
 import { MAP_BOXES, randomSpawn, resolveMove } from "../game/map";
 import { surfaceFor } from "../game/paint";
-import type { PlayerState, RoomInfo, WireDab } from "./types";
+import type { LeaderboardResult, PlayerState, RoomInfo, WireDab } from "./types";
 
 const ME = "local-player";
 const BOTS = [
@@ -427,6 +427,18 @@ export function useOfflineGame() {
       bot.caught = true;
       bot.caughtAt = Date.now();
       return { ok: true };
+    },
+    fetchLeaderboard: async (): Promise<LeaderboardResult> => {
+      const nickOf = (acc: string) =>
+        acc === ME ? nick : BOTS.find((b) => b.account === acc)?.nick ?? "익명";
+      const ranked = Object.entries(scores)
+        .map(([account, total]) => ({ account, nick: nickOf(account), total }))
+        .sort((a, b) => b.total - a.total)
+        .map((e, i) => ({ ...e, rank: i + 1 }));
+
+      const top = ranked.slice(0, 10);
+      if (top.some((e) => e.account === ME)) return { top, me: null };
+      return { top, me: ranked.find((e) => e.account === ME) ?? null };
     },
   };
 }
