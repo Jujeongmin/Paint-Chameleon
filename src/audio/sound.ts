@@ -21,6 +21,7 @@ export function unlockAudio(): void {
   if (!Ctor) return;
   try {
     ctx = new Ctor();
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
   } catch {
     ctx = null;
   }

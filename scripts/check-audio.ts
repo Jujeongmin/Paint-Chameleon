@@ -22,7 +22,7 @@ class MemoryStorage {
 }
 (globalThis as any).localStorage = new MemoryStorage();
 
-import { isMuted, shouldPlayBrushTick, toggleMuted } from "../src/audio/sound";
+import { isMuted, shouldPlayBrushTick, toggleMuted, playCatch, playBrushTick, playRoundStart, playResults } from "../src/audio/sound";
 
 let failures = 0;
 
@@ -49,6 +49,21 @@ console.log("\nbrush tick throttle");
   check("a tick 50ms after the last one is suppressed", !shouldPlayBrushTick(1050, 1000, 100));
   check("a tick exactly at the throttle boundary plays", shouldPlayBrushTick(1100, 1000, 100));
   check("a tick well after the throttle window plays", shouldPlayBrushTick(5000, 1000, 100));
+}
+
+console.log("\nplay* functions never throw without an AudioContext");
+{
+  let threw = false;
+  try {
+    playCatch();
+    playBrushTick();
+    playRoundStart();
+    playResults(true);
+    playResults(false);
+  } catch {
+    threw = true;
+  }
+  check("play* calls with no AudioContext complete without throwing", !threw);
 }
 
 if (failures === 0) {
