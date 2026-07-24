@@ -195,3 +195,14 @@ describe("transform", () => {
     expect(state.pos[0] === target[0]).toBe(false);
   });
 });
+
+describe("leaderboard", () => {
+  test("getLeaderboard on an account with no history returns no ranking", async (server) => {
+    server.connect({ account: "user-leaderboard-fresh" });
+    await server.joinGame("fresh");
+
+    const result = await server.getLeaderboard();
+    expect(Array.isArray(result.top)).toBe(true);
+    expect(result.me).toBe(null);
+  });
+});

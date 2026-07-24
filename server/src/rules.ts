@@ -54,6 +54,27 @@ export const MIN_DT_MS = 50;
 /** elapsed calculation ceiling (ms) — idle time must not bank an unbounded movement allowance; a legitimate player who was standing still always starts their next move from rest (one frame's worth of distance), so a 1s ceiling gives ample headroom for lag/idle without reopening the teleport hole. */
 export const MAX_DT_MS = 1000;
 
+/** Collection name for the cross-room, persistent leaderboard. */
+export const LEADERBOARD_COLLECTION = "leaderboard";
+
+export interface LeaderboardEntry {
+  account: string;
+  nick: string;
+  total: number;
+}
+export interface RankedLeaderboardEntry extends LeaderboardEntry {
+  rank: number;
+}
+
+/**
+ * Attach 1-based ranks to an already sorted-desc, already-limited list. Pure
+ * and side-effect-free so the numbering can be unit tested without a live
+ * collection — it does NOT sort; callers must pass pre-sorted input.
+ */
+export function attachRanks(sorted: LeaderboardEntry[]): RankedLeaderboardEntry[] {
+  return sorted.map((e, i) => ({ ...e, rank: i + 1 }));
+}
+
 function rng(seed: number) {
   return () => {
     seed = (seed + 0x6d2b79f5) | 0;

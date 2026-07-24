@@ -22,7 +22,10 @@ import {
   SPEED_GRACE,
   MIN_DT_MS,
   MAX_DT_MS,
+  LEADERBOARD_COLLECTION,
+  attachRanks,
   randomSpawn,
+  type RankedLeaderboardEntry,
 } from "./rules";
 
 type Phase = "lobby" | "hiding" | "seeking" | "results";
@@ -133,12 +136,38 @@ async function endRound(roomId: string, users: Array<Record<string, any>>, state
     results.push({ account: state.seeker, nick: "", caught: false, gained, seeker: true });
   }
 
+  // The seeker's own result entry carries an empty nick (the results overlay
+  // looks it up from the room's player list instead), but the leaderboard
+  // collection outlives the room, so every entry needs a real one.
+  for (const r of results) {
+    const nick = r.seeker ? users.find((u) => u.account === r.account)?.nick ?? "" : r.nick;
+    await upsertLeaderboard(r.account, nick, r.gained);
+  }
+
   await $global.updateRoomState(roomId, {
     phase: "results" as Phase,
     phaseEndsAt: now + PHASE_SECONDS.results * 1000,
     scores,
     lastResults: results,
   });
+}
+
+/** Add this round's points onto the account's permanent leaderboard total. */
+async function upsertLeaderboard(account: string, nick: string, gained: number) {
+  const existing = (await $global.getCollectionItems(LEADERBOARD_COLLECTION, {
+    filters: [{ field: "account", operator: "==", value: account }],
+  })) as any[];
+
+  if (existing.length) {
+    const item = existing[0];
+    await $global.updateCollectionItem(LEADERBOARD_COLLECTION, {
+      __id: item.__id,
+      total: num(item.total) + gained,
+      nick: nick || item.nick,
+    });
+  } else {
+    await $global.addCollectionItem(LEADERBOARD_COLLECTION, { account, nick: nick || "익명", total: gained });
+  }
 }
 
 // ------------------------------------------------------------------- server
@@ -259,6 +288,36 @@ export class Server {
   /** Own room-user state. Clients get this via useRoomMyState(); handy for tests. */
   async getMyState(): Promise<Record<string, any>> {
     return await $room.getMyState();
+  }
+
+  /** Top 10 by all-time total, plus the caller's own rank if they're outside it. */
+  async getLeaderboard(): Promise<{ top: RankedLeaderboardEntry[]; me: RankedLeaderboardEntry | null }> {
+    const topRaw = (await $global.getCollectionItems(LEADERBOARD_COLLECTION, {
+      orderBy: [{ field: "total", direction: "desc" }],
+      limit: 10,
+    })) as any[];
+    const top = attachRanks(
+      topRaw.map((item) => ({ account: item.account, nick: item.nick || "익명", total: num(item.total) }))
+    );
+
+    if (top.some((t) => t.account === $sender.account)) {
+      return { top, me: null };
+    }
+
+    const mineRaw = (await $global.getCollectionItems(LEADERBOARD_COLLECTION, {
+      filters: [{ field: "account", operator: "==", value: $sender.account }],
+    })) as any[];
+    if (!mineRaw.length) return { top, me: null };
+
+    const mine = mineRaw[0];
+    const higher = await $global.countCollectionItems(LEADERBOARD_COLLECTION, {
+      filters: [{ field: "total", operator: ">", value: num(mine.total) }],
+    });
+
+    return {
+      top,
+      me: { account: mine.account, nick: mine.nick || "익명", total: num(mine.total), rank: higher + 1 },
+    };
   }
 
   /**
