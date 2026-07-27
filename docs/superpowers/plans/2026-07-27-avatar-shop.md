@@ -154,9 +154,12 @@ console.log("\nthe validator actually rejects bad profiles");
   );
   check("rejects shoulders too low for the camera pivot", validateProfile(bend({ shoulderY: 0.9 })).length > 0);
   check("rejects shoulders too high for the camera pivot", validateProfile(bend({ shoulderY: 1.8 })).length > 0);
+  // shoulderY 1.35 is comfortably inside the camera-pivot range, so this
+  // profile can only be rejected by the torso containment rule — otherwise the
+  // test would pass for the wrong reason and the rule could rot undetected.
   check(
     "rejects a shoulder pivot floating outside the torso",
-    validateProfile(bend({ shoulderY: 1.44, torso: { r: 0.1, l: 0.1, y: 0.6 } })).length > 0
+    validateProfile(bend({ shoulderY: 1.35, torso: { r: 0.1, l: 0.1, y: 0.6 } })).length > 0
   );
 }
 
@@ -1497,17 +1500,21 @@ function ShopStand() {
   const paid = BODIES.filter((b) => b.id !== DEFAULT_BODY_ID);
 
   return (
-    <group>
-      <NameTag text="아바타 상점" y={3.6} height={0.52} color={hex(SHOP.color)} />
+    <>
+      {/* NameTag renders at [0, y, 0] in its PARENT's space, so the sign needs
+          its own positioned group — exactly how PortalArch places its labels. */}
+      <group position={[SHOP.x, 0, SHOP.z]}>
+        <NameTag text="아바타 상점" y={3.6} height={0.52} color={hex(SHOP.color)} />
+      </group>
       {paid.map((b, i) => (
         <Mannequin key={b.id} body={b.id} x={SHOP.x - 1.2 + i * 1.2} z={SHOP.z - 0.2} />
       ))}
-    </group>
+    </>
   );
 }
 ```
 
-`NameTag`의 위치는 그룹 기준이므로 `ShopStand`를 `<group position={[SHOP.x, 0, SHOP.z]}>`로 감싸지 말고 마네킹에 절대 좌표를 넘긴다(위 코드가 그렇게 되어 있다). `NameTag`가 `y`와 `height`만 받는다면 상점 간판은 `<group position={[SHOP.x, 0, SHOP.z]}>`로 감싸고 마네킹만 그 안에서 상대 좌표를 쓰도록 조정한다 — 구현 시 `src/game/NameTag.tsx`의 실제 시그니처를 확인하고 둘 중 맞는 쪽을 택한다.
+`NameTag`의 시그니처는 `{ text, color?, height?, y? }`이고 스프라이트를 `position={[0, y, 0]}`에 놓는다(`src/game/NameTag.tsx:56-62`) — **부모 그룹 기준이다.** 위 코드는 간판을 `SHOP` 좌표의 그룹으로 감싸고, 마네킹은 각자 `<group position={[x, 0.3, z]}>` 안에서 자기 라벨을 갖는다. 두 경우 모두 부모가 이미 자리를 잡고 있으므로 라벨이 월드 원점으로 떨어지지 않는다.
 
 `Hub` 컴포넌트의 `{PORTALS.map(...)}` 뒤에 `<ShopStand />`를 추가한다. `three`를 `import * as THREE from "three"`로 들여온다(`useRef<THREE.Group>` 때문).
 
@@ -1519,11 +1526,28 @@ function ShopStand() {
   onShopProximity: (inside: boolean) => void;
 ```
 
-108행 부근, `portalAt` 호출 옆에 추가한다. **`frozen`일 때 false로 보고하지 않는다** — 패널이 열려서 frozen이 된 순간 즉시 닫히는 자기 무효화 루프가 된다:
+108행 부근, `portalAt` 호출 옆에 추가한다. 두 가지를 지켜야 한다:
+
+1. **`frozen`일 때 false로 보고하지 않는다** — 패널이 열려서 frozen이 된 순간 즉시 닫히는 자기 무효화 루프가 된다. `portalAt`과 달리 `frozen` 분기를 두지 않는 이유다.
+2. **값이 바뀔 때만 호출한다.** 이건 `useFrame` 안이라 매 프레임 `setState`를 때리게 된다. 이 코드베이스는 같은 이유로 이미 프레임 단위 상태 갱신을 피한다 — `HubHud`가 포털 진행도를 prop이 아니라 ref로 받아 60ms마다 폴링하는 것(`src/ui/HubHud.tsx:22-32`)이 그 선례다.
+
+훅 본문 상단, 다른 ref들 옆에 추가:
+
+```ts
+  const reportedShop = useRef(false);
+```
+
+`useFrame` 안:
 
 ```ts
     const standing = frozen ? null : portalAt(px, pz);
-    onShopProximity(atShop(px, pz));
+
+    // Edge-triggered: this runs every frame, and the listener sets React state.
+    const inShop = atShop(px, pz);
+    if (inShop !== reportedShop.current) {
+      reportedShop.current = inShop;
+      onShopProximity(inShop);
+    }
 ```
 
 `atShop`을 `./hubMap` import에 추가한다.
