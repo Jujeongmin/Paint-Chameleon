@@ -7,10 +7,10 @@ import {
 } from "@agent8/gameserver";
 import type { Phase } from "../game/constants";
 import { surfaceFor } from "../game/paint";
-import type { LeaderboardResult, PlayerState, RoomInfo, WireDab } from "./types";
+import type { LeaderboardResult, PlayerState, RoomInfo, WireDab, WalletView, BuyResult } from "./types";
 import { useOfflineGame } from "./offline";
 
-export type { LeaderboardResult, PlayerState, RoomInfo, RankedLeaderboardEntry, WireDab } from "./types";
+export type { LeaderboardResult, PlayerState, RoomInfo, RankedLeaderboardEntry, WireDab, WalletView, BuyResult, BuyFailure } from "./types";
 
 /**
  * True when no verse is configured — i.e. running `npm run dev` locally rather
@@ -167,6 +167,21 @@ function useOnlineGame() {
     [server]
   );
 
+  const fetchWallet = useCallback(
+    async (): Promise<WalletView> => await server.remoteFunction("getWallet", []),
+    [server]
+  );
+
+  const buyAvatar = useCallback(
+    async (id: string): Promise<BuyResult> => await server.remoteFunction("buyAvatar", [id]),
+    [server]
+  );
+
+  const equipAvatar = useCallback(
+    async (id: string): Promise<{ ok: boolean }> => await server.remoteFunction("equipAvatar", [id]),
+    [server]
+  );
+
   return {
     server,
     account,
@@ -186,5 +201,8 @@ function useOnlineGame() {
     paintFill,
     requestTag,
     fetchLeaderboard,
+    fetchWallet,
+    buyAvatar,
+    equipAvatar,
   };
 }

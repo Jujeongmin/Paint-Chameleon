@@ -12,6 +12,8 @@ export interface PlayerState {
   rotY?: number;
   pose?: number;
   moving?: boolean;
+  /** Equipped body profile id; unknown values fall back to the default. */
+  body?: string;
 }
 
 export interface RoomInfo {
@@ -42,3 +44,15 @@ export interface LeaderboardResult {
   top: RankedLeaderboardEntry[];
   me: RankedLeaderboardEntry | null;
 }
+
+export interface WalletView {
+  coins: number;
+  owned: string[];
+  equipped: string;
+}
+
+export type BuyFailure = "unknown" | "owned" | "broke";
+
+export type BuyResult =
+  | { ok: true; wallet: WalletView }
+  | { ok: false; reason: BuyFailure };

@@ -12,7 +12,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PHASE_SECONDS, SCORE, TAG, type Phase } from "../game/constants";
 import { MAP_BOXES, randomSpawn, resolveMove } from "../game/map";
 import { surfaceFor } from "../game/paint";
-import type { LeaderboardResult, PlayerState, RoomInfo, WireDab } from "./types";
+import { BODIES, DEFAULT_BODY_ID } from "../game/bodies";
+import type { BuyResult, LeaderboardResult, PlayerState, RoomInfo, WalletView, WireDab } from "./types";
 
 const ME = "local-player";
 const BOTS = [
@@ -65,6 +66,20 @@ export function useOfflineGame() {
   // Bots and my own transform live in refs, so the player list has to be rebuilt
   // on this counter or the scene renders a stale snapshot.
   const [tick, forceTick] = useState(0);
+
+  /**
+   * Rehearsal-only wallet. 100 coins is chosen, not arbitrary: it buys the two
+   * cheapest avatars exactly and leaves the most expensive out of reach, so
+   * both the successful purchase and the insufficient-funds refusal can be
+   * exercised without a server. Resets on reload — offline mode is a rig, not
+   * a save file. Nothing here exists on the server: granting coins over the
+   * wire would let anyone set their own balance.
+   */
+  const [wallet, setWallet] = useState<WalletView>({
+    coins: 100,
+    owned: [DEFAULT_BODY_ID],
+    equipped: DEFAULT_BODY_ID,
+  });
 
   const myPos = useRef<[number, number, number]>([0, 0, 0]);
   const myRot = useRef(0);
@@ -439,6 +454,28 @@ export function useOfflineGame() {
       const top = ranked.slice(0, 10);
       if (top.some((e) => e.account === ME)) return { top, me: null };
       return { top, me: ranked.find((e) => e.account === ME) ?? null };
+    },
+    fetchWallet: async (): Promise<WalletView> => wallet,
+
+    buyAvatar: async (id: string): Promise<BuyResult> => {
+      const profile = BODIES.find((b) => b.id === id);
+      if (!profile) return { ok: false, reason: "unknown" };
+      if (wallet.owned.includes(id)) return { ok: false, reason: "owned" };
+      if (wallet.coins < profile.price) return { ok: false, reason: "broke" };
+
+      const next: WalletView = {
+        coins: wallet.coins - profile.price,
+        owned: [...wallet.owned, id],
+        equipped: wallet.equipped,
+      };
+      setWallet(next);
+      return { ok: true, wallet: next };
+    },
+
+    equipAvatar: async (id: string): Promise<{ ok: boolean }> => {
+      if (!wallet.owned.includes(id)) return { ok: false };
+      setWallet((w) => ({ ...w, equipped: id }));
+      return { ok: true };
     },
   };
 }
