@@ -211,6 +211,17 @@ export function coinsFor(o: { seeker: boolean; caught: boolean; catches: number 
 export type PurchaseFailure = "unknown" | "owned" | "broke";
 
 /**
+ * `AVATAR_PRICES` is a plain object literal, so `AVATAR_PRICES["toString"]`
+ * (or "constructor", "__proto__", "valueOf", ...) resolves to an inherited
+ * `Object.prototype` function rather than `undefined` — the `=== undefined`
+ * check below would miss it, and the function would then coerce to NaN in the
+ * balance comparison, which is never `<` anything. `hasOwnProperty` closes
+ * that. (`src/game/bodies.ts`'s `profileFor` sidesteps the whole class of bug
+ * by keying a `Map` instead of a plain object — same idea, different tool.)
+ */
+const has = (id: string): boolean => Object.prototype.hasOwnProperty.call(AVATAR_PRICES, id);
+
+/**
  * Pure: returns a NEW wallet and never touches the input, so a rejected
  * purchase can't leave a half-applied balance behind.
  */
@@ -218,10 +229,13 @@ export function applyPurchase(
   w: WalletState,
   id: string
 ): { ok: true; wallet: WalletState } | { ok: false; reason: PurchaseFailure } {
+  if (!has(id)) return { ok: false, reason: "unknown" };
   const price = AVATAR_PRICES[id];
-  if (price === undefined) return { ok: false, reason: "unknown" };
   if (w.owned.includes(id)) return { ok: false, reason: "owned" };
-  if (w.coins < price) return { ok: false, reason: "broke" };
+  // A non-finite balance (e.g. corrupted to NaN) must never read as "enough" —
+  // every comparison against NaN is false, so `w.coins < price` alone would
+  // let it through.
+  if (!Number.isFinite(w.coins) || w.coins < price) return { ok: false, reason: "broke" };
 
   return {
     ok: true,
@@ -233,7 +247,7 @@ export function applyEquip(
   w: WalletState,
   id: string
 ): { ok: true; wallet: WalletState } | { ok: false } {
-  if (AVATAR_PRICES[id] === undefined) return { ok: false };
+  if (!has(id)) return { ok: false };
   if (!w.owned.includes(id)) return { ok: false };
   return { ok: true, wallet: { coins: w.coins, owned: [...w.owned], equipped: id } };
 }

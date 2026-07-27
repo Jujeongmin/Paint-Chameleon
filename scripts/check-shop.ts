@@ -131,7 +131,41 @@ console.log("\napplyEquip");
   const equipped = applyEquip(w, "bean");
   check("equips an owned avatar", equipped.ok === true);
   check("...and changes nothing else", equipped.ok === true && equipped.wallet.coins === w.coins);
+  check(
+    // owned is the ownership record — a security-relevant field — so an
+    // equip, which must never grant or revoke ownership, has to be checked
+    // against it directly rather than just coins.
+    "...and leaves owned untouched",
+    equipped.ok === true &&
+      equipped.wallet.owned.length === w.owned.length &&
+      w.owned.every((id) => equipped.wallet.owned.includes(id))
+  );
   check("leaves the input wallet untouched", w.equipped === "classic");
+}
+
+console.log("\nunknown ids can't be smuggled in via inherited Object.prototype keys");
+{
+  // AVATAR_PRICES is a plain object literal, so AVATAR_PRICES["toString"] (or
+  // "constructor"/"__proto__") resolves to an inherited Function rather than
+  // undefined unless the lookup uses hasOwnProperty. A function coerces to
+  // NaN in the price/balance arithmetic, and every comparison against NaN is
+  // false — so a naive `=== undefined` check would let these through as free
+  // or nearly-free purchases.
+  const rich = (): WalletState => ({ coins: 1000, owned: ["classic"], equipped: "classic" });
+
+  for (const id of ["toString", "__proto__", "constructor"]) {
+    const bought = applyPurchase(rich(), id);
+    check(`applyPurchase rejects "${id}" as unknown`, bought.ok === false && bought.reason === "unknown");
+
+    const equippedAttempt = applyEquip({ coins: 0, owned: ["classic", id], equipped: "classic" }, id);
+    check(`applyEquip refuses "${id}"`, equippedAttempt.ok === false);
+  }
+
+  const nanBalance = applyPurchase({ coins: NaN, owned: ["classic"], equipped: "classic" }, "tank");
+  check(
+    "a non-finite (NaN) balance is refused as 'broke', not treated as sufficient",
+    nanBalance.ok === false && nanBalance.reason === "broke"
+  );
 }
 
 if (failures === 0) {
