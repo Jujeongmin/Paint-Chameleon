@@ -13,7 +13,8 @@
     "check:hub": "tsx scripts/check-hub.ts",
     "check:audio": "tsx scripts/check-audio.ts",
     "check:leaderboard": "tsx scripts/check-leaderboard.ts",
-    "check": "tsc --noEmit && npm run check:sync && npm run check:movement && npm run check:hub && npm run check:audio && npm run check:leaderboard && npm run server:test",
+    "check:bodies": "tsx scripts/check-bodies.ts",
+    "check": "tsc --noEmit && npm run check:sync && npm run check:bodies && npm run check:movement && npm run check:hub && npm run check:audio && npm run check:leaderboard && npm run server:test",
     "deploy": "npx -y @agent8/deploy"
   },
   "dependencies": {

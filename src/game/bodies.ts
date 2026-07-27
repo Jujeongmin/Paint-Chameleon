@@ -1,0 +1,162 @@
+/**
+ * Body profiles.
+ *
+ * An avatar changes proportions only. Total height, foot level and maximum
+ * half-width are identical across every profile, so a purchased body is never
+ * easier to hide — which in a hide-and-seek game is the difference between a
+ * cosmetic shop and a pay-to-win one.
+ *
+ * Height and foot level are DERIVED rather than stored, so a profile cannot
+ * express a violation of them at all. Width and pivot placement can't be
+ * derived away, so validateProfile() checks those and check:bodies runs it
+ * over the whole catalogue.
+ */
+
+import { MOVE } from "./constants";
+
+/** Crown of the head. Taken from the original body: 1.52 + 0.34. */
+export const TOP_Y = 1.86;
+/** Sole of the foot. Taken from the original body: 0.70 - 2 * 0.285. */
+export const FOOT_Y = 0.13;
+/** Shared tolerance — 1.86 - 0.34 is not exactly 1.52 in binary floating point. */
+export const EPS = 1e-6;
+
+/** Camera pivots at CAMERA.shoulderHeight (1.35); shoulders must stay near it. */
+const SHOULDER_RANGE = { min: 1.16, max: 1.4 };
+
+export interface BodyProfile {
+  id: string;
+  /** Shown in the shop. */
+  name: string;
+  /** 0 marks the profile everyone starts with. */
+  price: number;
+  head: { r: number };
+  torso: { r: number; l: number; y: number };
+  arm: { r: number; l: number };
+  leg: { r: number; l: number };
+  shoulderX: number;
+  shoulderY: number;
+  hipX: number;
+}
+
+export interface DerivedBody {
+  headY: number;
+  hipY: number;
+  /** Half the capsule's total length — where the mesh hangs below its pivot. */
+  armHalf: number;
+  legHalf: number;
+}
+
+/** Half the total length of a capsule: the cylinder plus one end cap. */
+function capsuleHalf(radius: number, length: number): number {
+  return length / 2 + radius;
+}
+
+export function derive(p: BodyProfile): DerivedBody {
+  const armHalf = capsuleHalf(p.arm.r, p.arm.l);
+  const legHalf = capsuleHalf(p.leg.r, p.leg.l);
+  return {
+    headY: TOP_Y - p.head.r,
+    hipY: FOOT_Y + legHalf * 2,
+    armHalf,
+    legHalf,
+  };
+}
+
+/** Widest point of the body, measured from the centre line. */
+export function maxHalfWidth(p: BodyProfile): number {
+  return Math.max(p.shoulderX + p.arm.r, p.torso.r, p.hipX + p.leg.r);
+}
+
+/** Empty means the profile is safe to ship. */
+export function validateProfile(p: BodyProfile): string[] {
+  const problems: string[] = [];
+  const d = derive(p);
+
+  const width = maxHalfWidth(p);
+  if (width > MOVE.playerRadius + EPS) {
+    problems.push(
+      `half-width ${width.toFixed(3)} exceeds MOVE.playerRadius ${MOVE.playerRadius} — the body would poke out of its own collision cylinder`
+    );
+  }
+
+  if (p.shoulderY < SHOULDER_RANGE.min - EPS || p.shoulderY > SHOULDER_RANGE.max + EPS) {
+    problems.push(
+      `shoulderY ${p.shoulderY} is outside ${SHOULDER_RANGE.min}..${SHOULDER_RANGE.max} — the camera would stop pivoting at anything recognisable as a shoulder`
+    );
+  }
+
+  // Limbs hang off pivots; a pivot outside the torso leaves them visibly detached.
+  const torsoHalf = capsuleHalf(p.torso.r, p.torso.l);
+  if (p.shoulderY > p.torso.y + torsoHalf + EPS) {
+    problems.push(`shoulder pivot ${p.shoulderY} floats above the torso (top ${p.torso.y + torsoHalf})`);
+  }
+  if (d.hipY < p.torso.y - torsoHalf - EPS) {
+    problems.push(`hip pivot ${d.hipY} hangs below the torso (bottom ${p.torso.y - torsoHalf})`);
+  }
+
+  return problems;
+}
+
+export const DEFAULT_BODY_ID = "classic";
+
+export const BODIES: BodyProfile[] = [
+  {
+    id: "classic",
+    name: "클래식",
+    price: 0,
+    head: { r: 0.34 },
+    torso: { r: 0.26, l: 0.34, y: 0.98 },
+    arm: { r: 0.1, l: 0.34 },
+    leg: { r: 0.125, l: 0.32 },
+    shoulderX: 0.35,
+    shoulderY: 1.28,
+    hipX: 0.16,
+  },
+  {
+    id: "bean",
+    name: "콩이",
+    price: 40,
+    head: { r: 0.4 },
+    torso: { r: 0.32, l: 0.3, y: 0.95 },
+    arm: { r: 0.115, l: 0.24 },
+    leg: { r: 0.145, l: 0.2 },
+    shoulderX: 0.335,
+    shoulderY: 1.18,
+    hipX: 0.15,
+  },
+  {
+    id: "stick",
+    name: "막대",
+    price: 60,
+    head: { r: 0.26 },
+    torso: { r: 0.2, l: 0.36, y: 1.06 },
+    arm: { r: 0.075, l: 0.46 },
+    leg: { r: 0.095, l: 0.5 },
+    shoulderX: 0.375,
+    shoulderY: 1.38,
+    hipX: 0.13,
+  },
+  {
+    id: "tank",
+    name: "떡대",
+    price: 90,
+    head: { r: 0.29 },
+    torso: { r: 0.3, l: 0.4, y: 1.02 },
+    arm: { r: 0.14, l: 0.3 },
+    leg: { r: 0.16, l: 0.26 },
+    shoulderX: 0.31,
+    shoulderY: 1.3,
+    hipX: 0.18,
+  },
+];
+
+const BY_ID = new Map(BODIES.map((b) => [b.id, b]));
+
+/**
+ * Never throws: ids arrive over the wire from other clients, and one bad value
+ * must not take down everyone's renderer.
+ */
+export function profileFor(id: string | undefined): BodyProfile {
+  return (id && BY_ID.get(id)) || BY_ID.get(DEFAULT_BODY_ID)!;
+}
