@@ -1,6 +1,11 @@
+import { useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import * as THREE from "three";
 import { NameTag } from "../game/NameTag";
 import { RemotePlayers } from "../game/RemotePlayers";
-import { HUB, HUB_BOXES, PORTALS, type Portal } from "./hubMap";
+import { Humanoid, IDLE_MOTION } from "../game/Humanoid";
+import { BODIES, DEFAULT_BODY_ID } from "../game/bodies";
+import { HUB, HUB_BOXES, PORTALS, SHOP, type Portal } from "./hubMap";
 import { HubPlayer, type PortalProgress } from "./HubPlayer";
 import type { PlayerState } from "../net/types";
 
@@ -63,6 +68,57 @@ function PortalArch({ portal }: { portal: Portal }) {
   );
 }
 
+/**
+ * One avatar on a turntable. Full size and beside the counter, so the preview
+ * is the same body you'd be walking around in — no separate preview canvas to
+ * keep in sync with the real renderer.
+ */
+function Mannequin({ body, x, z }: { body: string; x: number; z: number }) {
+  const group = useRef<THREE.Group>(null);
+  const motion = useRef({ ...IDLE_MOTION });
+
+  useFrame((_, dt) => {
+    if (group.current) group.current.rotation.y += dt * 0.5;
+  });
+
+  return (
+    <group position={[x, 0.3, z]}>
+      {/* Plinth, so they read as display pieces rather than idle players. */}
+      <mesh position={[0, -0.15, 0]} receiveShadow>
+        <cylinderGeometry args={[0.62, 0.62, 0.3, 20]} />
+        <meshStandardMaterial color={hex(SHOP.color)} roughness={0.7} />
+      </mesh>
+      <group ref={group}>
+        {/* A reserved surface key: real accounts never contain a colon. */}
+        <Humanoid account={`__shop:${body}`} pose={0} body={body} motionRef={motion} />
+      </group>
+      <NameTag text={BODIES.find((b) => b.id === body)?.name ?? body} y={2.3} height={0.4} color="#ffffff" />
+    </group>
+  );
+}
+
+function ShopStand() {
+  const paid = BODIES.filter((b) => b.id !== DEFAULT_BODY_ID);
+
+  return (
+    <>
+      {/* NameTag renders at [0, y, 0] in its PARENT's space, so the sign needs
+          its own positioned group — exactly how PortalArch places its labels. */}
+      <group position={[SHOP.x, 0, SHOP.z]}>
+        <NameTag text="아바타 상점" y={3.6} height={0.52} color={hex(SHOP.color)} />
+      </group>
+      {/* x spacing 1.5 and a +0.3 z offset (forward of the counter, toward the
+          player) rather than the brief's 1.2 / -0.2: at 1.2 adjacent plinths
+          (radius 0.62 each) overlap by 0.04, and at z-0.2 the plinth's back
+          edge lands 0.27 inside the counter's front face. See task-8-report.md
+          for the full arithmetic. */}
+      {paid.map((b, i) => (
+        <Mannequin key={b.id} body={b.id} x={SHOP.x - 1.5 + i * 1.5} z={SHOP.z + 0.3} />
+      ))}
+    </>
+  );
+}
+
 interface Props {
   account: string;
   nick: string;
@@ -72,6 +128,8 @@ interface Props {
   portalRef: React.MutableRefObject<PortalProgress>;
   onEnterPortal: (portal: Portal) => void;
   onTransform: (pos: [number, number, number], rotY: number, moving: boolean) => void;
+  /** Wired up by the shop panel in a later task; unset callers get a no-op. */
+  onShopProximity?: (inside: boolean) => void;
   joining: boolean;
 }
 
@@ -83,6 +141,7 @@ export function Hub({
   portalRef,
   onEnterPortal,
   onTransform,
+  onShopProximity,
   joining,
 }: Props) {
   return (
@@ -111,6 +170,8 @@ export function Hub({
         <PortalArch key={p.id} portal={p} />
       ))}
 
+      <ShopStand />
+
       <HubPlayer
         account={account}
         nick={nick}
@@ -118,6 +179,7 @@ export function Hub({
         portalRef={portalRef}
         onEnterPortal={onEnterPortal}
         onTransform={onTransform}
+        onShopProximity={onShopProximity ?? (() => {})}
         frozen={joining}
       />
       <RemotePlayers players={players} selfAccount={account} boxes={HUB_BOXES} showNames />

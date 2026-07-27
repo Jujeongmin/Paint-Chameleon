@@ -64,6 +64,23 @@ export const PORTALS: Portal[] = [
   },
 ];
 
+/**
+ * The avatar shop. Sits beside the carpet between the spawn point and the
+ * portals, so it's passed on the way to a match rather than hunted for.
+ */
+export const SHOP = {
+  x: -9.5,
+  z: 4,
+  /** Wider than a portal's: this opens a panel, not an irreversible match join. */
+  triggerRadius: 3.0,
+  color: 0x2f6fae,
+};
+
+/** True while the player is close enough for the shop panel to be open. */
+export function atShop(x: number, z: number): boolean {
+  return Math.hypot(x - SHOP.x, z - SHOP.z) <= SHOP.triggerRadius;
+}
+
 /** Pillars and lintel for one archway. The opening itself stays walkable. */
 function archBoxes(p: Portal): MapBox[] {
   const halfWidth = 2.1;
@@ -107,6 +124,11 @@ function buildHub(): MapBox[] {
   for (const [x, z, size, h, c] of props) {
     boxes.push({ p: [x, h / 2, z], s: [size, h, size], c });
   }
+
+  // Shop counter — a desk with a back wall, left open at the front so the
+  // trigger circle stays walkable.
+  boxes.push({ p: [SHOP.x, 0.5, SHOP.z - 0.9], s: [3.4, 1.0, 0.7], c: SHOP.color });
+  boxes.push({ p: [SHOP.x, 1.6, SHOP.z - 1.8], s: [3.4, 3.2, 0.4], c: SHOP.color });
 
   return boxes;
 }
