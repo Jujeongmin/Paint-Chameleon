@@ -10,6 +10,7 @@
  */
 
 import { MAP_BOXES as CLIENT_BOXES, ARENA as CLIENT_ARENA } from "../src/game/map";
+import { BODIES } from "../src/game/bodies";
 import { POSES, MOVE } from "../src/game/constants";
 import {
   MAP_BOXES as SERVER_BOXES,
@@ -17,6 +18,7 @@ import {
   POSE_COUNT as SERVER_POSE_COUNT,
   MOVE_SPEED_CAP,
   isOpen,
+  AVATAR_PRICES,
 } from "../server/src/rules";
 
 let failures = 0;
@@ -97,6 +99,30 @@ if (MOVE_SPEED_CAP < fastestClientSpeed) {
   );
 } else {
   pass(`server cap ${MOVE_SPEED_CAP}u/s covers the client's fastest role (${fastestClientSpeed}u/s)`);
+}
+
+console.log("\navatar catalogue");
+
+// The client shows a price; the server charges one. If they drift, a player is
+// billed an amount the shop never displayed — and the server always wins.
+{
+  const clientIds = BODIES.map((b) => b.id).sort();
+  const serverIds = Object.keys(AVATAR_PRICES).sort();
+
+  if (clientIds.join(",") !== serverIds.join(",")) {
+    fail(`avatar ids differ: client [${clientIds.join(", ")}], server [${serverIds.join(", ")}]`);
+  } else {
+    pass(`both sides offer the same ${clientIds.length} avatars`);
+
+    const mismatched = BODIES.filter((b) => AVATAR_PRICES[b.id] !== b.price);
+    if (mismatched.length) {
+      for (const b of mismatched) {
+        fail(`${b.id} costs ${b.price} on the client but ${AVATAR_PRICES[b.id]} on the server`);
+      }
+    } else {
+      pass("every price matches");
+    }
+  }
 }
 
 console.log("\nspawn safety");

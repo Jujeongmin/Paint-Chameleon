@@ -147,3 +147,93 @@ export function randomSpawn(): [number, number, number] {
   }
   return [0, 0, 0];
 }
+
+// ------------------------------------------------------------ avatar shop
+
+/** Collection name for per-account coins and owned avatars. */
+export const WALLET_COLLECTION = "wallets";
+
+/** Coins earned per round. Deliberately a small, readable scale next to SCORE. */
+export const COINS = { perRound: 5, survived: 5, perCatch: 2 };
+
+/**
+ * Prices, keyed by body profile id.
+ * KEEP IN SYNC WITH src/game/bodies.ts BODIES — check:sync enforces it. The
+ * server is the only authority on what a purchase costs; the client catalogue
+ * is display only.
+ */
+export const AVATAR_PRICES: Record<string, number> = {
+  classic: 0,
+  bean: 40,
+  stick: 60,
+  tank: 90,
+};
+
+/** The profile every account owns for free. */
+export const DEFAULT_AVATAR = "classic";
+
+export interface WalletState {
+  coins: number;
+  owned: string[];
+  equipped: string;
+}
+
+/** What an account looks like before it has ever finished a round. */
+export const DEFAULT_WALLET: WalletState = {
+  coins: 0,
+  owned: [DEFAULT_AVATAR],
+  equipped: DEFAULT_AVATAR,
+};
+
+/**
+ * Owned avatars travel as one comma-separated string rather than an array:
+ * whether this SDK's collections filter and sort array fields correctly isn't
+ * documented anywhere we can check, and avatar ids are lowercase ASCII, so a
+ * comma can never appear inside one.
+ */
+export function parseOwned(s: string): string[] {
+  return String(s || "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
+}
+
+export function serializeOwned(ids: string[]): string {
+  return ids.join(",");
+}
+
+export function coinsFor(o: { seeker: boolean; caught: boolean; catches: number }): number {
+  const catches = Math.max(0, Math.floor(o.catches || 0));
+  if (o.seeker) return COINS.perRound + catches * COINS.perCatch;
+  return COINS.perRound + (o.caught ? 0 : COINS.survived);
+}
+
+export type PurchaseFailure = "unknown" | "owned" | "broke";
+
+/**
+ * Pure: returns a NEW wallet and never touches the input, so a rejected
+ * purchase can't leave a half-applied balance behind.
+ */
+export function applyPurchase(
+  w: WalletState,
+  id: string
+): { ok: true; wallet: WalletState } | { ok: false; reason: PurchaseFailure } {
+  const price = AVATAR_PRICES[id];
+  if (price === undefined) return { ok: false, reason: "unknown" };
+  if (w.owned.includes(id)) return { ok: false, reason: "owned" };
+  if (w.coins < price) return { ok: false, reason: "broke" };
+
+  return {
+    ok: true,
+    wallet: { coins: w.coins - price, owned: [...w.owned, id], equipped: w.equipped },
+  };
+}
+
+export function applyEquip(
+  w: WalletState,
+  id: string
+): { ok: true; wallet: WalletState } | { ok: false } {
+  if (AVATAR_PRICES[id] === undefined) return { ok: false };
+  if (!w.owned.includes(id)) return { ok: false };
+  return { ok: true, wallet: { coins: w.coins, owned: [...w.owned], equipped: id } };
+}
