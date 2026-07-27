@@ -45,6 +45,19 @@ export default function App() {
   const [charLocked, setCharLocked] = useState(false);
   const [ready, setReady] = useState(false);
 
+  const [nearShop, setNearShop] = useState(false);
+  /**
+   * Closing while still standing in the trigger would re-open on the next
+   * frame. Stay dismissed until the player actually walks out of range.
+   */
+  const [shopDismissed, setShopDismissed] = useState(false);
+  const shopOpen = nearShop && !shopDismissed && !joining;
+
+  const onShopProximity = useCallback((inside: boolean) => {
+    setNearShop(inside);
+    if (!inside) setShopDismissed(false);
+  }, []);
+
   // paint tools
   const [tool, setTool] = useState<Tool>("brush");
   const [brushSize, setBrushSize] = useState(BRUSH.default);
@@ -150,11 +163,12 @@ export default function App() {
   }, [canPaint, paintMode, canPose, charLocked, poseMenuOpen]);
 
   // Hide the OS cursor while looking around; the centred crosshair is the aim.
-  // Painting and the pose menu need it back — both are pointer-driven UI.
+  // Painting, the pose menu and the shop all need it back — all three are
+  // pointer-driven UI.
   useEffect(() => {
-    document.body.classList.toggle("hide-cursor", !paintMode && !poseMenuOpen);
+    document.body.classList.toggle("hide-cursor", !paintMode && !poseMenuOpen && !shopOpen);
     return () => document.body.classList.remove("hide-cursor");
-  }, [paintMode, poseMenuOpen]);
+  }, [paintMode, poseMenuOpen, shopOpen]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -282,6 +296,8 @@ export default function App() {
             portalRef={portalRef}
             onEnterPortal={() => game.enterGame(nick || me.nick || "익명")}
             onTransform={onHubTransform}
+            onShopProximity={onShopProximity}
+            shopOpen={shopOpen}
             joining={joining}
           />
         ) : (
@@ -324,6 +340,12 @@ export default function App() {
           joining={joining}
           showControls={!controlsLearned}
           fetchLeaderboard={game.fetchLeaderboard}
+          shopOpen={shopOpen}
+          onCloseShop={() => setShopDismissed(true)}
+          fetchWallet={fetchWallet}
+          buyAvatar={game.buyAvatar}
+          equipAvatar={game.equipAvatar}
+          onEquipped={setEquipped}
         />
       ) : (
         <>

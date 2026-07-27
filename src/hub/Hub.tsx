@@ -128,8 +128,9 @@ interface Props {
   portalRef: React.MutableRefObject<PortalProgress>;
   onEnterPortal: (portal: Portal) => void;
   onTransform: (pos: [number, number, number], rotY: number, moving: boolean) => void;
-  /** Wired up by the shop panel in a later task; unset callers get a no-op. */
-  onShopProximity?: (inside: boolean) => void;
+  onShopProximity: (inside: boolean) => void;
+  /** True while the shop panel is open; freezes movement/mouselook alongside `joining`. */
+  shopOpen: boolean;
   joining: boolean;
 }
 
@@ -142,6 +143,7 @@ export function Hub({
   onEnterPortal,
   onTransform,
   onShopProximity,
+  shopOpen,
   joining,
 }: Props) {
   return (
@@ -179,8 +181,8 @@ export function Hub({
         portalRef={portalRef}
         onEnterPortal={onEnterPortal}
         onTransform={onTransform}
-        onShopProximity={onShopProximity ?? (() => {})}
-        frozen={joining}
+        onShopProximity={onShopProximity}
+        frozen={joining || shopOpen}
       />
       <RemotePlayers players={players} selfAccount={account} boxes={HUB_BOXES} showNames />
     </>

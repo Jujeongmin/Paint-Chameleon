@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { PortalProgress } from "../hub/HubPlayer";
-import type { LeaderboardResult, PlayerState } from "../net/types";
+import type { BuyFailure, LeaderboardResult, PlayerState, WalletView } from "../net/types";
 import { Leaderboard } from "./Leaderboard";
+import { Shop } from "./Shop";
 
 interface Props {
   portalRef: React.MutableRefObject<PortalProgress>;
@@ -11,9 +12,28 @@ interface Props {
   /** False once the player has used the controls; hides the basic tutorial. */
   showControls: boolean;
   fetchLeaderboard: () => Promise<LeaderboardResult>;
+  shopOpen: boolean;
+  onCloseShop: () => void;
+  fetchWallet: () => Promise<WalletView>;
+  buyAvatar: (id: string) => Promise<{ ok: true; wallet: WalletView } | { ok: false; reason: BuyFailure }>;
+  equipAvatar: (id: string) => Promise<{ ok: boolean }>;
+  onEquipped: (id: string) => void;
 }
 
-export function HubHud({ portalRef, players, account, joining, showControls, fetchLeaderboard }: Props) {
+export function HubHud({
+  portalRef,
+  players,
+  account,
+  joining,
+  showControls,
+  fetchLeaderboard,
+  shopOpen,
+  onCloseShop,
+  fetchWallet,
+  buyAvatar,
+  equipAvatar,
+  onEquipped,
+}: Props) {
   // The dwell timer lives in a ref so the render loop doesn't re-render React;
   // poll it a few times a second, which is plenty for a progress ring.
   const [state, setState] = useState<PortalProgress>({ portal: null, progress: 0 });
@@ -54,6 +74,16 @@ export function HubHud({ portalRef, players, account, joining, showControls, fet
       </div>
 
       <Leaderboard account={account} fetchLeaderboard={fetchLeaderboard} />
+
+      {shopOpen && (
+        <Shop
+          fetchWallet={fetchWallet}
+          buyAvatar={buyAvatar}
+          equipAvatar={equipAvatar}
+          onEquipped={onEquipped}
+          onClose={onCloseShop}
+        />
+      )}
 
       {/* The cursor is hidden out here too, so the aim point has to be visible. */}
       <div className="crosshair" />
