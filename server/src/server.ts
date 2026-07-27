@@ -26,6 +26,14 @@ import {
   attachRanks,
   randomSpawn,
   type RankedLeaderboardEntry,
+  WALLET_COLLECTION,
+  DEFAULT_WALLET,
+  applyPurchase,
+  applyEquip,
+  parseOwned,
+  serializeOwned,
+  coinsFor,
+  type WalletState,
 } from "./rules";
 
 type Phase = "lobby" | "hiding" | "seeking" | "results";
@@ -178,6 +186,41 @@ async function upsertLeaderboard(account: string, nick: string, gained: number) 
   }
 }
 
+/**
+ * An account with no row yet reads back as the default wallet rather than
+ * nothing, so the shop works before a player has finished their first round.
+ */
+async function readWallet(account: string): Promise<{ wallet: WalletState; __id: string | null }> {
+  const rows = (await $global.getCollectionItems(WALLET_COLLECTION, {
+    filters: [{ field: "account", operator: "==", value: account }],
+  })) as any[];
+
+  if (!rows.length) return { wallet: { ...DEFAULT_WALLET, owned: [...DEFAULT_WALLET.owned] }, __id: null };
+
+  const row = rows[0];
+  const owned = parseOwned(row.owned);
+  return {
+    wallet: {
+      coins: num(row.coins),
+      // A row written before this account owned anything must still include
+      // the free avatar, or the player loses the body they're standing in.
+      owned: owned.length ? owned : [...DEFAULT_WALLET.owned],
+      equipped: row.equipped || DEFAULT_WALLET.equipped,
+    },
+    __id: row.__id,
+  };
+}
+
+async function writeWallet(account: string, __id: string | null, wallet: WalletState) {
+  const fields = {
+    coins: wallet.coins,
+    owned: serializeOwned(wallet.owned),
+    equipped: wallet.equipped,
+  };
+  if (__id) await $global.updateCollectionItem(WALLET_COLLECTION, { __id, ...fields });
+  else await $global.addCollectionItem(WALLET_COLLECTION, { account, ...fields });
+}
+
 // ------------------------------------------------------------------- server
 
 export class Server {
@@ -326,6 +369,50 @@ export class Server {
       top,
       me: { account: mine.account, nick: mine.nick || "익명", total: num(mine.total), rank: higher + 1 },
     };
+  }
+
+  async getWallet(): Promise<WalletState> {
+    const { wallet } = await readWallet($sender.account);
+    return wallet;
+  }
+
+  /**
+   * Server-authoritative: the client's catalogue is display only, and every
+   * price, balance and ownership check happens here.
+   *
+   * The whole read-decide-write runs under a lock. Without it a double-click
+   * sends two requests that both read the same balance and both succeed,
+   * handing out two avatars for the price of one.
+   */
+  async buyAvatar(id: string) {
+    const account = $sender.account;
+    return await $lock("wallet:" + account, async () => {
+      const { wallet, __id } = await readWallet(account);
+      const result = applyPurchase(wallet, String(id ?? ""));
+      if (!result.ok) return result;
+
+      await writeWallet(account, __id, result.wallet);
+      return { ok: true as const, wallet: result.wallet };
+    });
+  }
+
+  async equipAvatar(id: string): Promise<{ ok: boolean }> {
+    const account = $sender.account;
+    const equipped = await $lock("wallet:" + account, async () => {
+      const { wallet, __id } = await readWallet(account);
+      const result = applyEquip(wallet, String(id ?? ""));
+      if (!result.ok) return null;
+
+      await writeWallet(account, __id, result.wallet);
+      return result.wallet.equipped;
+    });
+
+    if (!equipped) return { ok: false };
+
+    // Peers render each other from room state, so the new body has to land
+    // there too — the wallet alone is invisible to everyone else.
+    await $room.updateMyState({ body: equipped });
+    return { ok: true };
   }
 
   /**

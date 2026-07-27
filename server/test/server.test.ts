@@ -206,3 +206,65 @@ describe("leaderboard", () => {
     expect(result.me).toBe(null);
   });
 });
+
+describe("avatar shop", () => {
+  test("a brand new account gets the default wallet", async (server) => {
+    server.connect({ account: "user-shop-fresh" });
+    await server.joinHub("fresh");
+
+    const w = await server.getWallet();
+    expect(w.coins).toBe(0);
+    expect(w.equipped).toBe("classic");
+    expect(w.owned.includes("classic")).toBe(true);
+  });
+
+  test("buying with an empty balance is refused", async (server) => {
+    server.connect({ account: "user-shop-broke" });
+    await server.joinHub("broke");
+
+    const res = await server.buyAvatar("bean");
+    expect(res.ok).toBe(false);
+    expect(res.reason).toBe("broke");
+  });
+
+  test("buying something that is not for sale is refused", async (server) => {
+    server.connect({ account: "user-shop-unknown" });
+    await server.joinHub("unknown");
+
+    const res = await server.buyAvatar("not-a-real-avatar");
+    expect(res.ok).toBe(false);
+    expect(res.reason).toBe("unknown");
+  });
+
+  test("equipping an avatar you do not own is refused", async (server) => {
+    server.connect({ account: "user-shop-cheat" });
+    await server.joinHub("cheat");
+
+    const res = await server.equipAvatar("tank");
+    expect(res.ok).toBe(false);
+
+    // ...and the refusal must not have quietly changed anything.
+    const w = await server.getWallet();
+    expect(w.equipped).toBe("classic");
+  });
+
+  test("equipping the free avatar works", async (server) => {
+    server.connect({ account: "user-shop-default" });
+    await server.joinHub("default");
+
+    const res = await server.equipAvatar("classic");
+    expect(res.ok).toBe(true);
+  });
+
+  test("a refused purchase leaves the balance alone", async (server) => {
+    server.connect({ account: "user-shop-intact" });
+    await server.joinHub("intact");
+
+    await server.buyAvatar("tank");
+    await server.buyAvatar("nope");
+
+    const w = await server.getWallet();
+    expect(w.coins).toBe(0);
+    expect(w.owned.length).toBe(1);
+  });
+});
