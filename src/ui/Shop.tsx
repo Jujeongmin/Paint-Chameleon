@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { BODIES, DEFAULT_BODY_ID } from "../game/bodies";
-import type { BuyFailure, WalletView } from "../net/types";
+import type { BuyFailure, BuyResult, WalletView } from "../net/types";
 
 interface Props {
   fetchWallet: () => Promise<WalletView>;
-  buyAvatar: (id: string) => Promise<
-    { ok: true; wallet: WalletView } | { ok: false; reason: BuyFailure }
-  >;
+  buyAvatar: (id: string) => Promise<BuyResult>;
   equipAvatar: (id: string) => Promise<{ ok: boolean }>;
   /** Called whenever the equipped body changes, so the world can re-render it. */
   onEquipped: (id: string) => void;

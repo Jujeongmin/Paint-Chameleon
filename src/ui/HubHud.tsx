@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { PortalProgress } from "../hub/HubPlayer";
-import type { BuyFailure, LeaderboardResult, PlayerState, WalletView } from "../net/types";
+import type { BuyResult, LeaderboardResult, PlayerState, WalletView } from "../net/types";
 import { Leaderboard } from "./Leaderboard";
 import { Shop } from "./Shop";
 
@@ -15,7 +15,7 @@ interface Props {
   shopOpen: boolean;
   onCloseShop: () => void;
   fetchWallet: () => Promise<WalletView>;
-  buyAvatar: (id: string) => Promise<{ ok: true; wallet: WalletView } | { ok: false; reason: BuyFailure }>;
+  buyAvatar: (id: string) => Promise<BuyResult>;
   equipAvatar: (id: string) => Promise<{ ok: boolean }>;
   onEquipped: (id: string) => void;
 }

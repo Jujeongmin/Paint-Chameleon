@@ -878,6 +878,11 @@ body.hide-cursor canvas {
   place-items: center;
   background: rgba(8, 10, 14, 0.55);
   backdrop-filter: blur(3px);
+  /* Explicit rather than relying on `.overlay > *` — this panel is only a
+     direct child of .overlay by coincidence of the current markup. One extra
+     wrapper div around <Shop> in HubHud.tsx would silently break that
+     selector and make the entire shop unclickable. */
+  pointer-events: auto;
 }
 
 .shop {
