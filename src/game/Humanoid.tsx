@@ -96,12 +96,14 @@ export function Humanoid({ account, pose, motionRef, dimmed, showOutline, fadeRe
     [surface]
   );
 
-  useEffect(() => {
-    return () => {
-      Object.values(geoms).forEach((g) => g.dispose());
-      material.dispose();
-    };
-  }, [geoms, material]);
+  // Split so equipping a new body (which only changes geoms) can't dispose the
+  // still-live material — a shared effect keyed on [geoms, material] disposes
+  // material every time geoms' cleanup runs, even though material itself is
+  // unchanged (it's memoised on [surface]). three.js recovers from a disposed
+  // GPU resource still in use by recompiling, but that recompile hitches every
+  // peer's renderer on every equip.
+  useEffect(() => () => Object.values(geoms).forEach((g) => g.dispose()), [geoms]);
+  useEffect(() => () => material.dispose(), [material]);
 
   const spec = POSES[THREE.MathUtils.clamp(pose | 0, 0, POSES.length - 1)];
 
