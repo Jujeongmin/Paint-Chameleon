@@ -68,6 +68,17 @@ export default function App() {
 
   const color = hsvToRgb(hue, sat, value);
 
+  // Room state already carries the authoritative body (joinHub/joinGame seed
+  // it from the wallet, equipAvatar updates it), so prefer `me.body` over the
+  // locally-fetched `equipped` whenever it's present. Without this, a
+  // getWallet() that's issued before `connected` and then rejects (the
+  // effect's deps run it on mount, which for the online hook can race the
+  // connection) leaves `equipped` stuck at the default for the whole session
+  // while every peer already sees the real body. Offline players have no
+  // `body` field on their PlayerState at all, so `?? equipped` is load-bearing
+  // there, not just a defensive fallback.
+  const bodyId = me?.body ?? equipped;
+
   // The equipped body is needed to render the local player before any shop
   // interaction happens, so read it once on connect.
   useEffect(() => {
@@ -291,7 +302,7 @@ export default function App() {
           <Hub
             account={account}
             nick={me.nick || nick || "익명"}
-            body={equipped}
+            body={bodyId}
             players={players}
             portalRef={portalRef}
             onEnterPortal={() => game.enterGame(nick || me.nick || "익명")}
@@ -308,7 +319,7 @@ export default function App() {
               me={me}
               phase={phase}
               pose={pose}
-              body={equipped}
+              body={bodyId}
               onJumpFromPose={onJumpFromPose}
               frozen={frozen}
               paintMode={paintMode}
