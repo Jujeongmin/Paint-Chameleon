@@ -78,6 +78,7 @@ function RemotePlayer({
         pose={player.pose ?? 0}
         motionRef={motion}
         dimmed={!!player.caught}
+        body={player.body}
       />
       {showName && <NameTag text={player.nick || "익명"} />}
     </group>

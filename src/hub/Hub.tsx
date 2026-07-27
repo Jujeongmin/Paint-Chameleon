@@ -66,6 +66,8 @@ function PortalArch({ portal }: { portal: Portal }) {
 interface Props {
   account: string;
   nick: string;
+  /** Equipped body profile id; see `bodies.ts`. */
+  body?: string;
   players: PlayerState[];
   portalRef: React.MutableRefObject<PortalProgress>;
   onEnterPortal: (portal: Portal) => void;
@@ -76,6 +78,7 @@ interface Props {
 export function Hub({
   account,
   nick,
+  body,
   players,
   portalRef,
   onEnterPortal,
@@ -111,6 +114,7 @@ export function Hub({
       <HubPlayer
         account={account}
         nick={nick}
+        body={body}
         portalRef={portalRef}
         onEnterPortal={onEnterPortal}
         onTransform={onTransform}

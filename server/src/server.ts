@@ -263,8 +263,11 @@ export class Server {
       await $global.updateRoomState(roomId, { kind: "hub" as RoomKind, phase: null });
     }
 
+    const { wallet } = await readWallet($sender.account);
+
     await $global.updateRoomUserState(roomId, $sender.account, {
       nick: sanitizeNick(nick),
+      body: wallet.equipped,
       pos: [(Math.random() - 0.5) * 6, 0, 8 + Math.random() * 3],
       rotY: Math.PI,
       pose: 0,
@@ -310,8 +313,11 @@ export class Server {
       });
     }
 
+    const { wallet } = await readWallet($sender.account);
+
     await $global.updateRoomUserState(roomId, $sender.account, {
       nick: sanitizeNick(nick),
+      body: wallet.equipped,
       ready: false,
       role: "hider",
       caught: false,

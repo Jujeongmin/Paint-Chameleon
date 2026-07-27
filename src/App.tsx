@@ -4,6 +4,7 @@ import { useGame } from "./net/useGame";
 import { Arena, Lighting } from "./game/Arena";
 import { LocalPlayer } from "./game/LocalPlayer";
 import { RemotePlayers } from "./game/RemotePlayers";
+import { DEFAULT_BODY_ID } from "./game/bodies";
 import { Hub } from "./hub/Hub";
 import type { PortalProgress } from "./hub/HubPlayer";
 import { Hud } from "./ui/Hud";
@@ -30,13 +31,14 @@ import "./ui/ui.css";
 
 export default function App() {
   const game = useGame();
-  const { server, account, connected, joined, joining, error, room, me, players, secondsLeft } = game;
+  const { server, account, connected, joined, joining, error, room, me, players, secondsLeft, fetchWallet } = game;
 
   // Held here rather than in each HUD so walking between the hub and a match
   // doesn't bring the tutorial back.
   const controlsLearned = useControlsLearned();
 
   const [nick, setNick] = useState("");
+  const [equipped, setEquipped] = useState<string>(DEFAULT_BODY_ID);
   const [pose, setPose] = useState(STAND_POSE);
   const [poseMenuOpen, setPoseMenuOpen] = useState(false);
   const [paintMode, setPaintMode] = useState(false);
@@ -52,6 +54,22 @@ export default function App() {
   const [value, setValue] = useState(0.95);
 
   const color = hsvToRgb(hue, sat, value);
+
+  // The equipped body is needed to render the local player before any shop
+  // interaction happens, so read it once on connect.
+  useEffect(() => {
+    let cancelled = false;
+    fetchWallet()
+      .then((w) => {
+        if (!cancelled) setEquipped(w.equipped);
+      })
+      .catch(() => {
+        // Cosmetic: the default body is a fine thing to stand in.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchWallet]);
 
   /** Dabs waiting to be flushed to the room. */
   const pending = useRef<WireDab[]>([]);
@@ -259,6 +277,7 @@ export default function App() {
           <Hub
             account={account}
             nick={me.nick || nick || "익명"}
+            body={equipped}
             players={players}
             portalRef={portalRef}
             onEnterPortal={() => game.enterGame(nick || me.nick || "익명")}
@@ -273,6 +292,7 @@ export default function App() {
               me={me}
               phase={phase}
               pose={pose}
+              body={equipped}
               onJumpFromPose={onJumpFromPose}
               frozen={frozen}
               paintMode={paintMode}

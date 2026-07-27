@@ -16,6 +16,8 @@ interface Props {
   me: PlayerState;
   phase: Phase;
   pose: number;
+  /** Equipped body profile id; see `bodies.ts`. */
+  body?: string;
   /** Fires when a jump launches while holding a non-standing pose. */
   onJumpFromPose: () => void;
   /** Movement + look disabled (painting, caught, results, or seeker still blind). */
@@ -42,6 +44,7 @@ export function LocalPlayer({
   me,
   phase,
   pose,
+  body,
   onJumpFromPose,
   frozen,
   paintMode,
@@ -292,6 +295,7 @@ export function LocalPlayer({
         <Humanoid
           account={me.account}
           pose={pose}
+          body={body}
           motionRef={bodyMotion}
           showOutline={!paintMode}
           dimmed={me.caught}

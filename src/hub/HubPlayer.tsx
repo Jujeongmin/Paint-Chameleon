@@ -21,6 +21,8 @@ export interface PortalProgress {
 interface Props {
   account: string;
   nick: string;
+  /** Equipped body profile id; see `bodies.ts`. */
+  body?: string;
   /** Written every frame; the HUD polls it rather than re-rendering at 60fps. */
   portalRef: React.MutableRefObject<PortalProgress>;
   onEnterPortal: (portal: Portal) => void;
@@ -32,6 +34,7 @@ interface Props {
 export function HubPlayer({
   account,
   nick,
+  body,
   portalRef,
   onEnterPortal,
   onTransform,
@@ -139,7 +142,7 @@ export function HubPlayer({
 
   return (
     <group ref={group}>
-      <Humanoid account={account} pose={0} motionRef={bodyMotion} showOutline fadeRef={bodyFade} />
+      <Humanoid account={account} pose={0} body={body} motionRef={bodyMotion} showOutline fadeRef={bodyFade} />
       <NameTag text={nick} color="#6fbf5c" />
     </group>
   );
