@@ -2,13 +2,31 @@
  * Body profiles.
  *
  * An avatar changes proportions only. Total height, foot level and maximum
- * half-width are identical across every profile, so a purchased body is never
- * easier to hide — which in a hide-and-seek game is the difference between a
- * cosmetic shop and a pay-to-win one.
+ * half-width ALONG THE BODY'S LOCAL X AXIS are identical across every
+ * profile, and the collision radius, camera and tag distance are all global
+ * constants that never read the equipped profile — so no avatar can
+ * physically reach a hiding spot another can't, and painting (the dominant
+ * camouflage mechanic) is unaffected by which body you bought.
+ *
+ * That is NOT the same claim as "every body is equally easy to hide in".
+ * Frontal silhouette area and depth (the Z half-extent) are not equalised by
+ * anything here, and because the body rotates with the player, depth becomes
+ * the effective width at a 90° yaw. Measured across the current catalogue:
+ *
+ *   profile   price   frontal area   vs classic   depth (half-extent)
+ *   stick     60      0.90           -26%         0.26
+ *   classic   0       1.21           —            0.34
+ *   tank      90      1.41           +16%         0.30
+ *   bean      40      1.46           +21%         0.40
+ *
+ * i.e. stick is ~35% narrower side-on than bean. Second-order next to the
+ * uniform 0.45 collision radius, but real — whoever adds a fifth profile
+ * should know this is the band it's joining, and should not assume the
+ * invariants below make silhouette area or depth uniform too.
  *
  * Height and foot level are DERIVED rather than stored, so a profile cannot
- * express a violation of them at all. Width and pivot placement can't be
- * derived away, so validateProfile() checks those and check:bodies runs it
+ * express a violation of them at all. Local-X width and pivot placement can't
+ * be derived away, so validateProfile() checks those and check:bodies runs it
  * over the whole catalogue.
  */
 
