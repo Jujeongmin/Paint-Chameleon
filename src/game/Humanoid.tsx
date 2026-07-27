@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { packUVs, surfaceFor, type BodyPart } from "./paint";
 import { MOVE, POSES } from "./constants";
+import { derive, profileFor } from "./bodies";
 
 /**
  * Chunky white figure. Deliberately simple: broad, flat-ish panels give the
@@ -16,11 +17,6 @@ import { MOVE, POSES } from "./constants";
  * Every part clones its own geometry — packUVs rewrites UVs in place, so two
  * parts sharing a geometry would fight over the same texture cell.
  */
-
-const SHOULDER_Y = 1.28;
-const ARM_HALF = 0.27;
-const HIP_Y = 0.7;
-const LEG_HALF = 0.285;
 
 /** Live locomotion state, read once per frame. */
 export interface BodyMotion {
@@ -52,9 +48,11 @@ interface Props {
   showOutline?: boolean;
   /** 0..1 solidity, driven per-frame by camera proximity. Also a ref. */
   fadeRef?: React.MutableRefObject<number>;
+  /** Body profile id. Unknown or missing values fall back to the default. */
+  body?: string;
 }
 
-export function Humanoid({ account, pose, motionRef, dimmed, showOutline, fadeRef }: Props) {
+export function Humanoid({ account, pose, motionRef, dimmed, showOutline, fadeRef, body }: Props) {
   const root = useRef<THREE.Group>(null);
   const torso = useRef<THREE.Mesh>(null);
   const head = useRef<THREE.Mesh>(null);
@@ -70,6 +68,8 @@ export function Humanoid({ account, pose, motionRef, dimmed, showOutline, fadeRe
   const wasAirborne = useRef(false);
 
   const surface = surfaceFor(account);
+  const profile = profileFor(body);
+  const { headY, hipY, armHalf, legHalf } = useMemo(() => derive(profile), [profile]);
 
   const geoms = useMemo(() => {
     const make = (geometry: THREE.BufferGeometry, part: BodyPart) => {
@@ -77,14 +77,14 @@ export function Humanoid({ account, pose, motionRef, dimmed, showOutline, fadeRe
       return geometry;
     };
     return {
-      head: make(new THREE.SphereGeometry(0.34, 24, 18), "head"),
-      torso: make(new THREE.CapsuleGeometry(0.26, 0.34, 6, 18), "torso"),
-      armL: make(new THREE.CapsuleGeometry(0.1, 0.34, 4, 12), "armL"),
-      armR: make(new THREE.CapsuleGeometry(0.1, 0.34, 4, 12), "armR"),
-      legL: make(new THREE.CapsuleGeometry(0.125, 0.32, 4, 12), "legL"),
-      legR: make(new THREE.CapsuleGeometry(0.125, 0.32, 4, 12), "legR"),
+      head: make(new THREE.SphereGeometry(profile.head.r, 24, 18), "head"),
+      torso: make(new THREE.CapsuleGeometry(profile.torso.r, profile.torso.l, 6, 18), "torso"),
+      armL: make(new THREE.CapsuleGeometry(profile.arm.r, profile.arm.l, 4, 12), "armL"),
+      armR: make(new THREE.CapsuleGeometry(profile.arm.r, profile.arm.l, 4, 12), "armR"),
+      legL: make(new THREE.CapsuleGeometry(profile.leg.r, profile.leg.l, 4, 12), "legL"),
+      legR: make(new THREE.CapsuleGeometry(profile.leg.r, profile.leg.l, 4, 12), "legR"),
     };
-  }, []);
+  }, [profile]);
 
   const material = useMemo(
     () =>
@@ -160,7 +160,7 @@ export function Humanoid({ account, pose, motionRef, dimmed, showOutline, fadeRe
     if (head.current) {
       // Counter-bob keeps the head steadier than the body, like a real gait.
       const nod = walking ? Math.sin(gait.current * 2) * 0.03 * gaitAmount.current : 0;
-      head.current.position.y += (1.52 + nod - head.current.position.y) * k;
+      head.current.position.y += (headY + nod - head.current.position.y) * k;
     }
     if (torso.current) {
       const twist = walking ? Math.sin(gait.current) * 0.08 * gaitAmount.current : 0;
@@ -185,33 +185,39 @@ export function Humanoid({ account, pose, motionRef, dimmed, showOutline, fadeRe
     const legPitchR = THREE.MathUtils.lerp(spec.legPitch + swing * 0.85, airLeg, air);
     if (hipL.current) {
       hipL.current.rotation.x += (legPitchL - hipL.current.rotation.x) * k;
-      hipL.current.position.x += (-0.16 * spec.legSpread - hipL.current.position.x) * k;
-      hipL.current.position.y += (HIP_Y + liftL - hipL.current.position.y) * k;
+      hipL.current.position.x += (-profile.hipX * spec.legSpread - hipL.current.position.x) * k;
+      hipL.current.position.y += (hipY + liftL - hipL.current.position.y) * k;
     }
     if (hipR.current) {
       hipR.current.rotation.x += (legPitchR - hipR.current.rotation.x) * k;
-      hipR.current.position.x += (0.16 * spec.legSpread - hipR.current.position.x) * k;
-      hipR.current.position.y += (HIP_Y + liftR - hipR.current.position.y) * k;
+      hipR.current.position.x += (profile.hipX * spec.legSpread - hipR.current.position.x) * k;
+      hipR.current.position.y += (hipY + liftR - hipR.current.position.y) * k;
     }
   });
 
   return (
     <group ref={root} name="humanoid">
-      <mesh ref={head} geometry={geoms.head} material={material} position={[0, 1.52, 0]} castShadow />
-      <mesh ref={torso} geometry={geoms.torso} material={material} position={[0, 0.98, 0]} castShadow />
+      <mesh ref={head} geometry={geoms.head} material={material} position={[0, headY, 0]} castShadow />
+      <mesh
+        ref={torso}
+        geometry={geoms.torso}
+        material={material}
+        position={[0, profile.torso.y, 0]}
+        castShadow
+      />
 
-      <group ref={shoulderL} position={[-0.35, SHOULDER_Y, 0]}>
-        <mesh geometry={geoms.armL} material={material} position={[0, -ARM_HALF, 0]} castShadow />
+      <group ref={shoulderL} position={[-profile.shoulderX, profile.shoulderY, 0]}>
+        <mesh geometry={geoms.armL} material={material} position={[0, -armHalf, 0]} castShadow />
       </group>
-      <group ref={shoulderR} position={[0.35, SHOULDER_Y, 0]}>
-        <mesh geometry={geoms.armR} material={material} position={[0, -ARM_HALF, 0]} castShadow />
+      <group ref={shoulderR} position={[profile.shoulderX, profile.shoulderY, 0]}>
+        <mesh geometry={geoms.armR} material={material} position={[0, -armHalf, 0]} castShadow />
       </group>
 
-      <group ref={hipL} position={[-0.16, HIP_Y, 0]}>
-        <mesh geometry={geoms.legL} material={material} position={[0, -LEG_HALF, 0]} castShadow />
+      <group ref={hipL} position={[-profile.hipX, hipY, 0]}>
+        <mesh geometry={geoms.legL} material={material} position={[0, -legHalf, 0]} castShadow />
       </group>
-      <group ref={hipR} position={[0.16, HIP_Y, 0]}>
-        <mesh geometry={geoms.legR} material={material} position={[0, -LEG_HALF, 0]} castShadow />
+      <group ref={hipR} position={[profile.hipX, hipY, 0]}>
+        <mesh geometry={geoms.legR} material={material} position={[0, -legHalf, 0]} castShadow />
       </group>
 
       {showOutline && (
