@@ -165,6 +165,13 @@ async function endRound(roomId: string, users: Array<Record<string, any>>, state
       // Best-effort — a transient collection-write failure must not corrupt
       // or re-trigger this round's results, which have already been published.
     }
+    try {
+      await grantCoins(r.account, coinsFor({ seeker: !!r.seeker, caught: !!r.caught, catches }));
+    } catch {
+      // Same contract as the leaderboard write above. A round's coins are
+      // dropped rather than retried: retrying would double-pay whoever the
+      // partial failure already credited.
+    }
   }
 }
 
@@ -219,6 +226,15 @@ async function writeWallet(account: string, __id: string | null, wallet: WalletS
   };
   if (__id) await $global.updateCollectionItem(WALLET_COLLECTION, { __id, ...fields });
   else await $global.addCollectionItem(WALLET_COLLECTION, { account, ...fields });
+}
+
+/** Add a round's earnings to an account's balance. */
+async function grantCoins(account: string, amount: number) {
+  if (amount <= 0) return;
+  await $lock("wallet:" + account, async () => {
+    const { wallet, __id } = await readWallet(account);
+    await writeWallet(account, __id, { ...wallet, coins: wallet.coins + amount });
+  });
 }
 
 // ------------------------------------------------------------------- server
