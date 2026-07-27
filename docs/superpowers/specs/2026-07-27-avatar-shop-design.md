@@ -171,12 +171,9 @@ async equipAvatar(id: string): Promise<{ ok: boolean }>
 async getWallet(): Promise<{ coins: number; owned: string[]; equipped: string }>
 ```
 
-`buyAvatar`는 `$lock("wallet:" + $sender.account, ...)` 안에서:
-
-1. `AVATAR_PRICES`에 없는 id → 거부 (`unknown`)
-2. 이미 `owned`에 있음 → 거부 (`owned`)
-3. `coins < price` → 거부 (`broke`)
-4. `coins -= price`, `owned += id` 를 한 번의 `updateCollectionItem`으로 기록
+`buyAvatar`는 `$lock("wallet:" + $sender.account, ...)` 안에서 콜렉션을 읽고,
+판단은 전적으로 순수 함수 `applyPurchase()`에 맡긴 뒤(거부 사유 `unknown` /
+`owned` / `broke`), 성공했을 때만 한 번의 `updateCollectionItem`으로 기록한다.
 
 락 없이는 더블클릭으로 두 요청이 같은 잔액을 읽어 두 번 살 수 있다.
 
@@ -265,12 +262,65 @@ async getWallet(): Promise<{ coins: number; owned: string[]; equipped: string }>
   - 불변식을 일부러 깬 프로필이 `validateProfile()`에서 거부되는지(양성 검사)
 - `scripts/check-sync.ts` 확장 — 클라 카탈로그 id 집합·가격 == 서버
   `AVATAR_PRICES`
-- `server/test/server.test.ts`
-  - 라운드 종료 후 hider/seeker 코인이 `COINS` 규칙대로 적립
-  - `buyAvatar` 거부 3종: 미존재 id / 이미 소유 / 잔액 부족
-  - 성공 구매가 정확히 가격만큼 차감하고 `owned`에 한 번만 추가
-  - 미소유 아바타 `equipAvatar` 거부
-  - 지갑 항목이 없는 신규 계정의 `getWallet`이 기본값을 반환
+
+### 서버 테스트 하네스의 제약 — 순수 함수로 설계해야 하는 이유
+
+`@agent8/gameserver-node test` 하네스는 **라운드를 끝까지 진행시킬 수단이 없다.**
+리더보드가 정확히 이 벽에 부딪혀 서버 테스트가
+`server/test/server.test.ts:199-208` 한 건(빈 상태)으로 끝났고, 나머지는 순수
+함수 `attachRanks`를 `scripts/check-leaderboard.ts`가 검증하는 형태가 됐다.
+
+여기에 더해 **구매는 코인 없이 테스트할 수 없다**. 코인을 지급하는 원격
+메서드를 만들지 않기로 했으므로(위 참조), 살아 있는 서버에서 성공 구매를
+재현할 방법 자체가 없다. 진단용 지급 메서드를 넣는 것은 잔액 조작 구멍이므로
+리더보드 때와 같은 이유로 거부한다.
+
+따라서 **결정 로직 전부를 `server/src/rules.ts`의 순수 함수로 뽑는다.**
+`server.ts`의 원격 메서드는 콜렉션 읽기 → 순수 함수 → 콜렉션 쓰기의 얇은
+껍데기가 된다.
+
+```ts
+export interface WalletState { coins: number; owned: string[]; equipped: string }
+export const DEFAULT_WALLET: WalletState;
+
+export function parseOwned(s: string): string[];
+export function serializeOwned(ids: string[]): string;
+
+/** 한 라운드에서 한 계정이 버는 코인. */
+export function coinsFor(o: { seeker: boolean; caught: boolean; catches: number }): number;
+
+export type PurchaseFailure = "unknown" | "owned" | "broke";
+export function applyPurchase(
+  w: WalletState, id: string
+): { ok: true; wallet: WalletState } | { ok: false; reason: PurchaseFailure };
+
+export function applyEquip(
+  w: WalletState, id: string
+): { ok: true; wallet: WalletState } | { ok: false };
+```
+
+`scripts/check-shop.ts` (신규, `npm run check`에 편입)가 검증한다:
+
+- `coinsFor` — 생존 hider 10, 잡힌 hider 5, 캐치 3회 seeker 11, 캐치 0회 seeker 5
+- `applyPurchase` 거부 3종: 미존재 id / 이미 소유 / 잔액 부족
+- 성공 구매가 정확히 가격만큼 차감하고 `owned`에 **한 번만** 추가
+- `applyPurchase`가 입력 지갑을 변형하지 않음(불변) — 실패 시 잔액이 새는 것을
+  막는 실질적 검사
+- `applyEquip`이 미소유 id를 거부하고, 소유 id는 `equipped`만 바꿈
+- `parseOwned`/`serializeOwned` 왕복, 빈 문자열이 `[]`이 되는지
+
+`server/test/server.test.ts`에는 라이브 경로 중 **실제로 도달 가능한 것만**
+추가한다:
+
+- 지갑 항목이 없는 신규 계정의 `getWallet()`이 `DEFAULT_WALLET`을 반환
+- 잔액 0인 신규 계정의 `buyAvatar("bean")`이 `broke`로 거부
+- `buyAvatar("nope")`가 `unknown`으로 거부
+- 미소유 `equipAvatar("tank")` 거부
+- `equipAvatar("classic")`은 기본 소유물이므로 성공
+
+라운드 종료 시 적립은 `coinsFor`의 순수 검증 + `endRound`가 그것을 호출한다는
+코드 리뷰로 커버한다. 리더보드가 같은 자리에 남긴 미검증 항목과 동일한 성격이며
+README 알려진 한계에 함께 적는다.
 
 ## 영향받지 않는 것
 
