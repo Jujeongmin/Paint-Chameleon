@@ -9,7 +9,7 @@
  * Run: npm run check:hub
  */
 
-import { HUB, HUB_BOXES, PORTALS, portalAt } from "../src/hub/hubMap";
+import { HUB, HUB_BOXES, PORTALS, SHOP, atShop, portalAt } from "../src/hub/hubMap";
 import { createMotionState, stepMotion } from "../src/game/movement";
 import { groundHeightAt, playerBlockedAt } from "../src/game/map";
 import { MOVE } from "../src/game/constants";
@@ -96,6 +96,16 @@ check("hub has at least one usable portal", PORTALS.some((p) => p.available));
   check("portal triggers don't overlap", overlapping === 0, `${overlapping} overlapping pairs`);
 }
 
+{
+  // A shop trigger overlapping a portal's would make walking toward one open
+  // the other — same ambiguity the portal-portal check above guards against.
+  let overlapping = 0;
+  for (const p of PORTALS) {
+    if (Math.hypot(SHOP.x - p.x, SHOP.z - p.z) < SHOP.triggerRadius + p.triggerRadius) overlapping++;
+  }
+  check("shop trigger doesn't overlap any portal trigger", overlapping === 0, `${overlapping} overlapping pairs`);
+}
+
 console.log("\nportal detection");
 
 for (const p of PORTALS) {
@@ -108,6 +118,14 @@ for (const p of PORTALS) {
 }
 
 check("open floor is not a portal", portalAt(HUB.spawn[0], HUB.spawn[2]) === null);
+
+console.log("\nshop detection");
+
+check("standing at the shop centre is detected", atShop(SHOP.x, SHOP.z));
+check(
+  "well outside the shop trigger is not",
+  !atShop(SHOP.x + SHOP.triggerRadius + 0.5, SHOP.z)
+);
 
 console.log("\nreachability (walking the real physics from spawn)");
 
@@ -123,6 +141,21 @@ for (const p of PORTALS) {
     `${p.id}: reachable on foot (got within ${closest.toFixed(2)}u)`,
     closest <= p.triggerRadius,
     `never got closer than ${closest.toFixed(2)}u, trigger radius is ${p.triggerRadius}`
+  );
+}
+
+check(
+  "shop: the trigger centre is standable",
+  !occupied(SHOP.x, SHOP.z),
+  "the shop counter is sitting on top of its own trigger"
+);
+
+{
+  const closest = walkTo([SHOP.x, SHOP.z]);
+  check(
+    `shop: reachable on foot (got within ${closest.toFixed(2)}u)`,
+    closest <= SHOP.triggerRadius,
+    `never got closer than ${closest.toFixed(2)}u, trigger radius is ${SHOP.triggerRadius}`
   );
 }
 

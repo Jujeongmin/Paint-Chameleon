@@ -21,8 +21,13 @@ export const FOOT_Y = 0.13;
 /** Shared tolerance — 1.86 - 0.34 is not exactly 1.52 in binary floating point. */
 export const EPS = 1e-6;
 
-/** Camera pivots at CAMERA.shoulderHeight (1.35); shoulders must stay near it. */
-const SHOULDER_RANGE = { min: 1.16, max: 1.4 };
+/**
+ * Camera pivots at CAMERA.shoulderHeight (1.35); shoulders must stay near it.
+ * Exported so check:bodies can assert CAMERA.shoulderHeight actually falls
+ * inside this range — otherwise the claim in this comment could silently
+ * drift out of sync with the camera constant.
+ */
+export const SHOULDER_RANGE = { min: 1.16, max: 1.4 };
 
 export interface BodyProfile {
   id: string;

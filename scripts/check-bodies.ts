@@ -8,14 +8,16 @@
  * Run: npm run check:bodies
  */
 
-import { MOVE } from "../src/game/constants";
+import { CAMERA, MOVE } from "../src/game/constants";
 import {
   BODIES,
   DEFAULT_BODY_ID,
   EPS,
   FOOT_Y,
+  SHOULDER_RANGE,
   TOP_Y,
   derive,
+  maxHalfWidth,
   profileFor,
   validateProfile,
   type BodyProfile,
@@ -126,6 +128,26 @@ console.log("\nthe validator actually rejects bad profiles");
       problems.join("; ")
     );
   }
+
+  // maxHalfWidth is Math.max of three terms (shoulderX + arm.r, torso.r,
+  // hipX + leg.r); no existing test isolates the third. hipX 0.4 (base leg.r
+  // is 0.125) gives 0.4 + 0.125 = 0.525 > MOVE.playerRadius (0.45), while the
+  // shoulder term (0.35 + 0.1 = 0.45) and torso term (0.26) both stay within
+  // bounds — so only the hipX term can be responsible for the rejection.
+  {
+    const bent = bend({ hipX: 0.4 });
+    check("hipX pushes maxHalfWidth past the collision radius", maxHalfWidth(bent) > MOVE.playerRadius);
+    check("rejects a hip pushed wider than the collision radius", validateProfile(bent).length > 0);
+  }
+}
+
+console.log("\ncamera/shoulder consistency");
+{
+  check(
+    "SHOULDER_RANGE brackets CAMERA.shoulderHeight",
+    SHOULDER_RANGE.min <= CAMERA.shoulderHeight && CAMERA.shoulderHeight <= SHOULDER_RANGE.max,
+    `shoulderHeight ${CAMERA.shoulderHeight}, range ${SHOULDER_RANGE.min}..${SHOULDER_RANGE.max}`
+  );
 }
 
 if (failures === 0) {
