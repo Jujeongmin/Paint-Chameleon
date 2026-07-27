@@ -34,6 +34,7 @@ import {
   serializeOwned,
   coinsFor,
   type WalletState,
+  type PurchaseFailure,
 } from "./rules";
 
 type Phase = "lobby" | "hiding" | "seeking" | "results";
@@ -153,10 +154,13 @@ async function endRound(roomId: string, users: Array<Record<string, any>>, state
 
   // The seeker's own result entry carries an empty nick (the results overlay
   // looks it up from the room's player list instead), but the leaderboard
-  // collection outlives the room, so every entry needs a real one. This runs
-  // after the phase transition above and never lets a failure escape: the
-  // round must always be able to end even if a leaderboard write doesn't —
-  // it's a non-critical, best-effort panel that re-polls on its own.
+  // collection outlives the room, so every entry needs a real one. This loop
+  // now does two persistent, best-effort writes per player — the leaderboard
+  // total and this round's coin grant — and both run after the phase
+  // transition above and never let a failure escape: the round must always be
+  // able to end even if a write doesn't land. The leaderboard is a
+  // non-critical panel that re-polls on its own; a dropped coin grant is lost
+  // rather than retried (see grantCoins below for why retrying is worse).
   for (const r of results) {
     const nick = r.seeker ? users.find((u) => u.account === r.account)?.nick ?? "" : r.nick;
     try {
@@ -406,7 +410,9 @@ export class Server {
    * sends two requests that both read the same balance and both succeed,
    * handing out two avatars for the price of one.
    */
-  async buyAvatar(id: string) {
+  async buyAvatar(
+    id: string
+  ): Promise<{ ok: true; wallet: WalletState } | { ok: false; reason: PurchaseFailure }> {
     const account = $sender.account;
     return await $lock("wallet:" + account, async () => {
       const { wallet, __id } = await readWallet(account);
@@ -426,15 +432,25 @@ export class Server {
       if (!result.ok) return null;
 
       await writeWallet(account, __id, result.wallet);
+
+      // Peers render each other from room state, so the new body has to land
+      // there too — the wallet alone is invisible to everyone else. This runs
+      // inside the same lock, right after the wallet write commits, so two
+      // concurrent equips can't land their room-state writes out of order and
+      // leave the displayed body a step behind the wallet. It's wrapped in its
+      // own try/catch: the wallet write is the source of truth, and a
+      // room-write failure must not turn a committed equip into a reported
+      // failure — that would show an error while the player's real body is
+      // already correct, and only reload would fix the mismatch.
+      try {
+        await $room.updateMyState({ body: result.wallet.equipped });
+      } catch {
+        // Best-effort — see above.
+      }
       return result.wallet.equipped;
     });
 
-    if (!equipped) return { ok: false };
-
-    // Peers render each other from room state, so the new body has to land
-    // there too — the wallet alone is invisible to everyone else.
-    await $room.updateMyState({ body: equipped });
-    return { ok: true };
+    return { ok: !!equipped };
   }
 
   /**
