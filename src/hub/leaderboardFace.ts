@@ -10,16 +10,25 @@
 
 import type { LeaderboardResult, RankedLeaderboardEntry } from "../net/types";
 
-/** Texture resolution. The face is read from a few metres away, so it has to be sharp. */
+/**
+ * Texture resolution. Must keep the aspect of the face it's mapped to
+ * (LEADERBOARD.width - 0.5 by height - 0.6 = 5.1 x 3.8), or the type stretches.
+ */
 export const TEX_W = 1024;
-export const TEX_H = 592;
+export const TEX_H = 763;
 
-const PAD = 28;
-const TITLE_H = 62;
-const BOTTOM_PAD = 20;
-const DIVIDER_H = 14;
-/** Top ten, plus your own row when you're outside it. */
-const MAX_ROWS = 10;
+const PAD = 34;
+const TITLE_H = 92;
+const BOTTOM_PAD = 24;
+const DIVIDER_H = 16;
+/**
+ * Five, not ten. The board is read over the follow camera's shoulder from
+ * ~6.5u away, and the row count is what sets the type size — ten rows put
+ * Korean glyphs at 6px on an 800x450 viewport, which is unreadable. Five rows
+ * roughly doubles the type for the same board.
+ */
+const MAX_ROWS = 5;
+const ROW_FONT = 52;
 
 const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 const COLOR = {
@@ -51,17 +60,17 @@ function drawRow(
   ctx.textBaseline = "middle";
 
   // The podium is the reward, so it gets the warm colour.
-  ctx.font = `700 30px ${FONT}`;
+  ctx.font = `700 ${ROW_FONT}px ${FONT}`;
   ctx.fillStyle = entry.rank <= 3 ? COLOR.warn : COLOR.muted;
   ctx.textAlign = "right";
-  ctx.fillText(String(entry.rank), PAD + 46, mid);
+  ctx.fillText(String(entry.rank), PAD + 62, mid);
 
-  ctx.font = `${mine ? 700 : 600} 30px ${FONT}`;
+  ctx.font = `${mine ? 700 : 600} ${ROW_FONT}px ${FONT}`;
   ctx.fillStyle = mine ? COLOR.accent : COLOR.text;
   ctx.textAlign = "left";
   // Long nicknames must not run into the score column.
-  const nameLeft = PAD + 70;
-  const nameRight = TEX_W - PAD - 150;
+  const nameLeft = PAD + 92;
+  const nameRight = TEX_W - PAD - 250;
   let name = (entry.nick || "익명") + (mine ? " (나)" : "");
   if (ctx.measureText(name).width > nameRight - nameLeft) {
     while (name.length > 1 && ctx.measureText(name + "…").width > nameRight - nameLeft) {
@@ -71,7 +80,7 @@ function drawRow(
   }
   ctx.fillText(name, nameLeft, mid);
 
-  ctx.font = `700 30px ${FONT}`;
+  ctx.font = `700 ${ROW_FONT}px ${FONT}`;
   ctx.fillStyle = mine ? COLOR.accent : COLOR.text;
   ctx.textAlign = "right";
   ctx.fillText(String(entry.total), TEX_W - PAD, mid);
@@ -86,30 +95,30 @@ export function paintLeaderboardFace(
   ctx.fillStyle = COLOR.panel;
   ctx.fillRect(0, 0, TEX_W, TEX_H);
 
-  ctx.font = `700 38px ${FONT}`;
+  ctx.font = `700 62px ${FONT}`;
   ctx.fillStyle = COLOR.text;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("명예의 전당", TEX_W / 2, PAD + 20);
+  ctx.fillText("명예의 전당", TEX_W / 2, PAD + 32);
 
   ctx.strokeStyle = COLOR.line;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.moveTo(PAD, PAD + TITLE_H - 12);
-  ctx.lineTo(TEX_W - PAD, PAD + TITLE_H - 12);
+  ctx.moveTo(PAD, PAD + TITLE_H - 16);
+  ctx.lineTo(TEX_W - PAD, PAD + TITLE_H - 16);
   ctx.stroke();
 
   const top = data?.top ?? [];
 
   if (top.length === 0) {
-    ctx.font = `500 30px ${FONT}`;
+    ctx.font = `500 ${ROW_FONT}px ${FONT}`;
     ctx.fillStyle = COLOR.muted;
     ctx.textAlign = "center";
-    ctx.fillText("아직 기록이 없습니다", TEX_W / 2, TEX_H / 2 + 10);
+    ctx.fillText("아직 기록이 없습니다", TEX_W / 2, TEX_H / 2 + 20);
     return;
   }
 
-  // Row height is fixed by the full ten-plus-you layout rather than by how many
+  // Row height is fixed by the full five-plus-you layout rather than by how many
   // rows exist today, so the board doesn't resize its own type as people join —
   // a leaderboard filling in must not reflow what's already being read.
   const body = TEX_H - PAD - TITLE_H - BOTTOM_PAD;

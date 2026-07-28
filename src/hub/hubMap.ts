@@ -136,11 +136,18 @@ export function standAt(x: number, z: number): Stand | null {
  * Mirrors the shop across the carpet — same z, same backdrop depth, same
  * height — so the two read as a matched pair of things you walk up to.
  */
+/**
+ * Sized for the follow camera, not for the player's eyes. You read this from
+ * the standing spot 1.5u in front, but the camera sits a further
+ * CAMERA.playDistance behind that — about 6.5u from the face. At 5.0 x 3.2 the
+ * face came out 115px tall on an 800x450 viewport, which put a row of names at
+ * 8px and Korean glyphs at 6px: present, but not readable.
+ */
 export const LEADERBOARD = {
   x: 9.5,
   z: 4,
-  width: 5.0,
-  height: 3.2,
+  width: 5.6,
+  height: 4.4,
   /** Half-thickness of the board; the face you read sits just in front of it. */
   half: 0.2,
   color: 0xb98a2e,

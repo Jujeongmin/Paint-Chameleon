@@ -50,9 +50,12 @@ export function LeaderboardBoard({ data, account }: Props) {
         <planeGeometry args={[FACE_W, FACE_H]} />
         <meshBasicMaterial map={texture} toneMapped={false} />
       </mesh>
-      {/* NameTag draws at [0, y, 0] in its parent's space. */}
+      {/* NameTag draws at [0, y, 0] in its parent's space, and draws through
+          geometry (depthTest off), so it has to clear the top of the board or
+          it lands on top of the face's own heading. Same 0.5 gap the shop sign
+          keeps above its backdrop. */}
       <group position={[LEADERBOARD.x, 0, LEADERBOARD.z]}>
-        <NameTag text="리더보드" y={3.9} height={0.52} color="#e8a13f" />
+        <NameTag text="리더보드" y={LEADERBOARD.height + 0.5} height={0.52} color="#e8a13f" />
       </group>
     </>
   );
