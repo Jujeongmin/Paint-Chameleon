@@ -155,6 +155,17 @@ export interface LookState {
  * The fallback only reacts while the cursor is over the canvas, otherwise
  * reaching for a HUD button would spin the camera on the way there.
  *
+ * Lock is attempted twice over: once on mount, which lands right after the
+ * join click while the document still has activation, and again on any click
+ * on the canvas. The mount attempt is the one that matters — without it the
+ * player spawns unlocked and has to discover that clicking the world is what
+ * captures the mouse.
+ *
+ * A failed MOUNT attempt must not disable the click path. Only a refusal that
+ * came from a real gesture is treated as "this browser won't allow it", since
+ * an automatic attempt can fail merely for want of user activation, which says
+ * nothing about whether a later click would succeed.
+ *
  * Deltas accumulate into refs the render loop reads; routing them through React
  * state would re-render at pointer rate.
  */
@@ -195,31 +206,49 @@ export function usePointerLook(
       applyDelta(e.movementX, e.movementY);
     };
 
-    // Still worth asking for lock — it removes the screen-edge limit entirely.
-    const onPointerDown = (e: PointerEvent) => {
-      if (e.button !== 0 || !lockAvailable.current || locked.current) return;
-      const result = canvas.requestPointerLock?.() as unknown as Promise<void> | undefined;
-      if (result && typeof result.catch === "function") {
-        result.catch(() => {
-          lockAvailable.current = false;
-          reportLockRefused();
-        });
+    // True while an automatic (non-gesture) attempt is in flight, so its
+    // failure doesn't get mistaken for the browser refusing outright.
+    let auto = false;
+
+    const refuse = () => {
+      if (auto) {
+        auto = false;
+        return;
       }
+      lockAvailable.current = false;
+      reportLockRefused();
+    };
+
+    // Still worth asking for lock — it removes the screen-edge limit entirely.
+    const tryLock = (fromGesture: boolean) => {
+      if (!lockAvailable.current || locked.current) return;
+      if (document.pointerLockElement === canvas) return;
+      auto = !fromGesture;
+      const result = canvas.requestPointerLock?.() as unknown as Promise<void> | undefined;
+      if (result && typeof result.catch === "function") result.catch(refuse);
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      tryLock(true);
     };
 
     const onLockChange = () => {
       locked.current = document.pointerLockElement === canvas;
+      if (locked.current) auto = false;
     };
     const onLockError = () => {
-      lockAvailable.current = false;
       locked.current = false;
-      reportLockRefused();
+      refuse();
     };
 
     document.addEventListener("mousemove", onMove);
     document.addEventListener("pointerlockchange", onLockChange);
     document.addEventListener("pointerlockerror", onLockError);
     canvas.addEventListener("pointerdown", onPointerDown);
+
+    // Right after the join click, while the document still has activation.
+    tryLock(false);
 
     return () => {
       document.removeEventListener("mousemove", onMove);

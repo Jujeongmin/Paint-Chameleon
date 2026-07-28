@@ -45,6 +45,7 @@ export default function App() {
   const [paintMode, setPaintMode] = useState(false);
   const [charLocked, setCharLocked] = useState(false);
   const [ready, setReady] = useState(false);
+  const [pointerLocked, setPointerLocked] = useState(false);
 
   const wallet = useWallet(game);
 
@@ -161,13 +162,32 @@ export default function App() {
     if ((!canPose || charLocked) && poseMenuOpen) setPoseMenuOpen(false);
   }, [canPaint, paintMode, canPose, charLocked, poseMenuOpen]);
 
+  // Pointer lock is read from the document rather than plumbed up from
+  // usePointerLook, which keeps it in refs to avoid re-rendering at pointer
+  // rate. This only flips on lock/unlock, so state is fine here.
+  useEffect(() => {
+    const onChange = () => setPointerLocked(!!document.pointerLockElement);
+    onChange();
+    document.addEventListener("pointerlockchange", onChange);
+    return () => document.removeEventListener("pointerlockchange", onChange);
+  }, []);
+
   // Hide the OS cursor while looking around; the centred crosshair is the aim.
   // Painting and the pose menu need it back — both are pointer-driven UI. The
   // shop isn't: it's a keyboard prompt with no clickable surface.
+  //
+  // Only ever hidden while pointer lock is actually held. Without lock the game
+  // falls back to free look, where the cursor is a real cursor that can wander
+  // off the canvas and out of the window — and the fallback stops turning the
+  // view the moment it leaves (`e.target !== canvas` in input.ts). Hiding it
+  // there means the player loses track of a cursor that silently disables their
+  // own mouse look. Under lock the browser hides it anyway, so this is belt and
+  // braces rather than the mechanism.
   useEffect(() => {
-    document.body.classList.toggle("hide-cursor", !paintMode && !poseMenuOpen);
+    const hide = pointerLocked && !paintMode && !poseMenuOpen;
+    document.body.classList.toggle("hide-cursor", hide);
     return () => document.body.classList.remove("hide-cursor");
-  }, [paintMode, poseMenuOpen]);
+  }, [pointerLocked, paintMode, poseMenuOpen]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
