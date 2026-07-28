@@ -140,8 +140,6 @@ function reportLockRefused(): void {
 export interface LookState {
   /** Pointer lock is currently held. */
   locked: React.MutableRefObject<boolean>;
-  /** False once the browser has refused pointer lock — we then drag to look. */
-  lockAvailable: React.MutableRefObject<boolean>;
 }
 
 /**
@@ -155,16 +153,13 @@ export interface LookState {
  * The fallback only reacts while the cursor is over the canvas, otherwise
  * reaching for a HUD button would spin the camera on the way there.
  *
- * Lock is attempted twice over: once on mount, which lands right after the
- * join click while the document still has activation, and again on any click
- * on the canvas. The mount attempt is the one that matters — without it the
- * player spawns unlocked and has to discover that clicking the world is what
- * captures the mouse.
+ * Lock is attempted on mount, which lands right after the join click while the
+ * document still has activation, and again on every click on the canvas. The
+ * mount attempt is what stops the player spawning unlocked and having to
+ * discover that clicking the world is what captures the mouse; the click
+ * attempts are what let them get it back after Esc.
  *
- * A failed MOUNT attempt must not disable the click path. Only a refusal that
- * came from a real gesture is treated as "this browser won't allow it", since
- * an automatic attempt can fail merely for want of user activation, which says
- * nothing about whether a later click would succeed.
+ * Refusals are never cached — see tryLock.
  *
  * Deltas accumulate into refs the render loop reads; routing them through React
  * state would re-render at pointer rate.
@@ -176,7 +171,8 @@ export function usePointerLook(
   pitch: React.MutableRefObject<number>
 ): LookState {
   const locked = useRef(false);
-  const lockAvailable = useRef(true);
+  /** Once lock has worked, a later refusal is transient, not environmental. */
+  const everLocked = useRef(false);
 
   useEffect(() => {
     const canvas = document.querySelector("canvas");
@@ -207,7 +203,7 @@ export function usePointerLook(
     };
 
     // True while an automatic (non-gesture) attempt is in flight, so its
-    // failure doesn't get mistaken for the browser refusing outright.
+    // failure doesn't print a warning about a browser that refused nothing.
     let auto = false;
 
     const refuse = () => {
@@ -215,14 +211,28 @@ export function usePointerLook(
         auto = false;
         return;
       }
-      lockAvailable.current = false;
+      // Don't cry "this browser blocks pointer lock" over the refusal that
+      // follows an Esc — lock demonstrably works here, it's just cooling down.
+      if (everLocked.current) return;
       reportLockRefused();
     };
 
-    // Still worth asking for lock — it removes the screen-edge limit entirely.
+    /**
+     * Ask for lock. Never gives up permanently.
+     *
+     * A refusal is not durable information. Chrome blocks re-locking for a
+     * moment after the user leaves lock with Esc, so the very next click is
+     * refused even though clicking is exactly the gesture that should restore
+     * it. Latching that first refusal into "this browser can't do pointer
+     * lock" killed every later attempt for the rest of the session: press Esc
+     * once and the mouse could never be recaptured.
+     *
+     * So every canvas click tries again. In an environment that truly forbids
+     * it (an iframe without allow="pointer-lock") the attempts simply keep
+     * failing, which costs nothing — and reportLockRefused only ever logs once.
+     */
     const tryLock = (fromGesture: boolean) => {
-      if (!lockAvailable.current || locked.current) return;
-      if (document.pointerLockElement === canvas) return;
+      if (locked.current || document.pointerLockElement === canvas) return;
       auto = !fromGesture;
       const result = canvas.requestPointerLock?.() as unknown as Promise<void> | undefined;
       if (result && typeof result.catch === "function") result.catch(refuse);
@@ -235,7 +245,10 @@ export function usePointerLook(
 
     const onLockChange = () => {
       locked.current = document.pointerLockElement === canvas;
-      if (locked.current) auto = false;
+      if (locked.current) {
+        auto = false;
+        everLocked.current = true;
+      }
     };
     const onLockError = () => {
       locked.current = false;
@@ -258,5 +271,5 @@ export function usePointerLook(
     };
   }, [enabled, sensitivity, yaw, pitch]);
 
-  return { locked, lockAvailable };
+  return { locked };
 }
