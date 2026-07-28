@@ -73,7 +73,25 @@ export const MAP_BOXES: MapBox[] = buildMap();
 
 // ---------------------------------------------------------------- collision
 
-const STEP_HEIGHT = 1.15;
+/**
+ * How high a surface can be and still be walked onto without jumping.
+ *
+ * This governs two things at once — what counts as ground (`groundHeightAt`)
+ * and what counts as a wall (`isWallAt`) — so it is the single number that
+ * decides whether a box is an obstacle or a ramp.
+ *
+ * It was 1.15, which is why players walked up onto crates without jumping.
+ * For scale: the body is 1.86 tall and its hips sit at ~0.62-0.82 depending on
+ * the profile, so 1.15 was above waist height. Worse, a jump only reaches
+ * `jumpSpeed^2 / (2 * gravity)` = 7.4^2 / 44 ≈ 1.24 — the free step-up was
+ * covering 93% of the jump, so jumping bought almost nothing and most cover
+ * was climbable by walking into it.
+ *
+ * 0.45 is a step, not a climb: below the hips of every profile (check:movement
+ * asserts that against bodies.ts, so it can't drift back up), while still
+ * leaving anything up to STEP_HEIGHT + 1.24 reachable with a jump.
+ */
+export const STEP_HEIGHT = 0.45;
 
 function overlapsXZ(b: MapBox, x: number, z: number, r: number): boolean {
   return (

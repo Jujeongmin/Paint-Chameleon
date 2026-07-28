@@ -15,9 +15,10 @@ import {
   stepMotion,
   wishDirection,
 } from "../src/game/movement";
-import { groundHeightAt, moveXZ, MAP_BOXES, ARENA } from "../src/game/map";
+import { groundHeightAt, moveXZ, MAP_BOXES, ARENA, STEP_HEIGHT } from "../src/game/map";
 import { bodyFadeFor, cameraInsideSolid, clearCameraDistance } from "../src/game/camera";
 import { CAMERA, MOVE } from "../src/game/constants";
+import { BODIES, derive } from "../src/game/bodies";
 
 let failures = 0;
 const close = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) < tol;
@@ -101,16 +102,89 @@ console.log("\nground and jumping");
   check("test point is clear of geometry", open);
   check("open floor reads height 0", groundHeightAt(20, 20, 0) === 0);
 
-  // A low crate must be steppable; a wall must not be.
-  const low = MAP_BOXES.find((b) => b.s[1] <= 1.1 && Math.abs(b.p[0]) < 18);
-  if (low) {
-    const top = low.p[1] + low.s[1] / 2;
+  // Step-up is what stops a player walking up the side of cover without
+  // jumping. Both sides of the threshold are pinned, off the constant itself
+  // rather than a literal, so raising STEP_HEIGHT can't quietly pass.
+  {
+    const at = (h: number) =>
+      groundHeightAt(40, 40, 0, [{ p: [40, h / 2, 40], s: [2, h, 2], c: 0 }]);
+
     check(
-      `low crate (h=${low.s[1].toFixed(2)}) is steppable from the floor`,
-      groundHeightAt(low.p[0], low.p[2], 0) === top
+      `a box just under STEP_HEIGHT (${STEP_HEIGHT}) is walked onto`,
+      close(at(STEP_HEIGHT - 0.01), STEP_HEIGHT - 0.01)
     );
-  } else {
-    console.log("  – no low crate in this map, skipped");
+    check(
+      "a box just over STEP_HEIGHT is not — it needs a jump",
+      at(STEP_HEIGHT + 0.01) === 0
+    );
+  }
+
+  {
+    // A step you can take is one you could physically lift a foot over. Tied to
+    // the real hip heights so STEP_HEIGHT can't drift back up to waist level,
+    // which is exactly how crates became walkable ramps.
+    const lowestHip = Math.min(...BODIES.map((b) => derive(b).hipY));
+    check(
+      `STEP_HEIGHT stays below every profile's hips (lowest ${lowestHip.toFixed(2)})`,
+      STEP_HEIGHT < lowestHip,
+      `STEP_HEIGHT ${STEP_HEIGHT} would be a climb, not a step`
+    );
+
+    // Jumping has to be worth doing: it must clear meaningfully more than
+    // walking does. apex = v^2 / 2g.
+    const apex = (MOVE.jumpSpeed * MOVE.jumpSpeed) / (2 * MOVE.gravity);
+    check(
+      `a jump (apex ${apex.toFixed(2)}) reaches well above the free step`,
+      apex > STEP_HEIGHT * 2,
+      `apex ${apex.toFixed(2)} vs STEP_HEIGHT ${STEP_HEIGHT} — jumping barely beats walking`
+    );
+  }
+
+  {
+    // The unit checks above ask groundHeightAt directly. This drives the real
+    // integrator into a crate the way a player would, because "walked up onto
+    // it without jumping" is a claim about stepMotion, not about one helper.
+    const crate = [{ p: [0, 0.5, 4], s: [3, 1, 3], c: 0 }] as typeof MAP_BOXES;
+    const walk = (jump: boolean) => {
+      const st = createMotionState([0, 0, 0]);
+      let peakY = 0;
+      for (let i = 0; i < 180; i++) {
+        // yaw 0 faces +Z, so forward walks straight at the crate.
+        stepMotion(st, { forward: 1, strafe: 0, jump }, 0, {
+          boxes: crate,
+          dt: 1 / 60,
+          now: i * (1000 / 60),
+          speed: MOVE.hiderSpeed,
+          radius: MOVE.playerRadius,
+        });
+        peakY = Math.max(peakY, st.pos[1]);
+      }
+      return { pos: st.pos, peakY };
+    };
+
+    // Peak, not final: at the old STEP_HEIGHT the player walked up onto the
+    // crate, across it and down the far side, ending back at y=0 having very
+    // much climbed it. Only the high-water mark states the actual claim.
+    const walked = walk(false);
+    check(
+      `walking into a 1.0u crate never leaves the floor (peak y=${walked.peakY.toFixed(2)})`,
+      walked.peakY === 0,
+      "the player rose without jumping — step-up is acting as a ramp"
+    );
+    check(
+      `...and is stopped short of it (ended z=${walked.pos[2].toFixed(2)})`,
+      walked.pos[2] < 4 - 3 / 2
+    );
+  }
+
+  // The map's own crates: the shortest one the generator can make must still
+  // require a jump, or cover is climbable by walking into it.
+  const shortest = MAP_BOXES.filter((b) => Math.abs(b.p[0]) < 18).sort((a, b) => a.s[1] - b.s[1])[0];
+  if (shortest) {
+    check(
+      `the shortest arena crate (h=${shortest.s[1].toFixed(2)}) is not walkable`,
+      groundHeightAt(shortest.p[0], shortest.p[2], 0) === 0
+    );
   }
 
   const tall = MAP_BOXES.find((b) => b.s[1] > 2.5 && Math.abs(b.p[0]) < 18);
