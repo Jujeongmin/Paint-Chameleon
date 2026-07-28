@@ -5,6 +5,7 @@
  */
 
 import type { MapBox } from "../game/map";
+import { BODIES } from "../game/bodies";
 
 export const HUB = {
   size: 34,
@@ -71,14 +72,62 @@ export const PORTALS: Portal[] = [
 export const SHOP = {
   x: -9.5,
   z: 4,
-  /** Wider than a portal's: this opens a panel, not an irreversible match join. */
-  triggerRadius: 3.0,
   color: 0x2f6fae,
 };
 
-/** True while the player is close enough for the shop panel to be open. */
-export function atShop(x: number, z: number): boolean {
-  return Math.hypot(x - SHOP.x, z - SHOP.z) <= SHOP.triggerRadius;
+export const STAND = {
+  /** Distance between adjacent plinth centres along x. */
+  spacing: 2.2,
+  /** Walk inside this of a stand's trigger centre to be able to buy/equip it. */
+  triggerRadius: 1.0,
+  /** How far in front of the plinth (toward spawn, +z) you stand. */
+  stepZ: 1.5,
+};
+
+export interface Stand {
+  /** Body profile id; see `bodies.ts`. */
+  id: string;
+  name: string;
+  /** 0 for the profile everyone already owns. */
+  price: number;
+  /** Plinth centre. */
+  x: number;
+  z: number;
+  /** Trigger centre — where the player actually stands. */
+  tx: number;
+  tz: number;
+}
+
+/**
+ * One stand per body, `classic` included: with the old modal panel gone, its
+ * stand is the only way back to the default body after buying another.
+ *
+ * Derived from BODIES rather than listed, so a fifth profile widens the row
+ * automatically — check:hub is what catches the row growing into a prop.
+ */
+export const STANDS: Stand[] = BODIES.map((b, i) => {
+  const x = SHOP.x + (i - (BODIES.length - 1) / 2) * STAND.spacing;
+  return { id: b.id, name: b.name, price: b.price, x, z: SHOP.z, tx: x, tz: SHOP.z + STAND.stepZ };
+});
+
+/**
+ * Stand the player is close enough to interact with, if any.
+ *
+ * Nearest-first rather than first-match (how `portalAt` works): the triggers
+ * are laid out not to overlap, but if a future profile narrows the row the
+ * nearest stand is still the one the player means.
+ */
+export function standAt(x: number, z: number): Stand | null {
+  let best: Stand | null = null;
+  let bestDist = STAND.triggerRadius;
+  for (const s of STANDS) {
+    const d = Math.hypot(x - s.tx, z - s.tz);
+    if (d <= bestDist) {
+      bestDist = d;
+      best = s;
+    }
+  }
+  return best;
 }
 
 /** Pillars and lintel for one archway. The opening itself stays walkable. */
@@ -114,8 +163,11 @@ function buildHub(): MapBox[] {
 
   // A few low blocks to break up the space and give the camera something to
   // collide with — also handy for testing that the hub uses the same physics.
+  // The left-hand counterpart of [12, 6] used to sit here, but its collision
+  // box (x -13.25..-10.75, z 4.75..7.25) covers the leftmost stand trigger at
+  // (-12.8, 5.5). The shop row occupies that side now; the hub was already
+  // asymmetric because the shop only exists on the left.
   const props: [number, number, number, number, number][] = [
-    [-12, 6, 1.6, 0.9, 0xe4584f],
     [12, 6, 1.6, 0.9, 0x49b3ad],
     [-6, 13, 1.2, 0.7, 0x6fbf5c],
     [6, 13, 1.2, 0.7, 0x9179c4],
@@ -125,10 +177,12 @@ function buildHub(): MapBox[] {
     boxes.push({ p: [x, h / 2, z], s: [size, h, size], c });
   }
 
-  // Shop counter — a desk with a back wall, left open at the front so the
-  // trigger circle stays walkable.
-  boxes.push({ p: [SHOP.x, 0.5, SHOP.z - 0.9], s: [3.4, 1.0, 0.7], c: SHOP.color });
-  boxes.push({ p: [SHOP.x, 1.6, SHOP.z - 1.8], s: [3.4, 3.2, 0.4], c: SHOP.color });
+  // Shop backdrop — one wall behind the row of plinths. Wide enough to span
+  // every plinth (outermost edges at ±13.42/-5.58 from the row) and set back
+  // far enough that its collision range (z 2.35..3.65 once the player radius
+  // is added) never reaches the stand triggers at z 5.5.
+  const backdropWidth = (BODIES.length - 1) * STAND.spacing + 1.6;
+  boxes.push({ p: [SHOP.x, 1.6, SHOP.z - 1.0], s: [backdropWidth, 3.2, 0.4], c: SHOP.color });
 
   return boxes;
 }

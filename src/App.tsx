@@ -4,11 +4,12 @@ import { useGame } from "./net/useGame";
 import { Arena, Lighting } from "./game/Arena";
 import { LocalPlayer } from "./game/LocalPlayer";
 import { RemotePlayers } from "./game/RemotePlayers";
-import { DEFAULT_BODY_ID } from "./game/bodies";
 import { Hub } from "./hub/Hub";
 import type { PortalProgress } from "./hub/HubPlayer";
+import type { Stand } from "./hub/hubMap";
 import { Hud } from "./ui/Hud";
 import { HubHud } from "./ui/HubHud";
+import { useWallet } from "./ui/useWallet";
 import { PaintTools } from "./ui/PaintTools";
 import { MuteToggle } from "./ui/MuteToggle";
 import { PoseMenu } from "./ui/PoseMenu";
@@ -31,32 +32,20 @@ import "./ui/ui.css";
 
 export default function App() {
   const game = useGame();
-  const { server, account, connected, joined, joining, error, room, me, players, secondsLeft, fetchWallet } = game;
+  const { server, account, connected, joined, joining, error, room, me, players, secondsLeft } = game;
 
   // Held here rather than in each HUD so walking between the hub and a match
   // doesn't bring the tutorial back.
   const controlsLearned = useControlsLearned();
 
   const [nick, setNick] = useState("");
-  const [equipped, setEquipped] = useState<string>(DEFAULT_BODY_ID);
   const [pose, setPose] = useState(STAND_POSE);
   const [poseMenuOpen, setPoseMenuOpen] = useState(false);
   const [paintMode, setPaintMode] = useState(false);
   const [charLocked, setCharLocked] = useState(false);
   const [ready, setReady] = useState(false);
 
-  const [nearShop, setNearShop] = useState(false);
-  /**
-   * Closing while still standing in the trigger would re-open on the next
-   * frame. Stay dismissed until the player actually walks out of range.
-   */
-  const [shopDismissed, setShopDismissed] = useState(false);
-  const shopOpen = nearShop && !shopDismissed && !joining;
-
-  const onShopProximity = useCallback((inside: boolean) => {
-    setNearShop(inside);
-    if (!inside) setShopDismissed(false);
-  }, []);
+  const wallet = useWallet(game);
 
   // paint tools
   const [tool, setTool] = useState<Tool>("brush");
@@ -77,28 +66,14 @@ export default function App() {
   // while every peer already sees the real body. Offline players have no
   // `body` field on their PlayerState at all, so `?? equipped` is load-bearing
   // there, not just a defensive fallback.
-  const bodyId = me?.body ?? equipped;
-
-  // The equipped body is needed to render the local player before any shop
-  // interaction happens, so read it once on connect.
-  useEffect(() => {
-    let cancelled = false;
-    fetchWallet()
-      .then((w) => {
-        if (!cancelled) setEquipped(w.equipped);
-      })
-      .catch(() => {
-        // Cosmetic: the default body is a fine thing to stand in.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchWallet]);
+  const bodyId = me?.body ?? wallet.equipped;
 
   /** Dabs waiting to be flushed to the room. */
   const pending = useRef<WireDab[]>([]);
   /** Written by HubPlayer every frame; the hub HUD polls it. */
   const portalRef = useRef<PortalProgress>({ portal: null, progress: 0 });
+  /** Likewise: the shop stand the player is standing at, or null. */
+  const standRef = useRef<Stand | null>(null);
   /** Sound: last phase seen, so a transition sound fires exactly once. */
   const prevPhase = useRef<string | null>(null);
   /** Sound: last known caught flag per account, so a catch sound fires once per catch. */
@@ -174,12 +149,12 @@ export default function App() {
   }, [canPaint, paintMode, canPose, charLocked, poseMenuOpen]);
 
   // Hide the OS cursor while looking around; the centred crosshair is the aim.
-  // Painting, the pose menu and the shop all need it back — all three are
-  // pointer-driven UI.
+  // Painting and the pose menu need it back — both are pointer-driven UI. The
+  // shop isn't: it's a keyboard prompt with no clickable surface.
   useEffect(() => {
-    document.body.classList.toggle("hide-cursor", !paintMode && !poseMenuOpen && !shopOpen);
+    document.body.classList.toggle("hide-cursor", !paintMode && !poseMenuOpen);
     return () => document.body.classList.remove("hide-cursor");
-  }, [paintMode, poseMenuOpen, shopOpen]);
+  }, [paintMode, poseMenuOpen]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -307,8 +282,7 @@ export default function App() {
             portalRef={portalRef}
             onEnterPortal={() => game.enterGame(nick || me.nick || "익명")}
             onTransform={onHubTransform}
-            onShopProximity={onShopProximity}
-            shopOpen={shopOpen}
+            standRef={standRef}
             joining={joining}
           />
         ) : (
@@ -346,17 +320,13 @@ export default function App() {
       {inHub ? (
         <HubHud
           portalRef={portalRef}
+          standRef={standRef}
           players={players}
           account={account}
           joining={joining}
           showControls={!controlsLearned}
           fetchLeaderboard={game.fetchLeaderboard}
-          shopOpen={shopOpen}
-          onCloseShop={() => setShopDismissed(true)}
-          fetchWallet={fetchWallet}
-          buyAvatar={game.buyAvatar}
-          equipAvatar={game.equipAvatar}
-          onEquipped={setEquipped}
+          wallet={wallet}
         />
       ) : (
         <>

@@ -9,7 +9,7 @@
  * Run: npm run check:hub
  */
 
-import { HUB, HUB_BOXES, PORTALS, SHOP, atShop, portalAt } from "../src/hub/hubMap";
+import { HUB, HUB_BOXES, PORTALS, STAND, STANDS, portalAt, standAt } from "../src/hub/hubMap";
 import { createMotionState, stepMotion } from "../src/game/movement";
 import { groundHeightAt, playerBlockedAt } from "../src/game/map";
 import { MOVE } from "../src/game/constants";
@@ -97,13 +97,30 @@ check("hub has at least one usable portal", PORTALS.some((p) => p.available));
 }
 
 {
-  // A shop trigger overlapping a portal's would make walking toward one open
-  // the other — same ambiguity the portal-portal check above guards against.
+  // STANDS is derived from BODIES, so adding a fifth body profile widens the
+  // row on its own. These three checks are what catches that row growing into
+  // a prop, into a portal, or into itself.
   let overlapping = 0;
-  for (const p of PORTALS) {
-    if (Math.hypot(SHOP.x - p.x, SHOP.z - p.z) < SHOP.triggerRadius + p.triggerRadius) overlapping++;
+  for (let i = 0; i < STANDS.length; i++) {
+    for (let j = i + 1; j < STANDS.length; j++) {
+      const a = STANDS[i];
+      const b = STANDS[j];
+      if (Math.hypot(a.tx - b.tx, a.tz - b.tz) < STAND.triggerRadius * 2) overlapping++;
+    }
   }
-  check("shop trigger doesn't overlap any portal trigger", overlapping === 0, `${overlapping} overlapping pairs`);
+  check("stand triggers don't overlap each other", overlapping === 0, `${overlapping} overlapping pairs`);
+}
+
+{
+  // A stand trigger overlapping a portal's would make walking to one prompt
+  // the other — the same ambiguity the portal-portal check guards against.
+  let overlapping = 0;
+  for (const s of STANDS) {
+    for (const p of PORTALS) {
+      if (Math.hypot(s.tx - p.x, s.tz - p.z) < STAND.triggerRadius + p.triggerRadius) overlapping++;
+    }
+  }
+  check("stand triggers don't overlap any portal trigger", overlapping === 0, `${overlapping} overlapping pairs`);
 }
 
 console.log("\nportal detection");
@@ -119,13 +136,17 @@ for (const p of PORTALS) {
 
 check("open floor is not a portal", portalAt(HUB.spawn[0], HUB.spawn[2]) === null);
 
-console.log("\nshop detection");
+console.log("\nshop stand detection");
 
-check("standing at the shop centre is detected", atShop(SHOP.x, SHOP.z));
-check(
-  "well outside the shop trigger is not",
-  !atShop(SHOP.x + SHOP.triggerRadius + 0.5, SHOP.z)
-);
+for (const s of STANDS) {
+  check(`${s.id}: standing on the footprint is detected`, standAt(s.tx, s.tz)?.id === s.id);
+  check(
+    `${s.id}: a step past the footprint is not`,
+    standAt(s.tx, s.tz + STAND.triggerRadius + 0.5) === null
+  );
+}
+
+check("the spawn point is not a stand", standAt(HUB.spawn[0], HUB.spawn[2]) === null);
 
 console.log("\nreachability (walking the real physics from spawn)");
 
@@ -144,18 +165,18 @@ for (const p of PORTALS) {
   );
 }
 
-check(
-  "shop: the trigger centre is standable",
-  !occupied(SHOP.x, SHOP.z),
-  "the shop counter is sitting on top of its own trigger"
-);
-
-{
-  const closest = walkTo([SHOP.x, SHOP.z]);
+for (const s of STANDS) {
   check(
-    `shop: reachable on foot (got within ${closest.toFixed(2)}u)`,
-    closest <= SHOP.triggerRadius,
-    `never got closer than ${closest.toFixed(2)}u, trigger radius is ${SHOP.triggerRadius}`
+    `stand ${s.id}: the trigger centre is standable`,
+    !occupied(s.tx, s.tz),
+    "the backdrop or a prop is sitting on top of the footprint"
+  );
+
+  const closest = walkTo([s.tx, s.tz]);
+  check(
+    `stand ${s.id}: reachable on foot (got within ${closest.toFixed(2)}u)`,
+    closest <= STAND.triggerRadius,
+    `never got closer than ${closest.toFixed(2)}u, trigger radius is ${STAND.triggerRadius}`
   );
 }
 

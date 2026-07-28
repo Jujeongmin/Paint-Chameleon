@@ -1,42 +1,38 @@
 import { useEffect, useRef, useState } from "react";
 import type { PortalProgress } from "../hub/HubPlayer";
-import type { BuyResult, LeaderboardResult, PlayerState, WalletView } from "../net/types";
+import type { Stand } from "../hub/hubMap";
+import type { LeaderboardResult, PlayerState } from "../net/types";
 import { Leaderboard } from "./Leaderboard";
-import { Shop } from "./Shop";
+import { ShopPrompt } from "./ShopPrompt";
+import type { Wallet } from "./useWallet";
 
 interface Props {
   portalRef: React.MutableRefObject<PortalProgress>;
+  /** Written every frame by HubPlayer; polled here alongside `portalRef`. */
+  standRef: React.MutableRefObject<Stand | null>;
   players: PlayerState[];
   account: string;
   joining: boolean;
   /** False once the player has used the controls; hides the basic tutorial. */
   showControls: boolean;
   fetchLeaderboard: () => Promise<LeaderboardResult>;
-  shopOpen: boolean;
-  onCloseShop: () => void;
-  fetchWallet: () => Promise<WalletView>;
-  buyAvatar: (id: string) => Promise<BuyResult>;
-  equipAvatar: (id: string) => Promise<{ ok: boolean }>;
-  onEquipped: (id: string) => void;
+  wallet: Wallet;
 }
 
 export function HubHud({
   portalRef,
+  standRef,
   players,
   account,
   joining,
   showControls,
   fetchLeaderboard,
-  shopOpen,
-  onCloseShop,
-  fetchWallet,
-  buyAvatar,
-  equipAvatar,
-  onEquipped,
+  wallet,
 }: Props) {
   // The dwell timer lives in a ref so the render loop doesn't re-render React;
   // poll it a few times a second, which is plenty for a progress ring.
   const [state, setState] = useState<PortalProgress>({ portal: null, progress: 0 });
+  const [stand, setStand] = useState<Stand | null>(null);
   const last = useRef("");
 
   useEffect(() => {
@@ -47,9 +43,12 @@ export function HubHud({
         last.current = key;
         setState({ ...current });
       }
+      // Identity comparison is enough: STANDS is a module-level array, so the
+      // same stand is always the same object.
+      setStand((prev) => (prev === standRef.current ? prev : standRef.current));
     }, 60);
     return () => clearInterval(id);
-  }, [portalRef]);
+  }, [portalRef, standRef]);
 
   const { portal, progress } = state;
 
@@ -58,6 +57,9 @@ export function HubHud({
       <div className="hud-top">
         <span className="phase-label">로비</span>
         <span className="role-chip hider">{players.length}명 접속 중</span>
+        {/* The shop has no panel to read a balance off any more, so it lives
+            here permanently. */}
+        <span className="role-chip coins">{wallet.wallet?.coins ?? "…"} 코인</span>
       </div>
 
       <div className="hud-left">
@@ -75,15 +77,7 @@ export function HubHud({
 
       <Leaderboard account={account} fetchLeaderboard={fetchLeaderboard} />
 
-      {shopOpen && (
-        <Shop
-          fetchWallet={fetchWallet}
-          buyAvatar={buyAvatar}
-          equipAvatar={equipAvatar}
-          onEquipped={onEquipped}
-          onClose={onCloseShop}
-        />
-      )}
+      {!joining && <ShopPrompt stand={stand} wallet={wallet} />}
 
       {/* The cursor is hidden out here too, so the aim point has to be visible. */}
       <div className="crosshair" />

@@ -7,7 +7,7 @@ import { CAMERA, MOVE, NET_EPSILON, NET_THROTTLE_MS } from "../game/constants";
 import { createMotionState, stepMotion } from "../game/movement";
 import { createFollowScratch, updateFollowCamera } from "../game/followCamera";
 import { NameTag } from "../game/NameTag";
-import { HUB, HUB_BOXES, atShop, portalAt, type Portal } from "./hubMap";
+import { HUB, HUB_BOXES, portalAt, standAt, type Portal, type Stand } from "./hubMap";
 
 /** How long you must stand in an arch before it takes you into a match. */
 export const PORTAL_DWELL_MS = 1200;
@@ -27,7 +27,8 @@ interface Props {
   portalRef: React.MutableRefObject<PortalProgress>;
   onEnterPortal: (portal: Portal) => void;
   onTransform: (pos: [number, number, number], rotY: number, moving: boolean) => void;
-  onShopProximity: (inside: boolean) => void;
+  /** Written every frame with the shop stand underfoot; polled, same as `portalRef`. */
+  standRef: React.MutableRefObject<Stand | null>;
   /** Suppresses input while a match is being joined. */
   frozen: boolean;
 }
@@ -39,7 +40,7 @@ export function HubPlayer({
   portalRef,
   onEnterPortal,
   onTransform,
-  onShopProximity,
+  standRef,
   frozen,
 }: Props) {
   const group = useRef<THREE.Group>(null);
@@ -55,7 +56,6 @@ export function HubPlayer({
   const dwell = useRef(0);
   const entered = useRef(false);
   const lastSent = useRef({ x: 0, y: 0, z: 0, rot: 0, at: 0 });
-  const reportedShop = useRef(false);
 
   const { read } = useKeyboard();
   usePointerLook(!frozen, MOVE.mouseSensitivity, yaw, pitch);
@@ -113,15 +113,9 @@ export function HubPlayer({
     // an arch on the way somewhere else doesn't drop you into a match.
     const standing = frozen ? null : portalAt(px, pz);
 
-    // Edge-triggered: this runs every frame, and the listener sets React state.
-    // No `frozen` guard here (unlike `portalAt` above) — the shop panel sets
-    // `frozen` when it opens, and a frozen-guarded check would immediately
-    // report "not near the shop" and close the panel it just opened.
-    const inShop = atShop(px, pz);
-    if (inShop !== reportedShop.current) {
-      reportedShop.current = inShop;
-      onShopProximity(inShop);
-    }
+    // The shop prompt is non-modal and never freezes anyone, so this is the
+    // same polled-ref pattern as the portal above rather than a callback.
+    standRef.current = frozen ? null : standAt(px, pz);
 
     if (standing?.available) {
       dwell.current += step * 1000;

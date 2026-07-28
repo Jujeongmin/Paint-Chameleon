@@ -20,6 +20,8 @@ import {
   serializeOwned,
   type WalletState,
 } from "../server/src/rules";
+import { standAction } from "../src/ui/standAction";
+import { STANDS } from "../src/hub/hubMap";
 
 let failures = 0;
 
@@ -165,6 +167,59 @@ console.log("\nunknown ids can't be smuggled in via inherited Object.prototype k
   check(
     "a non-finite (NaN) balance is refused as 'broke', not treated as sufficient",
     nanBalance.ok === false && nanBalance.reason === "broke"
+  );
+}
+
+console.log("\nwhat one [E] press at a stand does");
+{
+  // The client half of the same decision. With the modal panel gone there are
+  // no disabled buttons documenting what's allowed, so this table IS the
+  // interaction — and it has to agree with applyPurchase/applyEquip above or
+  // the prompt will offer something the server then refuses.
+  const bean = { id: "bean", price: AVATAR_PRICES.bean };
+  const classic = { id: "classic", price: 0 };
+
+  check("a wallet that hasn't loaded yet says so", standAction(bean, null) === "loading");
+  check(
+    "the equipped body offers nothing",
+    standAction(classic, { coins: 0, owned: ["classic"], equipped: "classic" }) === "equipped"
+  );
+  check(
+    "an owned but unequipped body offers equip",
+    standAction(bean, { coins: 0, owned: ["classic", "bean"], equipped: "classic" }) === "equip"
+  );
+  check(
+    "an unowned body you can afford offers buy",
+    standAction(bean, { coins: AVATAR_PRICES.bean, owned: ["classic"], equipped: "classic" }) === "buy"
+  );
+  check(
+    "one coin short offers nothing",
+    standAction(bean, { coins: AVATAR_PRICES.bean - 1, owned: ["classic"], equipped: "classic" }) === "broke"
+  );
+  check(
+    // Owning something you can no longer afford must still be equippable —
+    // ordering the ownership test after the balance test would strand it.
+    "an owned body is equippable on an empty balance",
+    standAction(bean, { coins: 0, owned: ["classic", "bean"], equipped: "classic" }) === "equip"
+  );
+
+  // The free body is the only way back to the default now that the panel is
+  // gone. On a brand new wallet its stand must not be a dead end.
+  const fresh = { coins: 0, owned: [...DEFAULT_WALLET.owned], equipped: DEFAULT_WALLET.equipped };
+  const dead = STANDS.filter((s) => {
+    const a = standAction(s, fresh);
+    return a === "broke" && s.price === 0;
+  });
+  check("no free stand is ever unreachable", dead.length === 0, dead.map((s) => s.id).join());
+
+  check(
+    "every stand offers exactly one action on a fresh wallet",
+    STANDS.every((s) => ["loading", "equipped", "equip", "buy", "broke"].includes(standAction(s, fresh)))
+  );
+  check(
+    "a stand exists for every body, including the free one",
+    STANDS.some((s) => s.price === 0),
+    "with no free stand there is no way back to the default body"
   );
 }
 
