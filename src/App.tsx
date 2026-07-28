@@ -10,6 +10,7 @@ import type { Stand } from "./hub/hubMap";
 import { Hud } from "./ui/Hud";
 import { HubHud } from "./ui/HubHud";
 import { useWallet } from "./ui/useWallet";
+import { useLeaderboard } from "./ui/useLeaderboard";
 import { PaintTools } from "./ui/PaintTools";
 import { MuteToggle } from "./ui/MuteToggle";
 import { PoseMenu } from "./ui/PoseMenu";
@@ -81,6 +82,8 @@ export default function App() {
 
   const inHub = room?.kind === "hub";
   const phase = room?.phase ?? "lobby";
+  // The board is hub geometry, so there's nothing to poll for during a match.
+  const leaderboard = useLeaderboard(game.fetchLeaderboard, inHub);
   const isSeeker = me?.role === "seeker";
   // Posing and painting share the same window: only hiders, only before or
   // during the hunt starts, never once caught. The seeker's own facing has to
@@ -283,6 +286,7 @@ export default function App() {
             onEnterPortal={() => game.enterGame(nick || me.nick || "익명")}
             onTransform={onHubTransform}
             standRef={standRef}
+            leaderboard={leaderboard}
             joining={joining}
           />
         ) : (
@@ -325,7 +329,6 @@ export default function App() {
           account={account}
           joining={joining}
           showControls={!controlsLearned}
-          fetchLeaderboard={game.fetchLeaderboard}
           wallet={wallet}
         />
       ) : (

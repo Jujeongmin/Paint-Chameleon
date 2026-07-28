@@ -9,7 +9,16 @@
  * Run: npm run check:hub
  */
 
-import { HUB, HUB_BOXES, PORTALS, STAND, STANDS, portalAt, standAt } from "../src/hub/hubMap";
+import {
+  HUB,
+  HUB_BOXES,
+  LEADERBOARD,
+  PORTALS,
+  STAND,
+  STANDS,
+  portalAt,
+  standAt,
+} from "../src/hub/hubMap";
 import { createMotionState, stepMotion } from "../src/game/movement";
 import { groundHeightAt, playerBlockedAt } from "../src/game/map";
 import { MOVE } from "../src/game/constants";
@@ -178,6 +187,34 @@ for (const s of STANDS) {
     closest <= STAND.triggerRadius,
     `never got closer than ${closest.toFixed(2)}u, trigger radius is ${STAND.triggerRadius}`
   );
+}
+
+{
+  // The leaderboard is geometry you read by walking up to it, so "can you get
+  // in front of it" is the whole feature. Mirrors the stand row's z, which is
+  // also how far back you have to be for the board's base slab to let you
+  // stand at all.
+  const readAt: [number, number] = [LEADERBOARD.x, LEADERBOARD.z + STAND.stepZ];
+
+  check(
+    "leaderboard: there is somewhere to stand and read it",
+    !occupied(readAt[0], readAt[1]),
+    "the base slab or a prop reaches the reading spot"
+  );
+
+  const closest = walkTo(readAt);
+  check(
+    `leaderboard: reachable on foot (got within ${closest.toFixed(2)}u)`,
+    closest <= 1.0,
+    `never got closer than ${closest.toFixed(2)}u`
+  );
+
+  // The board and the shop backdrop are both derived widths — the shop's grows
+  // with the body catalogue — so their footprints are checked rather than eyeballed.
+  const overlapping = STANDS.some(
+    (s) => Math.abs(s.tx - LEADERBOARD.x) < LEADERBOARD.width / 2 + STAND.triggerRadius
+  );
+  check("leaderboard: the board doesn't reach the shop row", !overlapping);
 }
 
 if (failures === 0) {

@@ -130,6 +130,25 @@ export function standAt(x: number, z: number): Stand | null {
   return best;
 }
 
+/**
+ * The all-time leaderboard, as a monument rather than a HUD panel.
+ *
+ * Mirrors the shop across the carpet — same z, same backdrop depth, same
+ * height — so the two read as a matched pair of things you walk up to.
+ */
+export const LEADERBOARD = {
+  x: 9.5,
+  z: 4,
+  width: 5.0,
+  height: 3.2,
+  /** Half-thickness of the board; the face you read sits just in front of it. */
+  half: 0.2,
+  color: 0xb98a2e,
+};
+
+/** World z of the readable face — the board's front surface, plus a hair. */
+export const LEADERBOARD_FACE_Z = LEADERBOARD.z - 1.0 + LEADERBOARD.half + 0.02;
+
 /** Pillars and lintel for one archway. The opening itself stays walkable. */
 function archBoxes(p: Portal): MapBox[] {
   const halfWidth = 2.1;
@@ -163,12 +182,11 @@ function buildHub(): MapBox[] {
 
   // A few low blocks to break up the space and give the camera something to
   // collide with — also handy for testing that the hub uses the same physics.
-  // The left-hand counterpart of [12, 6] used to sit here, but its collision
-  // box (x -13.25..-10.75, z 4.75..7.25) covers the leftmost stand trigger at
-  // (-12.8, 5.5). The shop row occupies that side now; the hub was already
-  // asymmetric because the shop only exists on the left.
+  // The [-12, 6] and [12, 6] blocks used to sit here. The left one covered
+  // the leftmost stand trigger at (-12.8, 5.5) outright; the right one stood
+  // in front of the leaderboard board. Both sides are occupied by something
+  // you walk up to now, so the pair went rather than just the one that broke.
   const props: [number, number, number, number, number][] = [
-    [12, 6, 1.6, 0.9, 0x49b3ad],
     [-6, 13, 1.2, 0.7, 0x6fbf5c],
     [6, 13, 1.2, 0.7, 0x9179c4],
     [0, 2, 2.6, 0.35, 0xd4a53f],
@@ -183,6 +201,16 @@ function buildHub(): MapBox[] {
   // is added) never reaches the stand triggers at z 5.5.
   const backdropWidth = (BODIES.length - 1) * STAND.spacing + 1.6;
   boxes.push({ p: [SHOP.x, 1.6, SHOP.z - 1.0], s: [backdropWidth, 3.2, 0.4], c: SHOP.color });
+
+  // Leaderboard monument: the board itself, on a base slab that gives it a
+  // footprint you stop at rather than walk through.
+  const lb = LEADERBOARD;
+  boxes.push({
+    p: [lb.x, lb.height / 2, lb.z - 1.0],
+    s: [lb.width, lb.height, lb.half * 2],
+    c: lb.color,
+  });
+  boxes.push({ p: [lb.x, 0.2, lb.z - 0.6], s: [lb.width + 0.6, 0.4, 1.6], c: lb.color });
 
   return boxes;
 }

@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PortalProgress } from "../hub/HubPlayer";
 import type { Stand } from "../hub/hubMap";
-import type { LeaderboardResult, PlayerState } from "../net/types";
-import { Leaderboard } from "./Leaderboard";
+import type { PlayerState } from "../net/types";
 import { ShopPrompt } from "./ShopPrompt";
 import type { Wallet } from "./useWallet";
 
@@ -15,7 +14,6 @@ interface Props {
   joining: boolean;
   /** False once the player has used the controls; hides the basic tutorial. */
   showControls: boolean;
-  fetchLeaderboard: () => Promise<LeaderboardResult>;
   wallet: Wallet;
 }
 
@@ -26,7 +24,6 @@ export function HubHud({
   account,
   joining,
   showControls,
-  fetchLeaderboard,
   wallet,
 }: Props) {
   // The dwell timer lives in a ref so the render loop doesn't re-render React;
@@ -74,8 +71,6 @@ export function HubHud({
           </div>
         ))}
       </div>
-
-      <Leaderboard account={account} fetchLeaderboard={fetchLeaderboard} />
 
       {!joining && <ShopPrompt stand={stand} wallet={wallet} />}
 

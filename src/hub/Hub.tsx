@@ -6,7 +6,8 @@ import { RemotePlayers } from "../game/RemotePlayers";
 import { Humanoid, IDLE_MOTION } from "../game/Humanoid";
 import { HUB, HUB_BOXES, PORTALS, SHOP, STAND, STANDS, type Portal, type Stand } from "./hubMap";
 import { HubPlayer, type PortalProgress } from "./HubPlayer";
-import type { PlayerState } from "../net/types";
+import { LeaderboardBoard } from "./LeaderboardBoard";
+import type { LeaderboardResult, PlayerState } from "../net/types";
 
 function hex(c: number): string {
   return "#" + c.toString(16).padStart(6, "0");
@@ -142,6 +143,8 @@ interface Props {
   onTransform: (pos: [number, number, number], rotY: number, moving: boolean) => void;
   /** Written every frame by HubPlayer with the shop stand underfoot. */
   standRef: React.MutableRefObject<Stand | null>;
+  /** All-time scores, painted onto the monument. Null until the first fetch lands. */
+  leaderboard: LeaderboardResult | null;
   joining: boolean;
 }
 
@@ -154,6 +157,7 @@ export function Hub({
   onEnterPortal,
   onTransform,
   standRef,
+  leaderboard,
   joining,
 }: Props) {
   return (
@@ -183,6 +187,8 @@ export function Hub({
       ))}
 
       <ShopStand equippedBody={body} />
+
+      <LeaderboardBoard data={leaderboard} account={account} />
 
       <HubPlayer
         account={account}
