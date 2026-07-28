@@ -92,6 +92,16 @@ export default function App() {
   const canPose = !inHub && !isSeeker && (phase === "hiding" || phase === "lobby") && !me?.caught;
   const canPaint = canPose;
 
+  // Paint belongs to a match. Walking back into the hub has to wipe it too, or
+  // everyone stands around the lobby still wearing the last round's camouflage
+  // — the round-start wipe below can't cover this, because it deliberately
+  // ignores the hub.
+  useEffect(() => {
+    if (!inHub) return;
+    clearAllSurfaces();
+    pending.current = [];
+  }, [inHub]);
+
   // A new round wipes everyone's paint and resets the pose.
   useEffect(() => {
     if (inHub || phase !== "hiding") return;
@@ -416,3 +426,4 @@ export default function App() {
     </>
   );
 }
+
