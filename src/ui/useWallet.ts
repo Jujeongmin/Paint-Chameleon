@@ -38,15 +38,25 @@ export interface Wallet {
  * player before any shop interaction happens, so it can't hang off a panel
  * that only exists while you're standing at a stand.
  */
-export function useWallet({ fetchWallet, buyAvatar, equipAvatar }: Api): Wallet {
+export function useWallet(api: Api): Wallet {
   const [wallet, setWallet] = useState<WalletView | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // The remote functions are read through a ref and never used as dependencies.
+  // The offline rehearsal rig rebuilds them as fresh closures every render
+  // (`src/net/offline.ts`) because they close over the current React state — so
+  // an effect keyed on `fetchWallet` fetches, sets state, re-renders, sees a new
+  // identity and fetches again, forever. That loop starves the render loop and
+  // freezes the game rather than showing up as a wrong balance.
+  const apiRef = useRef(api);
+  apiRef.current = api;
+
   useEffect(() => {
     let cancelled = false;
-    fetchWallet()
+    apiRef.current
+      .fetchWallet()
       .then((w) => {
         if (!cancelled) setWallet(w);
       })
@@ -56,7 +66,7 @@ export function useWallet({ fetchWallet, buyAvatar, equipAvatar }: Api): Wallet 
     return () => {
       cancelled = true;
     };
-  }, [fetchWallet]);
+  }, []);
 
   useEffect(
     () => () => {
@@ -75,7 +85,8 @@ export function useWallet({ fetchWallet, buyAvatar, equipAvatar }: Api): Wallet 
     (id: string) => {
       if (busy) return;
       setBusy(true);
-      buyAvatar(id)
+      apiRef.current
+        .buyAvatar(id)
         .then((res) => {
           if (res.ok) {
             // Use the wallet the write itself returned rather than re-fetching
@@ -91,14 +102,15 @@ export function useWallet({ fetchWallet, buyAvatar, equipAvatar }: Api): Wallet 
         .catch(() => say("잠시 후 다시 시도해주세요"))
         .finally(() => setBusy(false));
     },
-    [busy, buyAvatar, say]
+    [busy, say]
   );
 
   const equip = useCallback(
     (id: string) => {
       if (busy) return;
       setBusy(true);
-      equipAvatar(id)
+      apiRef.current
+        .equipAvatar(id)
         .then((res) => {
           if (res.ok) setWallet((w) => (w ? { ...w, equipped: id } : w));
           else say("장착할 수 없습니다");
@@ -106,7 +118,7 @@ export function useWallet({ fetchWallet, buyAvatar, equipAvatar }: Api): Wallet 
         .catch(() => say("잠시 후 다시 시도해주세요"))
         .finally(() => setBusy(false));
     },
-    [busy, equipAvatar, say]
+    [busy, say]
   );
 
   return { wallet, equipped: wallet?.equipped ?? DEFAULT_BODY_ID, message, busy, buy, equip };

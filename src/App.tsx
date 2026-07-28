@@ -179,13 +179,21 @@ export default function App() {
   }, [canPaint, canPose, charLocked, paintMode, poseMenuOpen]);
 
   // Batch dabs rather than sending one message per brush movement.
+  //
+  // Read through a ref rather than depending on `game`: that object is rebuilt
+  // every render, so an effect keyed on it clears and restarts this interval on
+  // every render. At 140ms the timer would keep getting reset before it ever
+  // fired, and strokes would sit in `pending` unsent.
+  const gameRef = useRef(game);
+  gameRef.current = game;
+
   useEffect(() => {
     const id = setInterval(() => {
       if (!pending.current.length) return;
-      game.paintDabs(pending.current.splice(0, PAINT_MAX_BATCH));
+      gameRef.current.paintDabs(pending.current.splice(0, PAINT_MAX_BATCH));
     }, PAINT_FLUSH_MS);
     return () => clearInterval(id);
-  }, [game]);
+  }, []);
 
   const onDab = useCallback((dab: PaintDab, join: boolean) => {
     pending.current.push({ ...dab, j: join });
