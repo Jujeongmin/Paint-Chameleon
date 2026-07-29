@@ -8,7 +8,8 @@
  * Run: npm run check:bodies
  */
 
-import { CAMERA, MOVE } from "../src/game/constants";
+import { CAMERA, MOVE, STAND_POSE } from "../src/game/constants";
+import { poseBounds, poseSize } from "../src/game/poseBounds";
 import {
   BODIES,
   DEFAULT_BODY_ID,
@@ -148,6 +149,27 @@ console.log("\ncamera/shoulder consistency");
     SHOULDER_RANGE.min <= CAMERA.shoulderHeight && CAMERA.shoulderHeight <= SHOULDER_RANGE.max,
     `shoulderHeight ${CAMERA.shoulderHeight}, range ${SHOULDER_RANGE.min}..${SHOULDER_RANGE.max}`
   );
+}
+
+console.log("\npose silhouette (poseBounds mirrors Humanoid's rest layout)");
+{
+  // The top and bottom of the standing silhouette must agree with the values
+  // bodies.ts already knows independently. If poseBounds ever drifts away from
+  // Humanoid's rest layout, this anchor is what breaks first.
+  for (const b of BODIES) {
+    const s = poseBounds(b, STAND_POSE);
+    check(`${b.id}: standing crown lands on TOP_Y (${s.max[1].toFixed(4)})`, Math.abs(s.max[1] - TOP_Y) < 1e-9);
+    check(`${b.id}: standing sole lands on FOOT_Y (${s.min[1].toFixed(4)})`, Math.abs(s.min[1] - FOOT_Y) < 1e-9);
+  }
+  // The arms rest slightly spread, so the silhouette can only be wider than
+  // maxHalfWidth, never narrower.
+  for (const b of BODIES) {
+    const half = poseSize(b, STAND_POSE).width / 2;
+    check(
+      `${b.id}: standing half-width is at least maxHalfWidth, within +0.15 (${half.toFixed(3)} vs ${maxHalfWidth(b).toFixed(3)})`,
+      half >= maxHalfWidth(b) - 1e-9 && half <= maxHalfWidth(b) + 0.15
+    );
+  }
 }
 
 if (failures === 0) {
