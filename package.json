@@ -12,6 +12,7 @@
     "check:movement": "tsx scripts/check-movement.ts",
     "check:hub": "tsx scripts/check-hub.ts",
     "check:map": "tsx scripts/check-map.ts",
+    "glb:size": "tsx scripts/glb-size.ts",
     "check:audio": "tsx scripts/check-audio.ts",
     "check:leaderboard": "tsx scripts/check-leaderboard.ts",
     "check:bodies": "tsx scripts/check-bodies.ts",

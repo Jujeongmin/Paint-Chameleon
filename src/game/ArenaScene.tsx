@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { ThreeEvent, useLoader, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { ARENA, FLOOR_COLOR, MAP_BOXES, WALL_COLOR } from "./map";
-import { fitModel, useProps, type ModelId } from "./props";
+import { placeModel, useProps, type ModelId } from "./props";
 
 /**
  * The arena, drawn.
@@ -91,14 +91,14 @@ export function Arena({ onPickColor }: Props) {
   // recognition, and the corrugated steel texture reads fine at that size.
   const perimeter = useMemo(() => MAP_BOXES.filter((b) => b.wall && b.s[1] === ARENA.wallHeight), []);
 
-  // Everything else is a model fitted to its collider — partitions included.
-  // Building them once matters: fitModel clones a scene graph.
+  // Everything else is a model at its own scale, standing in its collider —
+  // partitions included. Building them once matters: each clones a scene graph.
   const fitted = useMemo(
     () =>
-      MAP_BOXES.filter((b) => !(b.wall && b.s[1] === ARENA.wallHeight)).map((b) => ({
-        box: b,
-        object: fitModel(models[(b.family ?? "partition") as ModelId], b.s, b.c),
-      })),
+      MAP_BOXES.filter((b) => !(b.wall && b.s[1] === ARENA.wallHeight)).map((b) => {
+        const id = (b.family ?? "partition") as ModelId;
+        return { box: b, object: placeModel(id, b.c, models[id]) };
+      }),
     [models]
   );
 

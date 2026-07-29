@@ -15,6 +15,8 @@
  * question: what must you do to get past this thing.
  */
 
+import { colliderFor } from "./models";
+
 export interface MapBox {
   p: [number, number, number]; // center
   s: [number, number, number]; // full size
@@ -59,24 +61,22 @@ export interface Family {
 }
 
 /**
- * Heights are chosen against the movement thresholds, which is the only thing
- * they still have to answer to:
+ * Sizes come from the models, not the other way round — see models.ts. What
+ * that lands on, and what it means for movement:
  *
- *   pallet  0.40  under STEP_HEIGHT 0.45 — walked over
- *   crate   1.19  over the step, under the 1.6945 a jump reaches — climbed
- *   drum    1.86  over both — solid cover
- *   pillar  2.04  over both, and over eye height — blocks sight as well
+ *   pallet  0.25  under STEP_HEIGHT 0.45 — walked over
+ *   crate   0.65  over the step, under the 1.6945 a jump reaches — climbed
+ *   drum    0.90  likewise climbable, but tall enough to crouch behind
+ *   pillar  2.00  over both, and over eye height 1.5 — blocks sight as well
  *
- * check:map asserts all three rungs exist. The numbers are the pose-silhouette
- * measurements they inherited from the mimicry design, kept because they were
- * already spaced correctly across the thresholds, not because the disguise
- * still depends on them.
+ * check:map asserts all three rungs still exist, which is the only claim these
+ * numbers have to make now that props are no longer sized to imitate a pose.
  */
 export const FAMILIES: Family[] = [
-  { id: "drum", box: [0.99, 1.86, 0.99], colors: [0xc75b39, 0xe08a5f] },
-  { id: "crate", box: [1.12, 1.19, 1.12], colors: [0x6b4e9e, 0x9179c4] },
-  { id: "pallet", box: [1.64, 0.4, 1.64], colors: [0xd4a53f, 0xe8c66b] },
-  { id: "pillar", box: [1.27, 2.04, 1.27], colors: [0x2f8f8a, 0x49b3ad] },
+  { id: "drum", box: colliderFor("drum"), colors: [0xc75b39, 0xe08a5f] },
+  { id: "crate", box: colliderFor("crate"), colors: [0x6b4e9e, 0x9179c4] },
+  { id: "pallet", box: colliderFor("pallet"), colors: [0xd4a53f, 0xe8c66b] },
+  { id: "pillar", box: colliderFor("pillar"), colors: [0x2f8f8a, 0x49b3ad] },
 ];
 
 /**
@@ -108,34 +108,34 @@ export interface Cluster {
  * Coordinates were settled by running check:map, not by eye.
  */
 export const CLUSTERS: Cluster[] = [
-  // Drums, north-west. The zone the mimicry gate was judged on.
-  { family: "drum", at: [-17, -16], axis: "x", count: 6, emptyIndex: 3, spacing: 1.5 },
-  { family: "drum", at: [-18, -14], axis: "z", count: 4, emptyIndex: 2, spacing: 1.5 },
-  { family: "drum", at: [-9.5, -18.5], axis: "z", count: 4, emptyIndex: 1, spacing: 1.5 },
+  // Drums, north-west.
+  { family: "drum", at: [-17, -16], axis: "x", count: 6, emptyIndex: 3, spacing: 1.3 },
+  { family: "drum", at: [-18, -14], axis: "z", count: 4, emptyIndex: 2, spacing: 1.3 },
+  { family: "drum", at: [-9.5, -18.5], axis: "z", count: 4, emptyIndex: 1, spacing: 1.3 },
 
-  // Pallets, north-east. Walk-over, so a row of them is a floor pattern rather
-  // than a wall — the disguise here is lying on one, not standing in the gap.
-  { family: "pallet", at: [9, -16], axis: "x", count: 5, emptyIndex: 2, spacing: 1.8 },
-  { family: "pallet", at: [17, -15], axis: "z", count: 4, emptyIndex: 1, spacing: 1.8 },
-  { family: "pallet", at: [10, -9], axis: "x", count: 4, emptyIndex: 2, spacing: 1.8 },
+  // Pallets, north-east. Walk-over, so a row of them reads as floor pattern
+  // rather than as a wall, and the cover they give is only from lying on one.
+  { family: "pallet", at: [9, -16], axis: "x", count: 5, emptyIndex: 2, spacing: 1.9 },
+  { family: "pallet", at: [17, -15], axis: "z", count: 4, emptyIndex: 1, spacing: 1.9 },
+  { family: "pallet", at: [10, -9], axis: "x", count: 4, emptyIndex: 2, spacing: 1.9 },
 
-  // Crates, south-west. The only family you can jump on top of.
-  { family: "crate", at: [-16, 10], axis: "x", count: 5, emptyIndex: 2, spacing: 1.6 },
-  { family: "crate", at: [-17, 12.5], axis: "z", count: 4, emptyIndex: 1, spacing: 1.6 },
-  { family: "crate", at: [-10, 13], axis: "z", count: 4, emptyIndex: 2, spacing: 1.6 },
+  // Crates, south-west. Chest-high and the easiest thing to get on top of.
+  { family: "crate", at: [-16, 10], axis: "x", count: 5, emptyIndex: 2, spacing: 1.7 },
+  { family: "crate", at: [-17, 12.5], axis: "z", count: 4, emptyIndex: 1, spacing: 1.7 },
+  { family: "crate", at: [-10, 13], axis: "z", count: 4, emptyIndex: 2, spacing: 1.7 },
 
   // Pillars, south-east. Tallest props; they break sightlines inside the zone.
-  { family: "pillar", at: [9, 10], axis: "x", count: 5, emptyIndex: 2, spacing: 1.75 },
-  { family: "pillar", at: [17.5, 12.5], axis: "z", count: 4, emptyIndex: 1, spacing: 1.75 },
-  { family: "pillar", at: [10, 13.5], axis: "z", count: 4, emptyIndex: 2, spacing: 1.75 },
+  { family: "pillar", at: [9, 10], axis: "x", count: 5, emptyIndex: 2, spacing: 1.6 },
+  { family: "pillar", at: [17.5, 12.5], axis: "z", count: 4, emptyIndex: 1, spacing: 1.6 },
+  { family: "pillar", at: [10, 13.5], axis: "z", count: 4, emptyIndex: 2, spacing: 1.6 },
 ];
 
 /**
  * Partitions, laid out as a pinwheel: one arm per quadrant, rotated four ways.
  *
- * 2.4 satisfies two constraints at once. It is above the 1.69 a jump can mount,
- * so a partition can't be climbed, and above CAMERA.eyeHeight 1.5, so it can't
- * be seen over from standing.
+ * The panel model is 2.0 tall, which clears both thresholds it has to: above
+ * the 1.69 a jump can mount, so a partition can't be climbed, and above
+ * CAMERA.eyeHeight 1.5, so it can't be seen over from standing.
  *
  * Each arm leaves its MIDDLE open rather than its end. An open end turns the
  * arena into a ring you have to run around, which makes a chase tedious; an
@@ -144,9 +144,6 @@ export const CLUSTERS: Cluster[] = [
  *
  * Written as axis-aligned segments [x1, z1, x2, z2].
  */
-const PARTITION_HEIGHT = 2.4;
-const PARTITION_THICKNESS = 0.6;
-
 const PARTITIONS: [number, number, number, number][] = [
   [-19, -6, -13, -6],
   [-7, -6, -1, -6],
@@ -182,17 +179,23 @@ export function buildArena(): MapBox[] {
   boxes.push({ p: [-half, wy, 0], s: [t, ARENA.wallHeight, ARENA.size + t * 2], c: WALL_COLOR, wall: true });
   boxes.push({ p: [half, wy, 0], s: [t, ARENA.wallHeight, ARENA.size + t * 2], c: WALL_COLOR, wall: true });
 
+  // Each arm is a run of panels rather than one long box, so the model can be
+  // repeated at its own size instead of stretched down the whole span.
+  const panel = colliderFor("partition");
   for (const [x1, z1, x2, z2] of PARTITIONS) {
-    boxes.push({
-      p: [(x1 + x2) / 2, PARTITION_HEIGHT / 2, (z1 + z2) / 2],
-      s: [
-        Math.abs(x2 - x1) || PARTITION_THICKNESS,
-        PARTITION_HEIGHT,
-        Math.abs(z2 - z1) || PARTITION_THICKNESS,
-      ],
-      c: WALL_COLOR,
-      wall: true,
-    });
+    const length = Math.hypot(x2 - x1, z2 - z1);
+    const count = Math.max(1, Math.round(length / panel[0]));
+    for (let i = 0; i < count; i++) {
+      // Centres spread evenly along the segment, half a panel in from each end.
+      const t = (i + 0.5) / count;
+      boxes.push({
+        p: [x1 + (x2 - x1) * t, panel[1] / 2, z1 + (z2 - z1) * t],
+        s: [...panel] as [number, number, number],
+        c: WALL_COLOR,
+        wall: true,
+        family: "partition",
+      });
+    }
   }
 
   for (const c of CLUSTERS) {
@@ -237,5 +240,5 @@ export const SPAWN_POINTS: [number, number][] = [
   [-17, -17], [-17, 0], [-17, 19],
   [0, -17], [0, 17],
   [17, -17], [17, 0], [16, 17],
-  [-7, -19], [8, -19], [-10, 19], [8, 19],
+  [-7, -19], [8, -19], [-12, 19], [8, 19],
 ];
