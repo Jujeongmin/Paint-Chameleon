@@ -48,9 +48,22 @@ function isWallAt(b: MapBox, feetY: number): boolean {
   return true;
 }
 
-/** Highest surface the player can stand on at (x,z), given their current feet height. */
-export function groundHeightAt(x: number, z: number, feetY: number, boxes = MAP_BOXES): number {
-  let best = 0;
+/**
+ * Highest surface the player can stand on at (x,z), given their current feet
+ * height.
+ *
+ * `floorY` is the height of the implicit ground plane. It is 0 for the arena
+ * and the hub, and it exists because the seeker's holding cell is underground:
+ * with a hardcoded zero, standing at y=-8 snaps you to the surface instantly.
+ */
+export function groundHeightAt(
+  x: number,
+  z: number,
+  feetY: number,
+  boxes = MAP_BOXES,
+  floorY = 0
+): number {
+  let best = floorY;
   for (const b of boxes) {
     if (!overlapsXZ(b, x, z, 0)) continue;
     const top = b.p[1] + b.s[1] / 2;
@@ -170,10 +183,11 @@ export function resolveMove(
   dx: number,
   dz: number,
   radius: number,
-  boxes = MAP_BOXES
+  boxes = MAP_BOXES,
+  floorY = 0
 ): [number, number, number] {
   const [x, y, z] = moveXZ(from, dx, dz, radius, boxes);
-  return [x, groundHeightAt(x, z, y, boxes), z];
+  return [x, groundHeightAt(x, z, y, boxes, floorY), z];
 }
 
 /** Spawn point clear of geometry. Mirrors randomSpawn() in server/src/rules.ts. */

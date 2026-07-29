@@ -118,6 +118,26 @@ console.log("\nground and jumping");
   check(`found an open spot to stand on (${OPEN[0]}, ${OPEN[1]})`, OPEN !== null);
   check("open floor reads height 0", groundHeightAt(OPEN[0], OPEN[1], 0) === 0);
 
+  // A world whose floor is not at y=0. Nothing in the arena needs this, but the
+  // seeker's holding cell sits underground, and without it the implicit plane
+  // at zero yanks anything below it back up to the surface.
+  {
+    const deep = -8;
+    check(
+      `an empty world with floorY ${deep} reads that height, not 0`,
+      groundHeightAt(0, 0, deep, [], deep) === deep
+    );
+    check(
+      "a box below the surface is still standable",
+      groundHeightAt(0, 0, deep, [{ p: [0, deep + 0.2, 0], s: [2, 0.4, 2], c: 0 }], deep) ===
+        deep + 0.4
+    );
+    check(
+      "omitting floorY keeps the old behaviour",
+      groundHeightAt(0, 0, 0, []) === 0
+    );
+  }
+
   // Step-up is what stops a player walking up the side of cover without
   // jumping. Both sides of the threshold are pinned, off the constant itself
   // rather than a literal, so raising STEP_HEIGHT can't quietly pass.

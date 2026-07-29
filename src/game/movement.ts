@@ -81,6 +81,8 @@ export function stepMotion(
     locked?: boolean;
     /** Half-extent of the enclosing world; the hub is smaller than the arena. */
     worldHalfSize?: number;
+    /** Height of the implicit ground plane; the holding cell's is below zero. */
+    floorY?: number;
   }
 ): boolean {
   const { boxes, dt, now, speed, radius } = opts;
@@ -118,7 +120,7 @@ export function stepMotion(
   s.vy -= MOVE.gravity * dt;
   next[1] += s.vy * dt;
 
-  const ground = groundHeightAt(next[0], next[2], next[1], boxes);
+  const ground = groundHeightAt(next[0], next[2], next[1], boxes, opts.floorY ?? 0);
   if (next[1] <= ground) {
     next[1] = ground;
     s.vy = 0;
