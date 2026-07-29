@@ -28,8 +28,19 @@ export const CELL_INNER = 6;
 /** Half-extent handed to moveXZ, which clamps to ±(worldHalfSize - radius). */
 export const CELL_HALF = CELL_INNER / 2 + MOVE.playerRadius;
 
-/** Head clearance above the floor. */
-const CELL_HEIGHT = 3;
+/** How far a jump lifts the feet above the floor. */
+const JUMP_APEX = (MOVE.jumpSpeed * MOVE.jumpSpeed) / (2 * MOVE.gravity);
+
+/**
+ * Head clearance above the floor. There is no ceiling collision in this
+ * engine — groundHeightAt only ever treats a box's top as something to land
+ * on, never something to bump into overhead — so a jumping head is stopped by
+ * nothing but the room being tall enough on its own. The ceiling has to clear
+ * a body at the very top of a jump (TOP_Y above the floor, plus JUMP_APEX of
+ * lift), not just a standing one, with a margin so a graze doesn't become a
+ * clip if the tuning constants move.
+ */
+const CELL_HEIGHT = TOP_Y + JUMP_APEX + 0.2;
 
 const THICKNESS = 0.5;
 
@@ -68,5 +79,8 @@ export const CELL_BOXES: MapBox[] = (() => {
   ];
 })();
 
-/** Sanity: a 1.86-tall body has to fit under the ceiling. */
+/** Sanity: a 1.86-tall body has to fit under the ceiling while standing. */
 export const CELL_CLEARS_BODY = CELL_HEIGHT > TOP_Y;
+
+/** ...and while at the very top of a jump, which is the taller of the two. */
+export const CELL_CLEARS_JUMP = CELL_HEIGHT > TOP_Y + JUMP_APEX;

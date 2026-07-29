@@ -11,8 +11,8 @@
 import {
   CELL_BOXES,
   CELL_CLEARS_BODY,
+  CELL_CLEARS_JUMP,
   CELL_FLOOR_Y,
-  CELL_HALF,
   CELL_INNER,
   CELL_SPAWN,
 } from "../src/game/cell";
@@ -34,6 +34,12 @@ function check(label: string, ok: boolean, detail = "") {
 console.log("\nthe cell is somewhere you can stand");
 
 check("a standing body clears the ceiling", CELL_CLEARS_BODY);
+// There's no ceiling collision in this engine — groundHeightAt only treats a
+// box top as something to land on, never something to bump against — so a
+// jumping head is stopped by nothing but the room being tall enough on its
+// own. This is what actually bounds CELL_HEIGHT; the standing check above is
+// the easier, non-binding case.
+check("a jumping body clears the ceiling", CELL_CLEARS_JUMP);
 check(
   `the spawn rests on the cell floor (${groundHeightAt(
     CELL_SPAWN[0],
@@ -54,7 +60,16 @@ console.log("\nthe cell is sealed");
 {
   // Walk hard at all four walls with the real integrator. Escaping is not a
   // cosmetic failure: the seeker would drop through the world.
+  //
+  // worldHalfSize is NOT CELL_HALF here. CELL_HALF is CELL_INNER/2 + radius,
+  // and moveXZ clamps the centre to worldHalfSize - radius — so passing
+  // CELL_HALF makes the clamp land on exactly CELL_INNER/2 regardless of
+  // what CELL_BOXES contains, and the walk would "pass" even with the walls
+  // deleted. A worldHalfSize far outside the room removes that clamp as a
+  // factor, so the wall slabs are the only thing that can stop the body, and
+  // containment is still checked against the walls' real inner faces.
   const dt = 1 / 60;
+  const FAR_OUTSIDE = CELL_INNER * 10;
   for (const [name, yaw] of [
     ["+z", 0],
     ["-z", Math.PI],
@@ -69,7 +84,7 @@ console.log("\nthe cell is sealed");
         now: i * dt * 1000,
         speed: MOVE.seekerSpeed,
         radius: MOVE.playerRadius,
-        worldHalfSize: CELL_HALF,
+        worldHalfSize: FAR_OUTSIDE,
         floorY: CELL_FLOOR_Y,
       });
     }
