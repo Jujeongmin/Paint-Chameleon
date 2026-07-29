@@ -68,10 +68,13 @@
       `an empty world with floorY ${deep} reads that height, not 0`,
       groundHeightAt(0, 0, deep, [], deep) === deep
     );
+    // 0.4 tall, not 0.5: a box whose top sits more than STEP_HEIGHT (0.45)
+    // above the feet is one you have to jump onto, so groundHeightAt would
+    // correctly ignore it and this check would fail for the wrong reason.
     check(
       "a box below the surface is still standable",
-      groundHeightAt(0, 0, deep, [{ p: [0, deep + 0.25, 0], s: [2, 0.5, 2], c: 0 }], deep) ===
-        deep + 0.5
+      groundHeightAt(0, 0, deep, [{ p: [0, deep + 0.2, 0], s: [2, 0.4, 2], c: 0 }], deep) ===
+        deep + 0.4
     );
     check(
       "omitting floorY keeps the old behaviour",
