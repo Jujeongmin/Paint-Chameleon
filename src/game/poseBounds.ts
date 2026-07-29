@@ -153,3 +153,15 @@ export function maxPoseSize(poseIndex: number) {
     depth: Math.max(...sizes.map((s) => s.depth)),
   };
 }
+
+/**
+ * How high the silhouette reaches above the floor, across the whole catalogue.
+ *
+ * This, not the silhouette's height, is what a prop standing on the ground
+ * should be: a box runs from y=0 up, while a pose can float clear of the floor
+ * (standing, the soles sit at FOOT_Y). Sizing a drum to the standing height
+ * 1.73 would leave every player's head poking 0.13 above the row.
+ */
+export function maxPoseTop(poseIndex: number): number {
+  return Math.max(...BODIES.map((b) => poseBounds(b, poseIndex).max[1]));
+}

@@ -75,10 +75,10 @@ export function attachRanks(sorted: LeaderboardEntry[]): RankedLeaderboardEntry[
  * reported position and never looks at a box, and neither does the tag check.
  */
 export const SPAWN_POINTS: [number, number][] = [
-  [-17, -17], [-17, 0], [-17, 18],
+  [-17, -17], [-17, 0], [-17, 19],
   [0, -17], [0, 17],
-  [17, -17], [17, 0], [17, 17],
-  [-7, -19], [8, -19], [-10, 19], [9, 19],
+  [17, -17], [17, 0], [16, 17],
+  [-7, -19], [8, -19], [-10, 19], [8, 19],
 ];
 
 export function randomSpawn(): [number, number, number] {
