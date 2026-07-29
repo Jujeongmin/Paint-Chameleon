@@ -91,6 +91,8 @@ export function LocalPlayer({
   const lastSent = useRef({ x: 0, y: 0, z: 0, rot: 0, pose: -1, at: 0 });
   const lastLocalUV = useRef<{ u: number; v: number } | null>(null);
   const spawnApplied = useRef(false);
+  /** Distinguishes the [inCell] effect's mount-time run from a genuine transition. */
+  const cellEffectRan = useRef(false);
 
   const { read } = useKeyboard((code) => {
     // Hiders only — the seeker's reported facing is what the server checks when
@@ -168,7 +170,22 @@ export function LocalPlayer({
   // Entering and leaving the cell are both teleports. The local rig owns its
   // own position, so it has to be told; waiting for the server's write to
   // arrive would leave the body a frame or more inside the wrong world.
+  //
+  // useEffect runs on mount too, not just on a real change to `inCell` — and
+  // LocalPlayer mounts during the lobby, right after the spawnApplied effect
+  // above has just adopted the real spawn the server assigned on join. An
+  // unguarded snap here would stomp that with [0, 0, 0] on every mount,
+  // teleporting every player (hiders included) to the exact arena centre for
+  // the whole lobby — visible and functional, since movement isn't frozen
+  // then. So the mount case is only allowed to snap if we're already inCell:
+  // that's a player joining or reloading mid-hiding-phase as the seeker, who
+  // the server has not placed in the cell yet and genuinely needs the snap.
+  // Every later change, in either direction, still snaps unconditionally.
   useEffect(() => {
+    const firstRun = !cellEffectRan.current;
+    cellEffectRan.current = true;
+    if (firstRun && !inCell) return;
+
     motion.current = createMotionState(
       inCell ? ([...CELL_SPAWN] as [number, number, number]) : [0, 0, 0]
     );
