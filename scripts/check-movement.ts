@@ -177,26 +177,18 @@ console.log("\nground and jumping");
     );
   }
 
-  // The map's own crates: the shortest one the generator can make must still
-  // require a jump, or cover is climbable by walking into it.
-  const shortest = MAP_BOXES.filter((b) => Math.abs(b.p[0]) < 18).sort((a, b) => a.s[1] - b.s[1])[0];
-  if (shortest) {
-    check(
-      `the shortest arena crate (h=${shortest.s[1].toFixed(2)}) is not walkable`,
-      groundHeightAt(shortest.p[0], shortest.p[2], 0) === 0
-    );
+  // Landing on a tall box from above must still work — asserted against
+  // synthetic geometry so it holds whatever the arena happens to contain.
+  {
+    const tall = [{ p: [40, 1.5, 44] as [number, number, number], s: [2, 3, 2] as [number, number, number], c: 0 }];
+    check("a 3.0u box is not steppable from the floor", groundHeightAt(40, 44, 0, tall) === 0);
+    check("...but is landable from above", groundHeightAt(40, 44, 3, tall) === 3);
   }
 
-  const tall = MAP_BOXES.find((b) => b.s[1] > 2.5 && Math.abs(b.p[0]) < 18);
-  if (tall) {
-    check(
-      `tall crate (h=${tall.s[1].toFixed(2)}) is not steppable from the floor`,
-      groundHeightAt(tall.p[0], tall.p[2], 0) === 0
-    );
-    // ...but landing on it from above must work.
-    const top = tall.p[1] + tall.s[1] / 2;
-    check("tall crate is landable from above", groundHeightAt(tall.p[0], tall.p[2], top) === top);
-  }
+  // What the arena's own boxes may and may not be climbed is now check:map's
+  // job: the redesigned map deliberately contains pallets you walk over, so a
+  // blanket "the shortest arena box needs a jump" is no longer true, and the
+  // per-family rules need the family table to state them against.
 }
 
 {
