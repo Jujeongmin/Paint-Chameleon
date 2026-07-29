@@ -21,9 +21,11 @@ import {
 import { playerBlockedAt } from "../src/game/map";
 import { BODIES } from "../src/game/bodies";
 import { POSES, MOVE } from "../src/game/constants";
+import { CELL_SPAWN as CLIENT_CELL } from "../src/game/cell";
 import {
   ARENA as SERVER_ARENA,
   SPAWN_POINTS as SERVER_SPAWNS,
+  CELL_SPAWN as SERVER_CELL,
   POSE_COUNT as SERVER_POSE_COUNT,
   MOVE_SPEED_CAP,
   AVATAR_PRICES,
@@ -72,6 +74,16 @@ if (CLIENT_SPAWNS.length !== SERVER_SPAWNS.length) {
   }
   if (bad === 0) pass(`${CLIENT_SPAWNS.length} spawn points identical on both sides`);
   else fail(`${bad} spawn points differ in total`);
+}
+
+console.log("\nholding cell");
+
+// The server spawns the seeker here and never simulates the room around it, so
+// a drift would drop them outside the cell with no wall to stop them.
+if (CLIENT_CELL.some((v, i) => v !== SERVER_CELL[i])) {
+  fail(`cell spawn differs: client [${CLIENT_CELL}], server [${SERVER_CELL}]`);
+} else {
+  pass(`cell spawn [${CLIENT_CELL}] matches on both sides`);
 }
 
 console.log("\npose count");

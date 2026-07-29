@@ -25,6 +25,7 @@ import {
   LEADERBOARD_COLLECTION,
   attachRanks,
   randomSpawn,
+  CELL_SPAWN,
   type RankedLeaderboardEntry,
   WALLET_COLLECTION,
   DEFAULT_WALLET,
@@ -95,7 +96,7 @@ async function startRound(roomId: string, users: Array<Record<string, any>>, sta
       caughtAt: null,
       pose: 0,
       ready: false,
-      pos: isSeeker ? [0, 0, 0] : randomSpawn(),
+      pos: isSeeker ? CELL_SPAWN : randomSpawn(),
       rotY: 0,
       lastTagAt: 0,
       lastMoveAt: now,
@@ -579,6 +580,19 @@ export class Server {
 
       case "hiding": {
         if (now >= num(state.phaseEndsAt)) {
+          // Lift the seeker out of the holding cell. lastMoveAt has to move
+          // with the position: updateTransform clamps a report against the
+          // distance travelled since that timestamp, so leaving it behind means
+          // the server's own teleport reads as a speed hack and gets clamped
+          // back toward the cell.
+          const seeker = state.seeker as string | undefined;
+          if (seeker) {
+            await $global.updateRoomUserState(roomId, seeker, {
+              pos: [0, 0, 0],
+              lastMoveAt: now,
+            });
+          }
+
           await $global.updateRoomState(roomId, {
             phase: "seeking" as Phase,
             phaseEndsAt: now + PHASE_SECONDS.seeking * 1000,

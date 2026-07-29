@@ -16,7 +16,7 @@ export const POSE_COUNT = 4;
 /** The social hub holds far more people than a match, and never runs a round. */
 export const HUB_CAPACITY = 24;
 
-export const PHASE_SECONDS = { hiding: 45, seeking: 90, results: 10 };
+export const PHASE_SECONDS = { hiding: 30, seeking: 90, results: 10 };
 
 export const TAG = { maxDistance: 2.6, minFacingDot: 0.55, cooldownMs: 700 };
 
@@ -85,6 +85,15 @@ export function randomSpawn(): [number, number, number] {
   const p = SPAWN_POINTS[Math.floor(Math.random() * SPAWN_POINTS.length)];
   return [p[0], 0, p[1]];
 }
+
+/**
+ * Where the seeker waits out the hiding phase.
+ *
+ * Must match CELL_SPAWN in src/game/cell.ts — check:sync compares them. The
+ * server needs no other part of the cell: it never simulates movement, and the
+ * cell's walls are a client-side collision concern.
+ */
+export const CELL_SPAWN: [number, number, number] = [0, -8, 0];
 
 // ------------------------------------------------------------ avatar shop
 

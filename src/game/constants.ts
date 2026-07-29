@@ -5,7 +5,7 @@ export type Phase = "lobby" | "hiding" | "seeking" | "results";
 /** Phase durations in seconds. */
 export const PHASE_SECONDS: Record<Phase, number> = {
   lobby: 0, // ends when enough players ready
-  hiding: 45,
+  hiding: 30,
   seeking: 90,
   results: 10,
 };
