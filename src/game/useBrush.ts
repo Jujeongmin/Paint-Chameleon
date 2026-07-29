@@ -105,8 +105,17 @@ function surfaceColor(mesh: THREE.Mesh, uv: THREE.Vector2 | undefined): number |
       const u = wrap01(uv.x * map.repeat.x + map.offset.x);
       const v = wrap01(uv.y * map.repeat.y + map.offset.y);
       const px = clampIndex(u * pixels.width, pixels.width);
-      // Texture v runs up from the bottom; ImageData rows run down from the top.
-      const py = clampIndex((1 - v) * pixels.height, pixels.height);
+
+      // Which way v runs depends on how the texture was loaded, and getting it
+      // wrong is invisible on a photograph and catastrophic on a palette atlas:
+      // the Kenney models all share one, so a mirrored row lands on an
+      // unrelated colour rather than a slightly-off one.
+      //
+      // TextureLoader flips the image on upload (flipY true), so v=0 is the
+      // bottom row and the lookup has to be inverted. GLTFLoader does not —
+      // glTF puts uv origin at the top left — so v maps straight to the row.
+      const row = map.flipY ? 1 - v : v;
+      const py = clampIndex(row * pixels.height, pixels.height);
       const i = (py * pixels.width + px) * 4;
       return (pixels.data[i] << 16) | (pixels.data[i + 1] << 8) | pixels.data[i + 2];
     }
