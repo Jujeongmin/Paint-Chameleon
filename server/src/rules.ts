@@ -6,7 +6,7 @@
  * so anything shared is duplicated here and check:sync compares the two.
  */
 
-export const ARENA = { size: 44, wallHeight: 7, wallThickness: 1 };
+export const ARENA = { size: 88, wallHeight: 7, wallThickness: 1 };
 
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 8;
@@ -75,10 +75,10 @@ export function attachRanks(sorted: LeaderboardEntry[]): RankedLeaderboardEntry[
  * reported position and never looks at a box, and neither does the tag check.
  */
 export const SPAWN_POINTS: [number, number][] = [
-  [-17, -17], [-17, 0], [-17, 19],
-  [0, -17], [0, 17],
-  [17, -17], [17, 0], [16, 17],
-  [-7, -19], [8, -19], [-12, 19], [8, 19],
+  [-34, -34], [-34, 0], [-34, 38],
+  [0, -34], [0, 34],
+  [34, -34], [34, 0], [32, 34],
+  [-14, -38], [16, -38], [-24, 38], [16, 38],
 ];
 
 export function randomSpawn(): [number, number, number] {

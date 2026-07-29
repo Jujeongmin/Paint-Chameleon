@@ -167,19 +167,24 @@ export function Lighting() {
   return (
     <>
       <hemisphereLight args={["#b9c6d6", "#2a2f38", 0.85]} />
+      {/* The shadow camera has to cover the whole floor or shadows stop dead
+          in a straight line partway across it. 2048 over 96u is about 21
+          texels per unit, which is soft but not obviously wrong. */}
       <directionalLight
-        position={[18, 26, 12]}
+        position={[36, 52, 24]}
         intensity={1.5}
         castShadow
         shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-28}
-        shadow-camera-right={28}
-        shadow-camera-top={28}
-        shadow-camera-bottom={-28}
-        shadow-camera-far={70}
+        shadow-camera-left={-48}
+        shadow-camera-right={48}
+        shadow-camera-top={48}
+        shadow-camera-bottom={-48}
+        shadow-camera-far={140}
       />
       <ambientLight intensity={0.25} />
-      <fog attach="fog" args={["#1a1f28", 30, 62]} />
+      {/* Pulled back with the arena: at 88x88 the old 62u far plane hid the
+          far half of the map behind a flat wall of fog. */}
+      <fog attach="fog" args={["#1a1f28", 55, 135]} />
       <color attach="background" args={["#1a1f28"]} />
     </>
   );

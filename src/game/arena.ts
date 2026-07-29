@@ -40,7 +40,16 @@ export interface MapBox {
   rotY?: number;
 }
 
-export const ARENA = { size: 44, wallHeight: 7, wallThickness: 1 };
+/**
+ * 88x88 — four times the floor of the 44x44 it started as.
+ *
+ * The diagonal is now 124u, about 21 seconds at the hider's 6u/s, so the
+ * seeker's 90 seconds buys far fewer sweeps than it used to. That is a balance
+ * question this file can't answer; PHASE_SECONDS is where it would be settled.
+ *
+ * KEEP IN SYNC WITH server/src/rules.ts — check:sync compares it.
+ */
+export const ARENA = { size: 88, wallHeight: 7, wallThickness: 1 };
 
 /**
  * What the floor and walls read as to the eyedropper.
@@ -115,26 +124,40 @@ export interface Cluster {
  * Coordinates were settled by running check:map, not by eye.
  */
 export const CLUSTERS: Cluster[] = [
-  // Drums, north-west.
-  { family: "drum", at: [-17, -16], axis: "x", count: 6, emptyIndex: 3, spacing: 1.3 },
-  { family: "drum", at: [-18, -14], axis: "z", count: 4, emptyIndex: 2, spacing: 1.3 },
-  { family: "drum", at: [-9.5, -18.5], axis: "z", count: 4, emptyIndex: 1, spacing: 1.3 },
+  // Drums, north-west. Outer trio, then a second one nearer the crossroads —
+  // at 88x88 a single trio per zone leaves the middle half of each quadrant
+  // with nothing designed in it at all.
+  { family: "drum", at: [-34, -32], axis: "x", count: 6, emptyIndex: 3, spacing: 1.3 },
+  { family: "drum", at: [-36, -28], axis: "z", count: 4, emptyIndex: 2, spacing: 1.3 },
+  { family: "drum", at: [-19, -37], axis: "z", count: 4, emptyIndex: 1, spacing: 1.3 },
+  { family: "drum", at: [-26, -20], axis: "x", count: 5, emptyIndex: 2, spacing: 1.3 },
+  { family: "drum", at: [-20, -26], axis: "z", count: 4, emptyIndex: 1, spacing: 1.3 },
+  { family: "drum", at: [-30, -14], axis: "x", count: 4, emptyIndex: 2, spacing: 1.3 },
 
   // Pallets, north-east. Walk-over, so a row of them reads as floor pattern
   // rather than as a wall, and the cover they give is only from lying on one.
-  { family: "pallet", at: [9, -16], axis: "x", count: 5, emptyIndex: 2, spacing: 1.9 },
-  { family: "pallet", at: [17, -15], axis: "z", count: 4, emptyIndex: 1, spacing: 1.9 },
-  { family: "pallet", at: [10, -9], axis: "x", count: 4, emptyIndex: 2, spacing: 1.9 },
+  { family: "pallet", at: [18, -32], axis: "x", count: 5, emptyIndex: 2, spacing: 1.9 },
+  { family: "pallet", at: [34, -30], axis: "z", count: 4, emptyIndex: 1, spacing: 1.9 },
+  { family: "pallet", at: [20, -18], axis: "x", count: 4, emptyIndex: 2, spacing: 1.9 },
+  { family: "pallet", at: [22, -24], axis: "x", count: 5, emptyIndex: 2, spacing: 1.9 },
+  { family: "pallet", at: [32, -16], axis: "z", count: 4, emptyIndex: 1, spacing: 1.9 },
+  { family: "pallet", at: [16, -12], axis: "x", count: 4, emptyIndex: 2, spacing: 1.9 },
 
   // Crates, south-west. Chest-high and the easiest thing to get on top of.
-  { family: "crate", at: [-16, 10], axis: "x", count: 5, emptyIndex: 2, spacing: 1.7 },
-  { family: "crate", at: [-17, 12.5], axis: "z", count: 4, emptyIndex: 1, spacing: 1.7 },
-  { family: "crate", at: [-10, 13], axis: "z", count: 4, emptyIndex: 2, spacing: 1.7 },
+  { family: "crate", at: [-32, 20], axis: "x", count: 5, emptyIndex: 2, spacing: 1.7 },
+  { family: "crate", at: [-34, 25], axis: "z", count: 4, emptyIndex: 1, spacing: 1.7 },
+  { family: "crate", at: [-20, 26], axis: "z", count: 4, emptyIndex: 2, spacing: 1.7 },
+  { family: "crate", at: [-24, 14], axis: "x", count: 5, emptyIndex: 2, spacing: 1.7 },
+  { family: "crate", at: [-16, 20], axis: "z", count: 4, emptyIndex: 1, spacing: 1.7 },
+  { family: "crate", at: [-30, 12], axis: "x", count: 4, emptyIndex: 2, spacing: 1.7 },
 
   // Pillars, south-east. Tallest props; they break sightlines inside the zone.
-  { family: "pillar", at: [9, 10], axis: "x", count: 5, emptyIndex: 2, spacing: 1.6 },
-  { family: "pillar", at: [17.5, 12.5], axis: "z", count: 4, emptyIndex: 1, spacing: 1.6 },
-  { family: "pillar", at: [10, 13.5], axis: "z", count: 4, emptyIndex: 2, spacing: 1.6 },
+  { family: "pillar", at: [18, 20], axis: "x", count: 5, emptyIndex: 2, spacing: 1.6 },
+  { family: "pillar", at: [35, 25], axis: "z", count: 4, emptyIndex: 1, spacing: 1.6 },
+  { family: "pillar", at: [20, 27], axis: "z", count: 4, emptyIndex: 2, spacing: 1.6 },
+  { family: "pillar", at: [24, 14], axis: "x", count: 5, emptyIndex: 2, spacing: 1.6 },
+  { family: "pillar", at: [16, 22], axis: "z", count: 4, emptyIndex: 1, spacing: 1.6 },
+  { family: "pillar", at: [30, 18], axis: "x", count: 4, emptyIndex: 2, spacing: 1.6 },
 ];
 
 /**
@@ -152,14 +175,14 @@ export const CLUSTERS: Cluster[] = [
  * Written as axis-aligned segments [x1, z1, x2, z2].
  */
 const PARTITIONS: [number, number, number, number][] = [
-  [-19, -6, -13, -6],
-  [-7, -6, -1, -6],
-  [6, -19, 6, -13],
-  [6, -7, 6, -1],
-  [19, 6, 13, 6],
-  [7, 6, 1, 6],
-  [-6, 19, -6, 13],
-  [-6, 7, -6, 1],
+  [-38, -12, -26, -12],
+  [-14, -12, -2, -12],
+  [12, -38, 12, -26],
+  [12, -14, 12, -2],
+  [38, 12, 26, 12],
+  [14, 12, 2, 12],
+  [-12, 38, -12, 26],
+  [-12, 14, -12, 2],
 ];
 
 /**
@@ -179,10 +202,10 @@ const PARTITIONS: [number, number, number, number][] = [
  * KEEP IN SYNC WITH server/src/rules.ts — check:sync compares them.
  */
 export const SPAWN_POINTS: [number, number][] = [
-  [-17, -17], [-17, 0], [-17, 19],
-  [0, -17], [0, 17],
-  [17, -17], [17, 0], [16, 17],
-  [-7, -19], [8, -19], [-12, 19], [8, 19],
+  [-34, -34], [-34, 0], [-34, 38],
+  [0, -34], [0, 34],
+  [34, -34], [34, 0], [32, 34],
+  [-14, -38], [16, -38], [-24, 38], [16, 38],
 ];
 
 /**
@@ -193,10 +216,14 @@ export const SPAWN_POINTS: [number, number][] = [
  * empty runs without eating the rows.
  */
 const BUILDINGS: { model: ModelId; at: [number, number]; rotY?: number }[] = [
-  { model: "building-l", at: [-12, 3] },
-  { model: "building-c", at: [12, -3], rotY: Math.PI / 2 },
-  { model: "building-r", at: [3, 12], rotY: Math.PI / 2 },
-  { model: "building-m", at: [-3, -12] },
+  { model: "building-l", at: [-24, 6] },
+  { model: "building-c", at: [24, -6], rotY: Math.PI / 2 },
+  { model: "building-r", at: [6, 24], rotY: Math.PI / 2 },
+  { model: "building-m", at: [-6, -24] },
+  { model: "building-a", at: [-30, -8], rotY: Math.PI / 2 },
+  { model: "building-m", at: [30, 8], rotY: Math.PI },
+  { model: "building-l", at: [8, -30] },
+  { model: "building-c", at: [-8, 30] },
 ];
 
 /**
@@ -214,8 +241,8 @@ const CLUTTER_SEED = 20260729;
  * end. 6000 is what it takes to reach the target; raising the target further
  * starts closing routes, which check:map catches.
  */
-const CLUTTER_ATTEMPTS = 6000;
-const CLUTTER_TARGET = 110;
+const CLUTTER_ATTEMPTS = 40000;
+const CLUTTER_TARGET = 440;
 
 /** mulberry32 — small and deterministic. */
 function rng(seed: number) {

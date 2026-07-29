@@ -92,15 +92,31 @@ console.log("\ndiagonals");
   check("no input means no movement", close(zx, 0) && close(zz, 0));
 }
 
+/**
+ * A patch of arena floor with nothing within a metre of it, used by the tests
+ * below that need "somewhere ordinary to stand".
+ */
+const OPEN: [number, number] = (() => {
+  const limit = ARENA.size / 2 - 3;
+  for (let x = -limit; x <= limit; x += 1) {
+    for (let z = -limit; z <= limit; z += 1) {
+      const clear = MAP_BOXES.every(
+        (b) => Math.abs(x - b.p[0]) > b.s[0] / 2 + 1 || Math.abs(z - b.p[2]) > b.s[2] / 2 + 1
+      );
+      if (clear) return [x, z];
+    }
+  }
+  throw new Error("no open floor anywhere in the arena — the clutter has filled it");
+})();
+
 console.log("\nground and jumping");
 
 {
-  // Standing on open floor.
-  const open = MAP_BOXES.every(
-    (b) => Math.abs(20 - b.p[0]) > b.s[0] / 2 + 1 || Math.abs(20 - b.p[2]) > b.s[2] / 2 + 1
-  );
-  check("test point is clear of geometry", open);
-  check("open floor reads height 0", groundHeightAt(20, 20, 0) === 0);
+  // Standing on open floor. The point is searched for rather than written
+  // down: the arena's layout is not this script's business, and a hardcoded
+  // coordinate silently becomes a test of "is there still a gap here".
+  check(`found an open spot to stand on (${OPEN[0]}, ${OPEN[1]})`, OPEN !== null);
+  check("open floor reads height 0", groundHeightAt(OPEN[0], OPEN[1], 0) === 0);
 
   // Step-up is what stops a player walking up the side of cover without
   // jumping. Both sides of the threshold are pinned, off the constant itself
@@ -249,7 +265,7 @@ console.log("\ncorner escape");
 console.log("\ncamera collision");
 
 {
-  const openTarget = { x: 20, y: 1.35, z: 20 };
+  const openTarget = { x: OPEN[0], y: 1.35, z: OPEN[1] };
   check(
     "unobstructed view keeps the full distance",
     clearCameraDistance(openTarget, { x: 0, y: 1, z: 0 }, 5.2, CAMERA.minDistance) === 5.2
