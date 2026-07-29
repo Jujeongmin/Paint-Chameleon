@@ -71,3 +71,25 @@ export function buildMap(): MapBox[] {
 }
 
 export const MAP_BOXES: MapBox[] = buildMap();
+
+/**
+ * Where hiders start. Hand-picked, for two reasons.
+ *
+ * The only thing the server ever needed the map for was "find a spot that
+ * isn't inside geometry". Given this list it needs no boxes at all, which
+ * removes the largest duplication in the project — and a hand-designed map
+ * would otherwise mean ~90 box literals living in two places.
+ *
+ * A random open spot only guarantees the spot is empty. A chosen one also
+ * guarantees you don't begin the round already standing in the best hiding
+ * slot on the map.
+ *
+ * The seeker is pinned to [0,0,0] by server.ts and is not in this list.
+ * KEEP IN SYNC WITH server/src/rules.ts — check:sync compares them.
+ */
+export const SPAWN_POINTS: [number, number][] = [
+  [-17, -17], [-17, 0], [-17, 18],
+  [0, -17], [0, 17],
+  [17, -17], [17, 0], [17, 17],
+  [-9, -19], [8, -19], [-10, 19], [9, 19],
+];

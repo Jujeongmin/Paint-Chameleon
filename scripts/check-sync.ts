@@ -1,23 +1,31 @@
 /**
- * Guards the one unavoidable duplication in this project.
+ * Guards the unavoidable duplications in this project.
  *
- * The server runs in an isolated VM and cannot import from src/, so the map
- * generator exists twice. If the two drift, players walk around one arena while
- * the server spawns them into another — a silent bug that no type check or unit
- * test on either side alone would catch.
+ * The server runs in an isolated VM and cannot import from src/, so anything
+ * both sides need exists twice. If the two drift, the server acts on values
+ * players never see — a silent bug that no type check or unit test on either
+ * side alone would catch.
+ *
+ * The map itself used to be the big one. It isn't duplicated any more: the
+ * server holds hand-picked SPAWN_POINTS instead of ~90 boxes, so that is what
+ * this script compares now.
  *
  * Run: npm run check:sync
  */
 
-import { MAP_BOXES as CLIENT_BOXES, ARENA as CLIENT_ARENA } from "../src/game/map";
+import {
+  MAP_BOXES as CLIENT_BOXES,
+  ARENA as CLIENT_ARENA,
+  SPAWN_POINTS as CLIENT_SPAWNS,
+} from "../src/game/arena";
+import { playerBlockedAt } from "../src/game/map";
 import { BODIES } from "../src/game/bodies";
 import { POSES, MOVE } from "../src/game/constants";
 import {
-  MAP_BOXES as SERVER_BOXES,
   ARENA as SERVER_ARENA,
+  SPAWN_POINTS as SERVER_SPAWNS,
   POSE_COUNT as SERVER_POSE_COUNT,
   MOVE_SPEED_CAP,
-  isOpen,
   AVATAR_PRICES,
 } from "../server/src/rules";
 
@@ -44,30 +52,26 @@ if (
   pass(`arena ${CLIENT_ARENA.size}x${CLIENT_ARENA.size} matches`);
 }
 
-console.log("\nmap geometry");
+console.log("\nspawn points");
 
-if (CLIENT_BOXES.length !== SERVER_BOXES.length) {
-  fail(`box count differs: client ${CLIENT_BOXES.length}, server ${SERVER_BOXES.length}`);
+// The server no longer holds a map. The only geometry contract left is where
+// hiders start, so this is now the whole of it.
+if (CLIENT_SPAWNS.length !== SERVER_SPAWNS.length) {
+  fail(`spawn point count differs: client ${CLIENT_SPAWNS.length}, server ${SERVER_SPAWNS.length}`);
 } else {
-  pass(`${CLIENT_BOXES.length} boxes on both sides`);
-
-  let mismatched = 0;
-  for (let i = 0; i < CLIENT_BOXES.length; i++) {
-    const a = CLIENT_BOXES[i];
-    const b = SERVER_BOXES[i];
-    const same =
-      a.c === b.c &&
-      a.p.every((v, j) => Math.abs(v - b.p[j]) < 1e-9) &&
-      a.s.every((v, j) => Math.abs(v - b.s[j]) < 1e-9);
-    if (!same) {
-      if (mismatched < 3) {
-        fail(`box ${i} differs\n      client ${JSON.stringify(a)}\n      server ${JSON.stringify(b)}`);
+  let bad = 0;
+  for (let i = 0; i < CLIENT_SPAWNS.length; i++) {
+    if (CLIENT_SPAWNS[i][0] !== SERVER_SPAWNS[i][0] || CLIENT_SPAWNS[i][1] !== SERVER_SPAWNS[i][1]) {
+      if (bad < 3) {
+        fail(
+          `spawn ${i} differs: client [${CLIENT_SPAWNS[i]}], server [${SERVER_SPAWNS[i]}]`
+        );
       }
-      mismatched++;
+      bad++;
     }
   }
-  if (mismatched === 0) pass("every box matches position, size and colour");
-  else fail(`${mismatched} boxes differ in total`);
+  if (bad === 0) pass(`${CLIENT_SPAWNS.length} spawn points identical on both sides`);
+  else fail(`${bad} spawn points differ in total`);
 }
 
 console.log("\npose count");
@@ -127,28 +131,21 @@ console.log("\navatar catalogue");
 
 console.log("\nspawn safety");
 
-// The server picks spawn points; if its clearance test disagrees with the
-// client's geometry, players materialise inside crates.
-let blocked = 0;
-const SAMPLES = 300;
-for (let i = 0; i < SAMPLES; i++) {
-  const limit = SERVER_ARENA.size / 2 - 2.5;
-  const x = (Math.random() * 2 - 1) * limit;
-  const z = (Math.random() * 2 - 1) * limit;
-  if (!isOpen(x, z)) continue;
-
-  // Anything the server calls open must also be clear of every client box.
-  const overlapping = CLIENT_BOXES.some(
-    (b) =>
-      b.p[1] + b.s[1] / 2 > 1.15 &&
-      Math.abs(x - b.p[0]) < b.s[0] / 2 + 0.45 &&
-      Math.abs(z - b.p[2]) < b.s[2] / 2 + 0.45
+// The server can no longer test a spawn against the map, because it no longer
+// has one — it just hands out points from its list. So every point on that
+// list has to be somewhere a player actually fits, judged by the client's real
+// collision rules rather than a re-implementation of them.
+{
+  const inside = SERVER_SPAWNS.filter(([x, z]) =>
+    playerBlockedAt(x, z, 0, MOVE.playerRadius, CLIENT_BOXES)
   );
-  if (overlapping) blocked++;
+  if (inside.length) {
+    for (const p of inside.slice(0, 3)) fail(`server spawn [${p}] lands inside client geometry`);
+    if (inside.length > 3) fail(`${inside.length} server spawns land inside client geometry in total`);
+  } else {
+    pass(`all ${SERVER_SPAWNS.length} server spawns are clear of client collision`);
+  }
 }
-
-if (blocked > 0) fail(`${blocked} server-approved spawn points land inside client geometry`);
-else pass(`server spawn clearance agrees with client collision (${SAMPLES} samples)`);
 
 if (failures === 0) {
   console.log("\n✅ client and server agree\n");
