@@ -12,12 +12,13 @@
     "check:movement": "tsx scripts/check-movement.ts",
     "check:hub": "tsx scripts/check-hub.ts",
     "check:map": "tsx scripts/check-map.ts",
+    "check:cell": "tsx scripts/check-cell.ts",
     "glb:size": "tsx scripts/glb-size.ts",
     "check:audio": "tsx scripts/check-audio.ts",
     "check:leaderboard": "tsx scripts/check-leaderboard.ts",
     "check:bodies": "tsx scripts/check-bodies.ts",
     "check:shop": "tsx scripts/check-shop.ts",
-    "check": "tsc --noEmit && npm run check:sync && npm run check:bodies && npm run check:shop && npm run check:movement && npm run check:hub && npm run check:map && npm run check:audio && npm run check:leaderboard && npm run server:test",
+    "check": "tsc --noEmit && npm run check:sync && npm run check:bodies && npm run check:shop && npm run check:movement && npm run check:hub && npm run check:map && npm run check:cell && npm run check:audio && npm run check:leaderboard && npm run server:test",
     "deploy": "npx -y @agent8/deploy"
   },
   "dependencies": {
