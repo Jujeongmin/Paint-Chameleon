@@ -42,7 +42,6 @@ export function Hud({
   showControls,
 }: Props) {
   const isSeeker = me.role === "seeker";
-  const blindfolded = isSeeker && room.phase === "hiding";
   const hiders = players.filter((p) => p.role === "hider");
   const remaining = hiders.filter((p) => !p.caught).length;
 
@@ -139,14 +138,9 @@ export function Hud({
         </>
       )}
 
-      {blindfolded && (
-        <div className="blindfold">
-          <div>
-            <h2 style={{ fontSize: 28, margin: "0 0 8px" }}>눈을 감고 있습니다</h2>
-            <p style={{ color: "var(--muted)", margin: 0 }}>
-              {secondsLeft}초 후 추적이 시작됩니다
-            </p>
-          </div>
+      {isSeeker && room.phase === "hiding" && (
+        <div className="cell-note">
+          <strong>{secondsLeft}초</strong> 후 추적이 시작됩니다 · 숨는 사람 {remaining}명
         </div>
       )}
 

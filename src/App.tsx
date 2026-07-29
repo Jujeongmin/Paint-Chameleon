@@ -2,6 +2,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { useGame } from "./net/useGame";
 import { Arena, Lighting } from "./game/ArenaScene";
+import { CellScene, CellLighting } from "./game/CellScene";
 import { LocalPlayer } from "./game/LocalPlayer";
 import { RemotePlayers } from "./game/RemotePlayers";
 import { Hub } from "./hub/Hub";
@@ -86,12 +87,14 @@ export default function App() {
   // The board is hub geometry, so there's nothing to poll for during a match.
   const leaderboard = useLeaderboard(game.fetchLeaderboard, inHub);
   const isSeeker = me?.role === "seeker";
+  /** The seeker sits out the hiding phase underground rather than blindfolded. */
+  const inCell = isSeeker && phase === "hiding";
   // Posing and painting share the same window: only hiders, only before or
   // during the hunt starts, never once caught. The seeker's own facing has to
   // track their camera exactly for the server's tag check, so their pose is
   // fixed and the menu stays closed for them.
   const canPose = !inHub && !isSeeker && (phase === "hiding" || phase === "lobby") && !me?.caught;
-  const canPaint = canPose;
+  const canPaint = canPose || inCell;
 
   // Paint belongs to a match. Walking back into the hub has to wipe it too, or
   // everyone stands around the lobby still wearing the last round's camouflage
@@ -296,12 +299,7 @@ export default function App() {
   if (!joined) return <NickScreen onJoin={handleJoin} joining={joining} error={error} />;
   if (!room || !me) return <ConnectingScreen message="로비에 들어가는 중…" />;
 
-  const frozen =
-    paintMode ||
-    poseMenuOpen ||
-    !!me.caught ||
-    phase === "results" ||
-    (isSeeker && phase === "hiding");
+  const frozen = paintMode || poseMenuOpen || !!me.caught || phase === "results";
 
   return (
     <>
@@ -333,11 +331,12 @@ export default function App() {
           // differently-coloured world for a frame and then swap under the
           // player, which reads as a glitch rather than as loading.
           <Suspense fallback={null}>
-            <Lighting />
-            <Arena />
+            {inCell ? <CellLighting /> : <Lighting />}
+            {inCell ? <CellScene /> : <Arena />}
             <LocalPlayer
               me={me}
               phase={phase}
+              inCell={inCell}
               pose={pose}
               body={bodyId}
               onJumpFromPose={onJumpFromPose}
@@ -356,7 +355,7 @@ export default function App() {
               onDab={onDab}
               onColorPicked={onColorPicked}
             />
-            <RemotePlayers players={players} selfAccount={account} />
+            {!inCell && <RemotePlayers players={players} selfAccount={account} />}
           </Suspense>
         )}
       </Canvas>

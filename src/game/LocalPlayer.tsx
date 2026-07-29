@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { Humanoid, IDLE_MOTION, type BodyMotion } from "./Humanoid";
 import { useKeyboard, usePointerLook } from "./input";
 import { MAP_BOXES } from "./map";
+import { CELL_BOXES, CELL_FLOOR_Y, CELL_HALF, CELL_SPAWN } from "./cell";
 import { CAMERA, MOVE, NET_EPSILON, NET_THROTTLE_MS, STAND_POSE, TAG, type Phase } from "./constants";
 import { createMotionState, stepMotion } from "./movement";
 import { createFollowScratch, updateFollowCamera } from "./followCamera";
@@ -22,6 +23,8 @@ interface Props {
   onJumpFromPose: () => void;
   /** Movement + look disabled (painting, caught, results, or seeker still blind). */
   frozen: boolean;
+  /** True while the seeker waits out the hiding phase underground. */
+  inCell: boolean;
   paintMode: boolean;
   /** Character is pinned: position, facing and pose all held. Camera stays free. */
   charLocked: boolean;
@@ -47,6 +50,7 @@ export function LocalPlayer({
   body,
   onJumpFromPose,
   frozen,
+  inCell,
   paintMode,
   charLocked,
   onToggleLock,
@@ -161,6 +165,17 @@ export function LocalPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
+  // Entering and leaving the cell are both teleports. The local rig owns its
+  // own position, so it has to be told; waiting for the server's write to
+  // arrive would leave the body a frame or more inside the wrong world.
+  useEffect(() => {
+    motion.current = createMotionState(
+      inCell ? ([...CELL_SPAWN] as [number, number, number]) : [0, 0, 0]
+    );
+    lastSent.current.pose = -1;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inCell]);
+
   // Seeker tags by clicking. When we're free-looking rather than pointer-locked,
   // a look-drag must not also count as a tag — so only a click that barely moved does.
   useEffect(() => {
@@ -225,12 +240,14 @@ export function LocalPlayer({
     // caught while airborne, must not cancel gravity or the player freezes
     // hanging in place. Those cases just get zero input and keep falling.
     const jumped = stepMotion(motion.current, input, yaw.current, {
-      boxes: MAP_BOXES,
+      boxes: inCell ? CELL_BOXES : MAP_BOXES,
       dt: step,
       now,
       speed,
       radius: MOVE.playerRadius,
       locked: charLocked,
+      worldHalfSize: inCell ? CELL_HALF : undefined,
+      floorY: inCell ? CELL_FLOOR_Y : 0,
     });
     // A jump breaks whatever pose you were holding — standing is the only one
     // that makes sense mid-air, and it's the default besides.
@@ -258,7 +275,7 @@ export function LocalPlayer({
         ? THREE.MathUtils.lerp(CAMERA.paintFar, CAMERA.paintNear, zoom / 100)
         : CAMERA.playDistance,
       minDistance: paintMode ? CAMERA.paintMinDistance : CAMERA.minDistance,
-      boxes: MAP_BOXES,
+      boxes: inCell ? CELL_BOXES : MAP_BOXES,
       dt: step,
       shoulderHeight: paintMode ? 0.95 : CAMERA.shoulderHeight,
       eyeHeight: paintMode ? 0.95 : CAMERA.eyeHeight,
