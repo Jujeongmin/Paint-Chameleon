@@ -25,7 +25,22 @@ interface Options {
 }
 
 /** Material base colour of a hit mesh, converted back to an sRGB hex. */
+/**
+ * What a surface reads as to the eyedropper.
+ *
+ * Normally that is the material's own colour. A textured surface can't use
+ * that: its material colour has to be white or it would tint the map, and
+ * picking white would be worse than picking nothing. So a textured mesh states
+ * its representative colour in `userData.pickColor` — the average tone of its
+ * texture — and that wins.
+ *
+ * Camouflage is the reason this matters. The player can only paint flat
+ * colours, so whatever this returns is the closest they can get to the surface.
+ */
 function materialColor(object: THREE.Object3D): number | null {
+  const stated = object.userData?.pickColor;
+  if (typeof stated === "number") return stated;
+
   const material = (object as THREE.Mesh).material;
   const single = Array.isArray(material) ? material[0] : material;
   const colored = single as THREE.MeshStandardMaterial | undefined;

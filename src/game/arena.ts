@@ -18,11 +18,29 @@ export interface MapBox {
   p: [number, number, number]; // center
   s: [number, number, number]; // full size
   c: number; // hex color
+  /**
+   * Structure — perimeter walls and partitions — as opposed to a prop.
+   *
+   * Only structure gets a photographic texture. Props are what a hider paints
+   * themselves to imitate, and a player can only paint flat colours, so a
+   * textured prop is one nobody can match.
+   */
+  wall?: true;
 }
 
 export const ARENA = { size: 44, wallHeight: 7, wallThickness: 1 };
-export const FLOOR_COLOR = 0x3a3f4a;
-export const WALL_COLOR = 0x7a7d85;
+
+/**
+ * What the floor and walls read as to the eyedropper.
+ *
+ * These are the average tone of the texture on each surface, not a colour the
+ * renderer applies — the textured materials draw with a white base so the map
+ * isn't tinted twice. They matter because they are the closest a hider can get
+ * to those surfaces with flat paint, so re-measure them whenever the textures
+ * change (public/README.md says how).
+ */
+export const FLOOR_COLOR = 0x908773;
+export const WALL_COLOR = 0x9a9b9e;
 
 /** A prop family. Its box is sized to the silhouette of one pose. */
 export interface Family {
@@ -97,10 +115,10 @@ export function buildArena(): MapBox[] {
   const wy = ARENA.wallHeight / 2;
 
   // Perimeter walls.
-  boxes.push({ p: [0, wy, -half], s: [ARENA.size + t * 2, ARENA.wallHeight, t], c: WALL_COLOR });
-  boxes.push({ p: [0, wy, half], s: [ARENA.size + t * 2, ARENA.wallHeight, t], c: WALL_COLOR });
-  boxes.push({ p: [-half, wy, 0], s: [t, ARENA.wallHeight, ARENA.size + t * 2], c: WALL_COLOR });
-  boxes.push({ p: [half, wy, 0], s: [t, ARENA.wallHeight, ARENA.size + t * 2], c: WALL_COLOR });
+  boxes.push({ p: [0, wy, -half], s: [ARENA.size + t * 2, ARENA.wallHeight, t], c: WALL_COLOR, wall: true });
+  boxes.push({ p: [0, wy, half], s: [ARENA.size + t * 2, ARENA.wallHeight, t], c: WALL_COLOR, wall: true });
+  boxes.push({ p: [-half, wy, 0], s: [t, ARENA.wallHeight, ARENA.size + t * 2], c: WALL_COLOR, wall: true });
+  boxes.push({ p: [half, wy, 0], s: [t, ARENA.wallHeight, ARENA.size + t * 2], c: WALL_COLOR, wall: true });
 
   for (const c of CLUSTERS) {
     const f = familyOf(c.family);

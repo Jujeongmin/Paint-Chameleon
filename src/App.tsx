@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { useGame } from "./net/useGame";
 import { Arena, Lighting } from "./game/ArenaScene";
@@ -328,7 +328,11 @@ export default function App() {
             joining={joining}
           />
         ) : (
-          <>
+          // The arena's textures load asynchronously and suspend while they do.
+          // Nothing renders in their place: a fallback arena would flash a
+          // differently-coloured world for a frame and then swap under the
+          // player, which reads as a glitch rather than as loading.
+          <Suspense fallback={null}>
             <Lighting />
             <Arena />
             <LocalPlayer
@@ -353,7 +357,7 @@ export default function App() {
               onColorPicked={onColorPicked}
             />
             <RemotePlayers players={players} selfAccount={account} />
-          </>
+          </Suspense>
         )}
       </Canvas>
 
