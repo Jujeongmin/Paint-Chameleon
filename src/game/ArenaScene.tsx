@@ -151,7 +151,13 @@ export function Arena({ onPickColor }: Props) {
       ))}
 
       {fitted.map(({ box, object }, i) => (
-        <primitive key={`prop-${i}`} object={object} position={box.p} onClick={pick(box.c)} />
+        <primitive
+          key={`prop-${i}`}
+          object={object}
+          position={box.p}
+          rotation-y={box.rotY ?? 0}
+          onClick={pick(box.c)}
+        />
       ))}
     </group>
   );

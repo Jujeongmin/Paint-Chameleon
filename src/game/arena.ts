@@ -15,7 +15,7 @@
  * question: what must you do to get past this thing.
  */
 
-import { colliderFor } from "./models";
+import { colliderFor, type ModelId } from "./models";
 
 export interface MapBox {
   p: [number, number, number]; // center
@@ -29,8 +29,15 @@ export interface MapBox {
    * textured prop is one nobody can match.
    */
   wall?: true;
-  /** Which family's model to draw here. Absent on structure. */
+  /** Which model to draw here. Absent means the partition panel. */
   family?: string;
+  /**
+   * Yaw for the model only — the collider stays axis-aligned.
+   *
+   * Safe because everything that gets turned has a square footprint, so the
+   * box it claims is the same at any angle.
+   */
+  rotY?: number;
 }
 
 export const ARENA = { size: 44, wallHeight: 7, wallThickness: 1 };
@@ -155,6 +162,71 @@ const PARTITIONS: [number, number, number, number][] = [
   [-6, 7, -6, 1],
 ];
 
+/**
+ * Where hiders start. Hand-picked, for two reasons.
+ *
+ * The only thing the server ever needed the map for was "find a spot that
+ * isn't inside geometry". Given this list it needs no boxes at all, which
+ * removes the largest duplication in the project — and a hand-designed map
+ * would otherwise mean ~200 box literals living in two places.
+ *
+ * A random open spot only guarantees the spot is empty. A chosen one also
+ * guarantees you don't begin the round already standing in the best hiding
+ * slot on the map. buildArena reads this list to keep clutter off them, which
+ * is also why it is declared above the builder rather than below it.
+ *
+ * The seeker is pinned to [0,0,0] by server.ts and is not in this list.
+ * KEEP IN SYNC WITH server/src/rules.ts — check:sync compares them.
+ */
+export const SPAWN_POINTS: [number, number][] = [
+  [-17, -17], [-17, 0], [-17, 19],
+  [0, -17], [0, 17],
+  [17, -17], [17, 0], [16, 17],
+  [-7, -19], [8, -19], [-12, 19], [8, 19],
+];
+
+/**
+ * Landmarks. Hand-placed, because their job is to tell you where on the map
+ * you are, and something you can navigate by cannot be randomly positioned.
+ *
+ * They sit between the zones rather than inside them, so they break up the long
+ * empty runs without eating the rows.
+ */
+const BUILDINGS: { model: ModelId; at: [number, number]; rotY?: number }[] = [
+  { model: "building-l", at: [-12, 3] },
+  { model: "building-c", at: [12, -3], rotY: Math.PI / 2 },
+  { model: "building-r", at: [3, 12], rotY: Math.PI / 2 },
+  { model: "building-m", at: [-3, -12] },
+];
+
+/**
+ * Loose clutter, on top of the designed rows.
+ *
+ * The rows give a seeker somewhere to look; the clutter is what makes looking
+ * cost time. It's laid down by a seeded generator rather than by hand because
+ * the point is that it has no pattern to learn — but the seed is fixed, so the
+ * map is still the same every round and check:map still has something definite
+ * to verify.
+ */
+const CLUTTER_SEED = 20260729;
+/**
+ * Rejection sampling gets slow as the floor fills, so most attempts fail by the
+ * end. 6000 is what it takes to reach the target; raising the target further
+ * starts closing routes, which check:map catches.
+ */
+const CLUTTER_ATTEMPTS = 6000;
+const CLUTTER_TARGET = 110;
+
+/** mulberry32 — small and deterministic. */
+function rng(seed: number) {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 /** Centre of a cluster's empty slot. check:map asserts things about this point. */
 export function slotOf(c: Cluster): [number, number] {
   const d = c.emptyIndex * c.spacing;
@@ -165,6 +237,11 @@ function familyOf(id: string): Family {
   const f = FAMILIES.find((x) => x.id === id);
   if (!f) throw new Error(`unknown family: ${id}`);
   return f;
+}
+
+/** Clutter models include things that aren't families (tanks, chimneys). */
+function pickColorFor(id: string, alternate: number): number {
+  return FAMILIES.find((f) => f.id === id)?.colors[alternate % 2] ?? WALL_COLOR;
 }
 
 export function buildArena(): MapBox[] {
@@ -216,29 +293,62 @@ export function buildArena(): MapBox[] {
     }
   }
 
+  for (const b of BUILDINGS) {
+    const size = colliderFor(b.model);
+    // A quarter turn swaps which way the footprint runs; the collider has to
+    // follow or the building would block metres of floor it doesn't stand on.
+    const turned = Math.abs(Math.sin(b.rotY ?? 0)) > 0.5;
+    const s: [number, number, number] = turned
+      ? [size[2], size[1], size[0]]
+      : [size[0], size[1], size[2]];
+    boxes.push({
+      p: [b.at[0], s[1] / 2, b.at[1]],
+      s,
+      c: WALL_COLOR,
+      family: b.model,
+      rotY: b.rotY,
+    });
+  }
+
+  // Clutter goes last so it can be rejected against everything already placed.
+  const random = rng(CLUTTER_SEED);
+  const kinds: ModelId[] = ["drum", "crate", "pallet", "tank", "chimney"];
+  const limit = ARENA.size / 2 - 2;
+  let placed = 0;
+
+  for (let attempt = 0; attempt < CLUTTER_ATTEMPTS && placed < CLUTTER_TARGET; attempt++) {
+    const model = kinds[Math.floor(random() * kinds.length)];
+    const size = colliderFor(model);
+    const x = (random() * 2 - 1) * limit;
+    const z = (random() * 2 - 1) * limit;
+
+    // The seeker starts at the origin and must not start inside a barrel.
+    if (Math.hypot(x, z) < 3) continue;
+    // Nor may a hider, and a spawn wants room to turn around in.
+    if (SPAWN_POINTS.some(([sx, sz]) => Math.hypot(x - sx, z - sz) < 2.5)) continue;
+    // The designed slots are the one thing clutter must not fill in.
+    if (CLUSTERS.some((c) => { const [sx, sz] = slotOf(c); return Math.hypot(x - sx, z - sz) < 2.5; })) continue;
+
+    // Leave a body's width between this and anything already down, or the
+    // clutter fuses into walls and starts closing routes off.
+    const clear = boxes.every((b) => {
+      const gapX = Math.abs(x - b.p[0]) - (size[0] + b.s[0]) / 2;
+      const gapZ = Math.abs(z - b.p[2]) - (size[2] + b.s[2]) / 2;
+      return Math.max(gapX, gapZ) > 1.0;
+    });
+    if (!clear) continue;
+
+    boxes.push({
+      p: [x, size[1] / 2, z],
+      s: size,
+      c: pickColorFor(model, placed),
+      family: model,
+      rotY: random() * Math.PI * 2,
+    });
+    placed++;
+  }
+
   return boxes;
 }
 
 export const MAP_BOXES: MapBox[] = buildArena();
-
-/**
- * Where hiders start. Hand-picked, for two reasons.
- *
- * The only thing the server ever needed the map for was "find a spot that
- * isn't inside geometry". Given this list it needs no boxes at all, which
- * removes the largest duplication in the project — and a hand-designed map
- * would otherwise mean ~90 box literals living in two places.
- *
- * A random open spot only guarantees the spot is empty. A chosen one also
- * guarantees you don't begin the round already standing in the best hiding
- * slot on the map.
- *
- * The seeker is pinned to [0,0,0] by server.ts and is not in this list.
- * KEEP IN SYNC WITH server/src/rules.ts — check:sync compares them.
- */
-export const SPAWN_POINTS: [number, number][] = [
-  [-17, -17], [-17, 0], [-17, 19],
-  [0, -17], [0, 17],
-  [17, -17], [17, 0], [16, 17],
-  [-7, -19], [8, -19], [-12, 19], [8, 19],
-];

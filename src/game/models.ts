@@ -24,39 +24,120 @@
 const SURVIVAL = 2.6;
 /** Factory is already authored at roughly one unit per metre. */
 const FACTORY = 1;
+/**
+ * City buildings are authored at about 2u. 2.5 makes them read as sheds you
+ * walk around rather than city blocks — at 3.5 a single one covered a spawn
+ * point and most of the gap between two zones.
+ */
+const CITY = 2.5;
 
 export interface ModelSpec {
   url: string;
   /** Bounding box as authored, before `scale`. */
   native: [number, number, number];
   scale: number;
+  /**
+   * Whether the collider's footprint is squared off at the wider horizontal
+   * axis.
+   *
+   * True for anything a player squeezes past, so "can I fit between these"
+   * doesn't depend on which side you walk in from — and so a scattered prop can
+   * be turned to any angle without its collider becoming a lie.
+   *
+   * False for buildings: they're placed by hand at known angles, and rounding a
+   * 7u footprint up to a square would swallow metres of walkable floor.
+   */
+  squareFootprint: boolean;
 }
 
 export const MODELS = {
-  drum: { url: "/models/survival/barrel.glb", native: [0.236, 0.344, 0.236], scale: SURVIVAL },
-  crate: { url: "/models/survival/box-large.glb", native: [0.25, 0.25, 0.5], scale: SURVIVAL },
+  // Survival's barrel is authored short and reads too squat at the kit scale,
+  // so it takes half again on top of it.
+  drum: {
+    url: "/models/survival/barrel.glb",
+    native: [0.236, 0.344, 0.236],
+    scale: SURVIVAL * 1.5,
+    squareFootprint: true,
+  },
+  crate: {
+    url: "/models/survival/box-large.glb",
+    native: [0.25, 0.25, 0.5],
+    scale: SURVIVAL,
+    squareFootprint: true,
+  },
   pallet: {
     url: "/models/survival/resource-planks.glb",
     native: [0.373, 0.094, 0.626],
     scale: SURVIVAL,
+    squareFootprint: true,
   },
-  pillar: { url: "/models/factory/structure-tall.glb", native: [0.3, 2.0, 1.1], scale: FACTORY },
-  partition: { url: "/models/factory/structure-tall.glb", native: [0.3, 2.0, 1.1], scale: FACTORY },
+  pillar: {
+    url: "/models/factory/structure-tall.glb",
+    native: [0.3, 2.0, 1.1],
+    scale: FACTORY,
+    squareFootprint: true,
+  },
+  partition: {
+    url: "/models/factory/structure-tall.glb",
+    native: [0.3, 2.0, 1.1],
+    scale: FACTORY,
+    squareFootprint: true,
+  },
+
+  // Landmarks. Big enough to navigate by, and none of them climbable.
+  "building-a": {
+    url: "/models/city/building-a.glb",
+    native: [2.084, 1.47, 1.242],
+    scale: CITY,
+    squareFootprint: false,
+  },
+  "building-c": {
+    url: "/models/city/building-c.glb",
+    native: [1.876, 1.25, 2.108],
+    scale: CITY,
+    squareFootprint: false,
+  },
+  "building-l": {
+    url: "/models/city/building-l.glb",
+    native: [2.084, 1.925, 1.87],
+    scale: CITY,
+    squareFootprint: false,
+  },
+  "building-m": {
+    url: "/models/city/building-m.glb",
+    native: [1.316, 1.519, 1.7],
+    scale: CITY,
+    squareFootprint: false,
+  },
+  "building-r": {
+    url: "/models/city/building-r.glb",
+    native: [2.484, 1.393, 1.272],
+    scale: CITY,
+    squareFootprint: false,
+  },
+  tank: {
+    url: "/models/city/detail-tank.glb",
+    native: [0.848, 0.415, 0.515],
+    scale: CITY,
+    squareFootprint: true,
+  },
+  chimney: {
+    url: "/models/city/chimney-large.glb",
+    native: [1.0, 1.7, 1.0],
+    scale: CITY * 0.7,
+    squareFootprint: true,
+  },
 } as const satisfies Record<string, ModelSpec>;
 
 export type ModelId = keyof typeof MODELS;
 
-/**
- * The collider for a model: its scaled height, and a square footprint taking
- * the wider of the two horizontal axes.
- *
- * Square, because a prop turns no more than the row it sits in but the player
- * walks at it from any angle, and a rectangular footprint would make "can I fit
- * between these" depend on which side you approach from.
- */
+/** The collider a model needs: its scaled box, footprint squared off if asked. */
 export function colliderFor(id: ModelId): [number, number, number] {
-  const { native, scale } = MODELS[id];
-  const side = Math.ceil(Math.max(native[0], native[2]) * scale * 100) / 100;
-  const height = Math.ceil(native[1] * scale * 100) / 100;
-  return [side, height, side];
+  const { native, scale, squareFootprint } = MODELS[id];
+  const up = (v: number) => Math.ceil(v * scale * 100) / 100;
+  if (squareFootprint) {
+    const side = up(Math.max(native[0], native[2]));
+    return [side, up(native[1]), side];
+  }
+  return [up(native[0]), up(native[1]), up(native[2])];
 }
