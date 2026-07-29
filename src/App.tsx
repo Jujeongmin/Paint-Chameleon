@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { useGame } from "./net/useGame";
-import { Arena, Lighting } from "./game/Arena";
+import { Arena, Lighting } from "./game/ArenaScene";
 import { LocalPlayer } from "./game/LocalPlayer";
 import { RemotePlayers } from "./game/RemotePlayers";
 import { Hub } from "./hub/Hub";

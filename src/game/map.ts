@@ -1,75 +1,15 @@
 /**
- * Procedural arena. Everything is axis-aligned boxes, so the same data drives
- * rendering, collision and the server's spawn placement — and the hub reuses
- * the same collision helpers with its own box list.
+ * Collision. The arena's contents live in arena.ts.
  *
- * buildMap() is deterministic and is duplicated verbatim in server/src/rules.ts.
- * Change the generator here and you must change it there, or players will walk
- * around one arena while the server spawns them into another.
+ * arena.ts's names are re-exported verbatim so existing import paths keep
+ * working — every other file and check script in this project reaches for
+ * "./map".
  */
 
-export interface MapBox {
-  p: [number, number, number]; // center
-  s: [number, number, number]; // full size
-  c: number; // hex color
-}
+import { MAP_BOXES, ARENA, type MapBox } from "./arena";
 
-export const ARENA = { size: 44, wallHeight: 7, wallThickness: 1 };
-export const FLOOR_COLOR = 0x3a3f4a;
-export const WALL_COLOR = 0x7a7d85;
-export const MAP_SEED = 20260723;
-
-/** mulberry32 — small, deterministic, identical on client and server. */
-function rng(seed: number) {
-  return () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/** Color regions. A hider has to commit to one region's palette to blend in. */
-const CLUSTERS: { center: [number, number]; radius: number; colors: number[]; count: number }[] = [
-  { center: [-13, -13], radius: 6.5, colors: [0xc75b39, 0xe08a5f], count: 9 }, // rust crates
-  { center: [13, -13], radius: 6.5, colors: [0x2f8f8a, 0x49b3ad], count: 9 }, // teal barrels
-  { center: [-13, 13], radius: 6.5, colors: [0x6b4e9e, 0x9179c4], count: 8 }, // purple shelves
-  { center: [13, 13], radius: 6.5, colors: [0x4a8b3c, 0x6fbf5c], count: 8 }, // green blocks
-  { center: [0, 0], radius: 5.5, colors: [0xd4a53f, 0xe8c66b], count: 7 }, // yellow pallets
-  { center: [0, -16], radius: 4.0, colors: [0x7a7d85, 0xb0b3ba], count: 4 }, // concrete
-  { center: [0, 16], radius: 4.0, colors: [0x7a7d85, 0xb0b3ba], count: 4 },
-];
-
-export function buildMap(): MapBox[] {
-  const boxes: MapBox[] = [];
-  const half = ARENA.size / 2;
-  const t = ARENA.wallThickness;
-  const wy = ARENA.wallHeight / 2;
-
-  // Perimeter walls.
-  boxes.push({ p: [0, wy, -half], s: [ARENA.size + t * 2, ARENA.wallHeight, t], c: WALL_COLOR });
-  boxes.push({ p: [0, wy, half], s: [ARENA.size + t * 2, ARENA.wallHeight, t], c: WALL_COLOR });
-  boxes.push({ p: [-half, wy, 0], s: [t, ARENA.wallHeight, ARENA.size + t * 2], c: WALL_COLOR });
-  boxes.push({ p: [half, wy, 0], s: [t, ARENA.wallHeight, ARENA.size + t * 2], c: WALL_COLOR });
-
-  const rand = rng(MAP_SEED);
-  for (const cl of CLUSTERS) {
-    for (let i = 0; i < cl.count; i++) {
-      const ang = rand() * Math.PI * 2;
-      const dist = Math.sqrt(rand()) * cl.radius;
-      const x = cl.center[0] + Math.cos(ang) * dist;
-      const z = cl.center[1] + Math.sin(ang) * dist;
-      const w = 1.2 + rand() * 2.4;
-      const d = 1.2 + rand() * 2.4;
-      const h = 0.9 + rand() * 2.8;
-      const c = cl.colors[Math.floor(rand() * cl.colors.length)];
-      boxes.push({ p: [x, h / 2, z], s: [w, h, d], c });
-    }
-  }
-  return boxes;
-}
-
-export const MAP_BOXES: MapBox[] = buildMap();
+export { MAP_BOXES, ARENA, FLOOR_COLOR, WALL_COLOR, MAP_SEED, buildMap } from "./arena";
+export type { MapBox } from "./arena";
 
 // ---------------------------------------------------------------- collision
 
