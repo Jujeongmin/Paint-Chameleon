@@ -78,7 +78,7 @@ export const SPAWN_POINTS: [number, number][] = [
   [-17, -17], [-17, 0], [-17, 18],
   [0, -17], [0, 17],
   [17, -17], [17, 0], [17, 17],
-  [-9, -19], [8, -19], [-10, 19], [9, 19],
+  [-7, -19], [8, -19], [-10, 19], [9, 19],
 ];
 
 export function randomSpawn(): [number, number, number] {

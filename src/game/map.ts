@@ -8,7 +8,7 @@
 
 import { MAP_BOXES, ARENA, type MapBox } from "./arena";
 
-export { MAP_BOXES, ARENA, FLOOR_COLOR, WALL_COLOR, MAP_SEED, buildMap } from "./arena";
+export { MAP_BOXES, ARENA, FLOOR_COLOR, WALL_COLOR, buildArena } from "./arena";
 export type { MapBox } from "./arena";
 
 // ---------------------------------------------------------------- collision

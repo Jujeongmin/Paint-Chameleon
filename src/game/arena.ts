@@ -4,10 +4,15 @@
  * The dependency runs one way only: map.ts → arena.ts. Nothing here imports a
  * collision helper, so there is no cycle.
  *
- * buildMap() is still duplicated verbatim in server/src/rules.ts. Change the
- * generator here and you must change it there, or players will walk around one
- * arena while the server spawns them into another.
+ * The map is hand-designed, not generated. Hiding in this game means passing
+ * for a prop, and that only works if props come in rows of identical objects
+ * sized to a pose's silhouette — which a scatter of random boxes can never be.
+ * check:map is what says whether the layout came out right.
  */
+
+import { TOP_Y } from "./bodies";
+import { maxPoseSize } from "./poseBounds";
+import { STAND_POSE } from "./constants";
 
 export interface MapBox {
   p: [number, number, number]; // center
@@ -18,30 +23,74 @@ export interface MapBox {
 export const ARENA = { size: 44, wallHeight: 7, wallThickness: 1 };
 export const FLOOR_COLOR = 0x3a3f4a;
 export const WALL_COLOR = 0x7a7d85;
-export const MAP_SEED = 20260723;
 
-/** mulberry32 — small, deterministic, identical on client and server. */
-function rng(seed: number) {
-  return () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+/** A prop family. Its box is sized to the silhouette of one pose. */
+export interface Family {
+  id: string;
+  /** [width, height, depth] */
+  box: [number, number, number];
+  /** Two tones. A single flat colour makes any imperfect paint job obvious. */
+  colors: [number, number];
 }
 
-/** Color regions. A hider has to commit to one region's palette to blend in. */
-const CLUSTERS: { center: [number, number]; radius: number; colors: number[]; count: number }[] = [
-  { center: [-13, -13], radius: 6.5, colors: [0xc75b39, 0xe08a5f], count: 9 }, // rust crates
-  { center: [13, -13], radius: 6.5, colors: [0x2f8f8a, 0x49b3ad], count: 9 }, // teal barrels
-  { center: [-13, 13], radius: 6.5, colors: [0x6b4e9e, 0x9179c4], count: 8 }, // purple shelves
-  { center: [13, 13], radius: 6.5, colors: [0x4a8b3c, 0x6fbf5c], count: 8 }, // green blocks
-  { center: [0, 0], radius: 5.5, colors: [0xd4a53f, 0xe8c66b], count: 7 }, // yellow pallets
-  { center: [0, -16], radius: 4.0, colors: [0x7a7d85, 0xb0b3ba], count: 4 }, // concrete
-  { center: [0, 16], radius: 4.0, colors: [0x7a7d85, 0xb0b3ba], count: 4 },
+/** Round up to the centimetre — props shouldn't carry fifteen decimal places. */
+function cm(v: number): number {
+  return Math.ceil(v * 100) / 100;
+}
+
+/**
+ * Standing silhouette, measured rather than guessed: 0.986 wide, 0.800 deep,
+ * crown at TOP_Y. The footprint is squared off at the wider of the two because
+ * the body turns with the player, so depth becomes width at a quarter turn —
+ * and a real drum is round anyway.
+ *
+ * Height is TOP_Y exactly. check:bodies asserts the standing silhouette's top
+ * lands on TOP_Y, so this is a relationship rather than a coincidence: a drum
+ * is exactly as tall as the tallest thing that can stand next to it.
+ */
+const DRUM_SIDE = cm(Math.max(maxPoseSize(STAND_POSE).width, maxPoseSize(STAND_POSE).depth));
+
+export const FAMILIES: Family[] = [
+  { id: "drum", box: [DRUM_SIDE, TOP_Y, DRUM_SIDE], colors: [0xc75b39, 0xe08a5f] },
 ];
 
-export function buildMap(): MapBox[] {
+/**
+ * One cluster is a row of props with one slot deliberately left empty.
+ *
+ * The gap between props (spacing minus the box) is too narrow for a player to
+ * enter. The empty slot is the only place in the row you can stand, and that
+ * is the whole definition of a designed hiding place here.
+ */
+export interface Cluster {
+  family: string;
+  /** Centre of the first prop. */
+  at: [number, number];
+  axis: "x" | "z";
+  count: number;
+  /** Which index, 0..count-1, to leave out. */
+  emptyIndex: number;
+  spacing: number;
+}
+
+export const CLUSTERS: Cluster[] = [
+  { family: "drum", at: [-17, -16], axis: "x", count: 6, emptyIndex: 3, spacing: 1.5 },
+  { family: "drum", at: [-18, -14], axis: "z", count: 4, emptyIndex: 2, spacing: 1.5 },
+  { family: "drum", at: [-9.5, -18.5], axis: "z", count: 4, emptyIndex: 1, spacing: 1.5 },
+];
+
+/** Centre of a cluster's empty slot. check:map asserts things about this point. */
+export function slotOf(c: Cluster): [number, number] {
+  const d = c.emptyIndex * c.spacing;
+  return c.axis === "x" ? [c.at[0] + d, c.at[1]] : [c.at[0], c.at[1] + d];
+}
+
+function familyOf(id: string): Family {
+  const f = FAMILIES.find((x) => x.id === id);
+  if (!f) throw new Error(`unknown family: ${id}`);
+  return f;
+}
+
+export function buildArena(): MapBox[] {
   const boxes: MapBox[] = [];
   const half = ARENA.size / 2;
   const t = ARENA.wallThickness;
@@ -53,24 +102,27 @@ export function buildMap(): MapBox[] {
   boxes.push({ p: [-half, wy, 0], s: [t, ARENA.wallHeight, ARENA.size + t * 2], c: WALL_COLOR });
   boxes.push({ p: [half, wy, 0], s: [t, ARENA.wallHeight, ARENA.size + t * 2], c: WALL_COLOR });
 
-  const rand = rng(MAP_SEED);
-  for (const cl of CLUSTERS) {
-    for (let i = 0; i < cl.count; i++) {
-      const ang = rand() * Math.PI * 2;
-      const dist = Math.sqrt(rand()) * cl.radius;
-      const x = cl.center[0] + Math.cos(ang) * dist;
-      const z = cl.center[1] + Math.sin(ang) * dist;
-      const w = 1.2 + rand() * 2.4;
-      const d = 1.2 + rand() * 2.4;
-      const h = 0.9 + rand() * 2.8;
-      const c = cl.colors[Math.floor(rand() * cl.colors.length)];
-      boxes.push({ p: [x, h / 2, z], s: [w, h, d], c });
+  for (const c of CLUSTERS) {
+    const f = familyOf(c.family);
+    for (let i = 0; i < c.count; i++) {
+      if (i === c.emptyIndex) continue;
+      const d = i * c.spacing;
+      const x = c.axis === "x" ? c.at[0] + d : c.at[0];
+      const z = c.axis === "z" ? c.at[1] + d : c.at[1];
+      boxes.push({
+        p: [x, f.box[1] / 2, z],
+        s: [...f.box] as [number, number, number],
+        // Alternate the two tones: the row has to already contain variation,
+        // or a hider's approximate paint job is the one odd item in it.
+        c: f.colors[i % 2],
+      });
     }
   }
+
   return boxes;
 }
 
-export const MAP_BOXES: MapBox[] = buildMap();
+export const MAP_BOXES: MapBox[] = buildArena();
 
 /**
  * Where hiders start. Hand-picked, for two reasons.
@@ -91,5 +143,5 @@ export const SPAWN_POINTS: [number, number][] = [
   [-17, -17], [-17, 0], [-17, 18],
   [0, -17], [0, 17],
   [17, -17], [17, 0], [17, 17],
-  [-9, -19], [8, -19], [-10, 19], [9, 19],
+  [-7, -19], [8, -19], [-10, 19], [9, 19],
 ];
