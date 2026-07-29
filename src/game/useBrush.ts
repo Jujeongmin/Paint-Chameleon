@@ -24,28 +24,97 @@ interface Options {
   onZoom: (delta: number) => void;
 }
 
-/** Material base colour of a hit mesh, converted back to an sRGB hex. */
 /**
- * What a surface reads as to the eyedropper.
+ * Decoded pixels of a texture, kept per texture image.
  *
- * Normally that is the material's own colour. A textured surface can't use
- * that: its material colour has to be white or it would tint the map, and
- * picking white would be worse than picking nothing. So a textured mesh states
- * its representative colour in `userData.pickColor` — the average tone of its
- * texture — and that wins.
- *
- * Camouflage is the reason this matters. The player can only paint flat
- * colours, so whatever this returns is the closest they can get to the surface.
+ * Drawing to a canvas is the only way to read a texture back on the CPU, and
+ * doing it per click on a 1024² atlas would stall the frame the player clicked
+ * on. Keyed on the image rather than the Texture because clones share it.
  */
-function materialColor(object: THREE.Object3D): number | null {
-  const stated = object.userData?.pickColor;
-  if (typeof stated === "number") return stated;
+const pixelCache = new WeakMap<CanvasImageSource, ImageData | null>();
 
-  const material = (object as THREE.Mesh).material;
-  const single = Array.isArray(material) ? material[0] : material;
-  const colored = single as THREE.MeshStandardMaterial | undefined;
-  if (!colored?.color) return null;
-  return colored.color.getHex();
+function pixelsOf(image: CanvasImageSource): ImageData | null {
+  const cached = pixelCache.get(image);
+  if (cached !== undefined) return cached;
+
+  let data: ImageData | null = null;
+  const width = (image as HTMLImageElement).width;
+  const height = (image as HTMLImageElement).height;
+  if (width && height) {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (ctx) {
+      try {
+        ctx.drawImage(image, 0, 0);
+        data = ctx.getImageData(0, 0, width, height);
+      } catch {
+        // A cross-origin image taints the canvas. Everything here is served
+        // from our own origin, but failing soft beats throwing mid-click.
+        data = null;
+      }
+    }
+  }
+
+  pixelCache.set(image, data);
+  return data;
+}
+
+/** Fold a repeated coordinate back into [0,1); JS `%` keeps the sign. */
+function wrap01(v: number): number {
+  return ((v % 1) + 1) % 1;
+}
+
+function clampIndex(v: number, size: number): number {
+  return Math.min(size - 1, Math.max(0, Math.floor(v)));
+}
+
+function singleMaterial(mesh: THREE.Mesh): THREE.MeshStandardMaterial | undefined {
+  const material = mesh.material;
+  return (Array.isArray(material) ? material[0] : material) as
+    | THREE.MeshStandardMaterial
+    | undefined;
+}
+
+/**
+ * What a surface reads as to the eyedropper, at the exact point clicked.
+ *
+ * Sampling the texture rather than the material colour is the whole point. A
+ * textured material's colour is white — it has to be, or it would tint the map
+ * — so anything derived from it is either white or a stand-in the player can
+ * see is wrong. The props all share one texture atlas, so a stand-in per model
+ * meant picking a barrel and getting a colour no barrel is.
+ *
+ * The player can only paint flat colours, so whatever comes back here is the
+ * closest they can get to the surface they aimed at.
+ *
+ * Falls back to `userData.pickColor` and then the material colour, for surfaces
+ * with no texture or whose image hasn't decoded yet.
+ */
+function surfaceColor(mesh: THREE.Mesh, uv: THREE.Vector2 | undefined): number | null {
+  const material = singleMaterial(mesh);
+  const map = material?.map;
+
+  if (map?.image && uv) {
+    const pixels = pixelsOf(map.image as CanvasImageSource);
+    if (pixels) {
+      // The repeat/offset a tiled surface carries is applied by the shader, not
+      // baked into the uv the raycaster hands back, so it has to be redone here
+      // — otherwise every pick on the floor samples the same corner of the tile.
+      const u = wrap01(uv.x * map.repeat.x + map.offset.x);
+      const v = wrap01(uv.y * map.repeat.y + map.offset.y);
+      const px = clampIndex(u * pixels.width, pixels.width);
+      // Texture v runs up from the bottom; ImageData rows run down from the top.
+      const py = clampIndex((1 - v) * pixels.height, pixels.height);
+      const i = (py * pixels.width + px) * 4;
+      return (pixels.data[i] << 16) | (pixels.data[i + 1] << 8) | pixels.data[i + 2];
+    }
+  }
+
+  const stated = mesh.userData?.pickColor;
+  if (typeof stated === "number") return stated;
+  return material?.color ? material.color.getHex() : null;
 }
 
 function isDescendantOf(object: THREE.Object3D, ancestor: THREE.Object3D | null): boolean {
@@ -121,7 +190,7 @@ export function useBrush(opts: Options) {
           if (!hit.uv) continue;
           return latest.current.sampleBody(hit.uv.x, hit.uv.y);
         }
-        const c = materialColor(mesh);
+        const c = surfaceColor(mesh, hit.uv);
         if (c !== null) return c;
       }
       return null;
