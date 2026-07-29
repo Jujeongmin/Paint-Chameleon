@@ -4,14 +4,16 @@
  * The dependency runs one way only: map.ts → arena.ts. Nothing here imports a
  * collision helper, so there is no cycle.
  *
- * The map is hand-designed, not generated. Hiding in this game means passing
- * for a prop, and that only works if props come in rows of identical objects
- * sized to a pose's silhouette — which a scatter of random boxes can never be.
+ * The map is hand-designed, not generated: hiding places have to be placed,
+ * and a scatter of random boxes only ever produces them by accident.
  * check:map is what says whether the layout came out right.
+ *
+ * Boxes here are collision, not appearance — props.tsx draws a model in each
+ * one's place. They were originally sized to pose silhouettes so a painted
+ * player could pass for a prop; that mimicry was dropped in favour of models
+ * you can't paint to match, so the dimensions below now answer a plainer
+ * question: what must you do to get past this thing.
  */
-
-import { maxPoseSize, maxPoseTop } from "./poseBounds";
-import { POSES } from "./constants";
 
 export interface MapBox {
   p: [number, number, number]; // center
@@ -25,6 +27,8 @@ export interface MapBox {
    * textured prop is one nobody can match.
    */
   wall?: true;
+  /** Which family's model to draw here. Absent on structure. */
+  family?: string;
 }
 
 export const ARENA = { size: 44, wallHeight: 7, wallThickness: 1 };
@@ -41,67 +45,38 @@ export const ARENA = { size: 44, wallHeight: 7, wallThickness: 1 };
 export const FLOOR_COLOR = 0x908773;
 export const WALL_COLOR = 0x9a9b9e;
 
-/** A prop family. Its box is sized to the silhouette of one pose. */
+/** A prop family: one collision size and the colour it reads as. */
 export interface Family {
   id: string;
-  /** [width, height, depth] */
+  /** [width, height, depth] — the collider. props.tsx fits a model to it. */
   box: [number, number, number];
-  /** Two tones. A single flat colour makes any imperfect paint job obvious. */
+  /**
+   * What the eyedropper returns for this family, and the tint alternated down
+   * a row. The models carry their own texture atlas, so this no longer decides
+   * what you see — but a picked colour still has to be something.
+   */
   colors: [number, number];
 }
 
-/** Round up to the centimetre — props shouldn't carry fifteen decimal places. */
-function cm(v: number): number {
-  return Math.ceil(v * 100) / 100;
-}
-
-const POSE_INDEX: Record<string, number> = Object.fromEntries(POSES.map((p, i) => [p.id, i]));
-
 /**
- * A box shaped to the silhouette of one pose, measured rather than guessed.
+ * Heights are chosen against the movement thresholds, which is the only thing
+ * they still have to answer to:
  *
- * The footprint is square, taking the wider of width and depth, because the
- * body turns with the player: depth becomes width at a quarter turn, and a prop
- * narrower than that would leave a shoulder out in the open.
+ *   pallet  0.40  under STEP_HEIGHT 0.45 — walked over
+ *   crate   1.19  over the step, under the 1.6945 a jump reaches — climbed
+ *   drum    1.86  over both — solid cover
+ *   pillar  2.04  over both, and over eye height — blocks sight as well
  *
- * The height is the silhouette's TOP, not its height — a box starts at the
- * floor and a pose need not. For standing that top is exactly TOP_Y, which
- * check:bodies pins by an independent route, so "a drum is as tall as someone
- * standing next to it" is a relationship rather than a coincidence.
- *
- * Measured across all four bodies: drum 0.99 × 1.86, crate 1.12 × 1.19,
- * pallet 1.64 × 0.95, pillar 1.27 × 2.04.
+ * check:map asserts all three rungs exist. The numbers are the pose-silhouette
+ * measurements they inherited from the mimicry design, kept because they were
+ * already spaced correctly across the thresholds, not because the disguise
+ * still depends on them.
  */
-function silhouetteBox(poseId: string): [number, number, number] {
-  const i = POSE_INDEX[poseId];
-  const s = maxPoseSize(i);
-  const side = cm(Math.max(s.width, s.depth));
-  return [side, cm(maxPoseTop(i)), side];
-}
-
-/**
- * The pallet is the one family whose height does not come from its pose.
- *
- * The lying silhouette tops out at 0.95, twice STEP_HEIGHT, so a pallet built
- * to it would have to be jumped onto — and then nothing in the arena is
- * walk-over and the movement vocabulary loses a rung. 0.4 stays under the step.
- *
- * The disguise survives that. Lying down hides you by making you one more slab
- * on the pallet, not by making you look like a pallet stood on end, so it is
- * the footprint that has to match, and it still does.
- */
-const PALLET_HEIGHT = 0.4;
-
-function palletBox(): [number, number, number] {
-  const side = silhouetteBox("lie")[0];
-  return [side, PALLET_HEIGHT, side];
-}
-
 export const FAMILIES: Family[] = [
-  { id: "drum", box: silhouetteBox("stand"), colors: [0xc75b39, 0xe08a5f] },
-  { id: "crate", box: silhouetteBox("sit"), colors: [0x6b4e9e, 0x9179c4] },
-  { id: "pallet", box: palletBox(), colors: [0xd4a53f, 0xe8c66b] },
-  { id: "pillar", box: silhouetteBox("banzai"), colors: [0x2f8f8a, 0x49b3ad] },
+  { id: "drum", box: [0.99, 1.86, 0.99], colors: [0xc75b39, 0xe08a5f] },
+  { id: "crate", box: [1.12, 1.19, 1.12], colors: [0x6b4e9e, 0x9179c4] },
+  { id: "pallet", box: [1.64, 0.4, 1.64], colors: [0xd4a53f, 0xe8c66b] },
+  { id: "pillar", box: [1.27, 2.04, 1.27], colors: [0x2f8f8a, 0x49b3ad] },
 ];
 
 /**
@@ -230,6 +205,7 @@ export function buildArena(): MapBox[] {
       boxes.push({
         p: [x, f.box[1] / 2, z],
         s: [...f.box] as [number, number, number],
+        family: f.id,
         // Alternate the two tones: the row has to already contain variation,
         // or a hider's approximate paint job is the one odd item in it.
         c: f.colors[i % 2],

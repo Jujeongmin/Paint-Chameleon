@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { ThreeEvent, useLoader, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { ARENA, FLOOR_COLOR, MAP_BOXES, WALL_COLOR, type MapBox } from "./map";
+import { ARENA, FLOOR_COLOR, MAP_BOXES, WALL_COLOR } from "./map";
+import { fitModel, useProps, type ModelId } from "./props";
 
 /**
  * The arena, drawn.
@@ -15,10 +16,6 @@ import { ARENA, FLOOR_COLOR, MAP_BOXES, WALL_COLOR, type MapBox } from "./map";
  * material colour, and a textured material's colour has to be white or it would
  * tint the map (see materialColor in useBrush.ts).
  */
-
-function hex(c: number): string {
-  return "#" + c.toString(16).padStart(6, "0");
-}
 
 /** World units one tile of a surface texture spans. */
 const TILE = 4;
@@ -88,14 +85,28 @@ export function Arena({ onPickColor }: Props) {
     [floorSource, anisotropy]
   );
 
-  const walls = useMemo(() => MAP_BOXES.filter((b) => b.wall), []);
-  const props = useMemo(() => MAP_BOXES.filter((b) => !b.wall), []);
+  const models = useProps();
+
+  // The perimeter stays boxes: a 46u run would stretch a model past
+  // recognition, and the corrugated steel texture reads fine at that size.
+  const perimeter = useMemo(() => MAP_BOXES.filter((b) => b.wall && b.s[1] === ARENA.wallHeight), []);
+
+  // Everything else is a model fitted to its collider — partitions included.
+  // Building them once matters: fitModel clones a scene graph.
+  const fitted = useMemo(
+    () =>
+      MAP_BOXES.filter((b) => !(b.wall && b.s[1] === ARENA.wallHeight)).map((b) => ({
+        box: b,
+        object: fitModel(models[(b.family ?? "partition") as ModelId], b.s, b.c),
+      })),
+    [models]
+  );
 
   // One material per wall: a box's faces are metres apart in size, so a shared
   // repeat would stretch the texture differently on each of them.
   const wallMaterials = useMemo(
     () =>
-      walls.map((b) => {
+      perimeter.map((b) => {
         const across = Math.max(b.s[0], b.s[2]);
         return new THREE.MeshStandardMaterial({
           ...tiled(wallSource, across / TILE, b.s[1] / TILE, anisotropy),
@@ -103,7 +114,7 @@ export function Arena({ onPickColor }: Props) {
           metalness: 0.05,
         });
       }),
-    [walls, wallSource, anisotropy]
+    [perimeter, wallSource, anisotropy]
   );
 
   const pick = (color: number) => (e: ThreeEvent<MouseEvent>) => {
@@ -125,7 +136,7 @@ export function Arena({ onPickColor }: Props) {
         <meshStandardMaterial {...floor} roughness={1} />
       </mesh>
 
-      {walls.map((b, i) => (
+      {perimeter.map((b, i) => (
         <mesh
           key={`wall-${i}`}
           position={b.p}
@@ -139,11 +150,8 @@ export function Arena({ onPickColor }: Props) {
         </mesh>
       ))}
 
-      {props.map((b: MapBox, i) => (
-        <mesh key={`prop-${i}`} position={b.p} castShadow receiveShadow onClick={pick(b.c)}>
-          <boxGeometry args={b.s} />
-          <meshStandardMaterial color={hex(b.c)} roughness={0.8} metalness={0.05} />
-        </mesh>
+      {fitted.map(({ box, object }, i) => (
+        <primitive key={`prop-${i}`} object={object} position={box.p} onClick={pick(box.c)} />
       ))}
     </group>
   );
