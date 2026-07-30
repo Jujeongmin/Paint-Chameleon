@@ -85,9 +85,3 @@ export const CELL_BOXES: MapBox[] = (() => {
     slab([half + THICKNESS / 2, midY, 0], [THICKNESS, CELL_HEIGHT, outer], TRIM),
   ];
 })();
-
-/** Sanity: a 1.86-tall body has to fit under the ceiling while standing. */
-export const CELL_CLEARS_BODY = CELL_HEIGHT > TOP_Y;
-
-/** ...and while at the very top of a jump, which is the taller of the two. */
-export const CELL_CLEARS_JUMP = CELL_HEIGHT > TOP_Y + JUMP_APEX;

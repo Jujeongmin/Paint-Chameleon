@@ -10,16 +10,17 @@
 
 import {
   CELL_BOXES,
-  CELL_CLEARS_BODY,
-  CELL_CLEARS_JUMP,
   CELL_FLOOR_Y,
   CELL_INNER,
   CELL_SPAWN,
+  HUNT_START,
 } from "../src/game/cell";
-import { MAP_BOXES } from "../src/game/arena";
+import { MAP_BOXES, ARENA } from "../src/game/arena";
 import { groundHeightAt, playerBlockedAt } from "../src/game/map";
 import { createMotionState, stepMotion } from "../src/game/movement";
-import { MOVE } from "../src/game/constants";
+import { CAMERA, MOVE } from "../src/game/constants";
+import { clearCameraDistance } from "../src/game/camera";
+import { TOP_Y } from "../src/game/bodies";
 
 let failures = 0;
 
@@ -33,13 +34,56 @@ function check(label: string, ok: boolean, detail = "") {
 
 console.log("\nthe cell is somewhere you can stand");
 
-check("a standing body clears the ceiling", CELL_CLEARS_BODY);
-// There's no ceiling collision in this engine — groundHeightAt only treats a
-// box top as something to land on, never something to bump against — so a
-// jumping head is stopped by nothing but the room being tall enough on its
-// own. This is what actually bounds CELL_HEIGHT; the standing check above is
-// the easier, non-binding case.
-check("a jumping body clears the ceiling", CELL_CLEARS_JUMP);
+// A formula reduced to CELL_HEIGHT > TOP_Y can't fail for any value of the
+// tuning constants, and says nothing about CELL_BOXES, which is where the
+// ceiling actually is. So simulate a real jump from the spawn instead and
+// measure the peak head height against the ceiling slab's real lowest face.
+{
+  // There's no ceiling collision in this engine — groundHeightAt only treats
+  // a box top as something to land on, never something to bump against — so
+  // a jumping head is stopped by nothing but the room being tall enough on
+  // its own.
+  const dt = 1 / 60;
+  const state = createMotionState([...CELL_SPAWN] as [number, number, number]);
+
+  // The ceiling's lowest face, found geometrically rather than by trusting
+  // array order: the only boxes that horizontally cover the spawn column and
+  // sit above it are the floor and the ceiling, and the floor is below spawn
+  // height. This still catches a ceiling slab hung from the wrong face,
+  // wherever it lands in CELL_BOXES.
+  const overCenter = CELL_BOXES.filter(
+    (b) =>
+      Math.abs(CELL_SPAWN[0] - b.p[0]) < b.s[0] / 2 &&
+      Math.abs(CELL_SPAWN[2] - b.p[2]) < b.s[2] / 2 &&
+      b.p[1] > CELL_SPAWN[1]
+  );
+  const ceilingBottom = Math.min(...overCenter.map((b) => b.p[1] - b.s[1] / 2));
+
+  let peakHead = -Infinity;
+  let everBlocked = false;
+  // stepMotion only launches on the rising edge of `jump`; holding it true
+  // the whole time still gives exactly one jump, which is all this needs.
+  for (let i = 0; i < 120; i++) {
+    stepMotion(state, { forward: 0, strafe: 0, jump: true }, 0, {
+      boxes: CELL_BOXES,
+      dt,
+      now: i * dt * 1000,
+      speed: MOVE.seekerSpeed,
+      radius: MOVE.playerRadius,
+      floorY: CELL_FLOOR_Y,
+    });
+    peakHead = Math.max(peakHead, state.pos[1] + TOP_Y);
+    if (playerBlockedAt(state.pos[0], state.pos[2], state.pos[1], MOVE.playerRadius, CELL_BOXES)) {
+      everBlocked = true;
+    }
+  }
+
+  check(
+    `a jump's peak head height (${peakHead.toFixed(2)}) stays under the ceiling (${ceilingBottom.toFixed(2)})`,
+    peakHead < ceilingBottom
+  );
+  check("playerBlockedAt never trips during the jump", !everBlocked);
+}
 check(
   `the spawn rests on the cell floor (${groundHeightAt(
     CELL_SPAWN[0],
@@ -113,11 +157,49 @@ console.log("\nthe cell cannot collide with the arena");
 
 console.log("\nthe seeker has somewhere to land");
 {
-  // hiding -> seeking teleports the seeker to the arena centre.
+  // hiding -> seeking teleports the seeker to HUNT_START, the arena centre.
+  // groundHeightAt(...) === 0 would only fail for a box whose top lands in
+  // (0, 0.45] at the origin — steppable and harmless — so it asserts the
+  // floorY default rather than anything about the arena. What actually
+  // matters: the destination sits inside the walkable bounds and isn't
+  // inside a partition.
+  const half = ARENA.size / 2;
+  const inBounds =
+    Math.abs(HUNT_START[0]) < half - MOVE.playerRadius &&
+    Math.abs(HUNT_START[2]) < half - MOVE.playerRadius;
   check(
-    "[0,0,0] is standable in the arena",
-    !playerBlockedAt(0, 0, 0, MOVE.playerRadius, MAP_BOXES) &&
-      groundHeightAt(0, 0, 0, MAP_BOXES) === 0
+    `HUNT_START [${HUNT_START}] is within the arena's walkable bounds`,
+    inBounds
+  );
+  check(
+    "HUNT_START is not inside a partition",
+    !playerBlockedAt(HUNT_START[0], HUNT_START[2], HUNT_START[1], MOVE.playerRadius, MAP_BOXES)
+  );
+}
+
+console.log("\nthe cell has room to see your own body");
+{
+  // Without a floorY on the camera's own collision, the pivot sits deep
+  // underground at the cell's real height, cameraBlockedAt trips on the
+  // floor check on the very first sample, and clearCameraDistance collapses
+  // to 0 — the camera lands inside the player's head and the body never
+  // renders (bodyFadeFor(0, ...) is 0). Compute the pivot exactly the way
+  // updateFollowCamera does: the camera starts fully third person
+  // (distance >= fadeStart), so closeness is 0 and the pivot is
+  // shoulderHeight.
+  const target = { x: CELL_SPAWN[0], y: CELL_SPAWN[1] + CAMERA.shoulderHeight, z: CELL_SPAWN[2] };
+  const dir = { x: 0, y: 0, z: -1 };
+  const allowed = clearCameraDistance(
+    target,
+    dir,
+    CAMERA.playDistance,
+    CAMERA.minDistance,
+    CELL_BOXES,
+    CELL_FLOOR_Y
+  );
+  check(
+    `the camera clears fadeStart from the cell pivot (${allowed.toFixed(2)} > ${CAMERA.fadeStart})`,
+    allowed > CAMERA.fadeStart
   );
 }
 
