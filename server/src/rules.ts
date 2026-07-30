@@ -167,9 +167,16 @@ export function facingDot(from: number[], to: number[], rotY: number): number {
  * Pure so it can be checked: the harness cannot drive a room into the seeking
  * phase, so this decision is unreachable from a server test.
  *
- * Order matters. Cheap state checks come before the geometry, and "is this even
- * a legal target" before the cooldown, so a player poking at the remote
- * function learns nothing about who is still uncaught from the timing.
+ * Order matters, but only for cost, not secrecy: the cheap state and target
+ * checks run before the `facingDot` geometry, so a refused shot (the common
+ * case — this fires every time the seeker's crosshair is off target) never
+ * pays for the trig. There's no information to hide in the ordering either
+ * way — a target's `caught` flag is already public room-user state, visible
+ * to every client, so which reason a probing caller sees first reveals
+ * nothing they couldn't already read directly. check:shot's "cooldown and an
+ * invalid target at once" case pins the current order (invalid_target wins)
+ * so it can't drift silently, not because the order is load-bearing for
+ * security.
  */
 export function canShoot(o: ShotRequest): { ok: true } | { ok: false; reason: ShotFailure } {
   if (o.phase !== "seeking") return { ok: false, reason: "not_seeking" };

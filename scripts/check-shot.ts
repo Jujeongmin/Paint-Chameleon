@@ -106,6 +106,25 @@ console.log("\nevery refusal reason");
   }
 }
 
+console.log("\nrefusal order when two reasons hold at once");
+{
+  // An already-caught target AND an active cooldown, simultaneously. This
+  // pins which check runs first — not because the order hides anything (the
+  // target's caught flag is already public room-user state, so a probing
+  // caller learns nothing new either way), but so the order can't drift
+  // silently: this exact case passed unnoticed with the two checks swapped
+  // until this assertion was added.
+  const both = valid();
+  both.target = { role: "hider", caught: true, pos: [0, 0, 10] };
+  both.lastShotAt = both.now - (SHOT.cooldownMs - 1);
+  const result = canShoot(both);
+  check(
+    "an invalid target during an active cooldown is refused with invalid_target, not cooldown",
+    !result.ok && result.reason === "invalid_target",
+    result.ok ? "it was allowed" : `got ${result.reason}`
+  );
+}
+
 console.log("\nthe cooldown's exact edge");
 {
   // Both sides of the boundary, off the constant rather than a literal, so
