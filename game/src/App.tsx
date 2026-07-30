@@ -282,8 +282,9 @@ export default function App() {
   const onShoot = useCallback(
     (result: ShotResult) => {
       // A miss is a legitimate outcome and costs nothing to send — but there is
-      // nobody to send it about, so it stops here. The tracer and the report are
-      // Task 5's job.
+      // nobody to send it about, so it stops here. The tracer and the local
+      // shot sound are handled in LocalPlayer, right where useShoot's onFire
+      // already has the shooter's own position to hand.
       if (!result.account) return;
       game.requestShot(result.account).catch(() => {});
     },

@@ -50,9 +50,15 @@ interface Props {
   fadeRef?: React.MutableRefObject<number>;
   /** Body profile id. Unknown or missing values fall back to the default. */
   body?: string;
+  /**
+   * Something carried in the right hand — the seeker's gun. Rendered inside the
+   * shoulder group so it inherits the arm's rotation from the pose and the walk
+   * cycle for free.
+   */
+  held?: React.ReactNode;
 }
 
-export function Humanoid({ account, pose, motionRef, dimmed, showOutline, fadeRef, body }: Props) {
+export function Humanoid({ account, pose, motionRef, dimmed, showOutline, fadeRef, body, held }: Props) {
   const root = useRef<THREE.Group>(null);
   const torso = useRef<THREE.Mesh>(null);
   const head = useRef<THREE.Mesh>(null);
@@ -213,6 +219,7 @@ export function Humanoid({ account, pose, motionRef, dimmed, showOutline, fadeRe
       </group>
       <group ref={shoulderR} position={[profile.shoulderX, profile.shoulderY, 0]}>
         <mesh geometry={geoms.armR} material={material} position={[0, -armHalf, 0]} castShadow />
+        {held && <group position={[0, -armHalf * 2, 0]}>{held}</group>}
       </group>
 
       <group ref={hipL} position={[-profile.hipX, hipY, 0]}>

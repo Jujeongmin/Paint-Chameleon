@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { Humanoid, IDLE_MOTION, type BodyMotion } from "./Humanoid";
+import { Gun, Tracer } from "./Gun";
 import { useKeyboard, usePointerLook } from "./input";
 import { MAP_BOXES } from "./map";
 import { CELL_BOXES, CELL_FLOOR_Y, CELL_HALF, CELL_SPAWN, HUNT_START } from "./cell";
@@ -9,7 +10,7 @@ import { CAMERA, MOVE, NET_EPSILON, NET_THROTTLE_MS, STAND_POSE, type Phase } fr
 import { createMotionState, stepMotion } from "./movement";
 import { createFollowScratch, updateFollowCamera } from "./followCamera";
 import { surfaceFor, type PaintDab } from "./paint";
-import { playBrushTick } from "../audio/sound";
+import { playBrushTick, playShot, shotGainFor } from "../audio/sound";
 import { useBrush, type Tool } from "./useBrush";
 import { useShoot, type ShotResult } from "./useShoot";
 import type { PlayerState } from "../net/types";
@@ -92,6 +93,12 @@ export function LocalPlayer({
   const spawnApplied = useRef(false);
   /** Distinguishes the [inCell] effect's mount-time run from a genuine transition. */
   const cellEffectRan = useRef(false);
+
+  /** The last shot, held just long enough to see. */
+  const [tracer, setTracer] = useState<{
+    from: [number, number, number];
+    to: [number, number, number];
+  } | null>(null);
 
   const { read } = useKeyboard((code) => {
     // Hiders only — the seeker's reported facing is what the server checks when
@@ -205,7 +212,16 @@ export function LocalPlayer({
   useShoot({
     active: me.role === "seeker" && phase === "seeking" && !frozen && !paintMode,
     selfAccount: me.account,
-    onFire: onShoot,
+    onFire: (result) => {
+      const [px, py, pz] = motion.current.pos;
+      // From roughly the chest rather than the feet, so the tracer does not
+      // appear to come out of the floor.
+      setTracer({ from: [px, py + CAMERA.shoulderHeight, pz], to: result.point });
+      // Our own shot is always at distance 0 — everyone else's arrives over
+      // the network and goes through shotGainFor(distance) in useGame.ts.
+      playShot(shotGainFor(0));
+      onShoot(result);
+    },
     // Esc-then-click is how input.ts documents getting the mouse back; that
     // same click also lands here, and requestPointerLock() hasn't resolved yet
     // when it does. everLocked tells recapture (lock has worked before, so
@@ -215,6 +231,13 @@ export function LocalPlayer({
     // only way to ever fire, and must not be suppressed).
     isRecapture: () => look.everLocked.current && !look.locked.current,
   });
+
+  // 80ms is long enough to register and short enough not to become a laser.
+  useEffect(() => {
+    if (!tracer) return;
+    const id = setTimeout(() => setTracer(null), 80);
+    return () => clearTimeout(id);
+  }, [tracer]);
 
   useFrame((_, dt) => {
     const step = Math.min(dt, 0.05);
@@ -300,23 +323,30 @@ export function LocalPlayer({
   });
 
   return (
-    <group ref={group}>
-      {/* useShoot's ancestor walk must be able to recognise this as our own
-          body and skip it — in third person the seeker's own torso sits
-          between the camera and everything else, so without this tag every
-          shot would register as a point-blank miss into ourselves. Nothing
-          local reads this userData; it exists purely for that raycast. */}
-      <group ref={bodyRef} userData={{ account: me.account }}>
-        <Humanoid
-          account={me.account}
-          pose={pose}
-          body={body}
-          motionRef={bodyMotion}
-          showOutline={!paintMode}
-          dimmed={me.caught}
-          fadeRef={bodyFade}
-        />
+    <>
+      <group ref={group}>
+        {/* useShoot's ancestor walk must be able to recognise this as our own
+            body and skip it — in third person the seeker's own torso sits
+            between the camera and everything else, so without this tag every
+            shot would register as a point-blank miss into ourselves. Nothing
+            local reads this userData; it exists purely for that raycast. */}
+        <group ref={bodyRef} userData={{ account: me.account }}>
+          <Humanoid
+            account={me.account}
+            pose={pose}
+            body={body}
+            motionRef={bodyMotion}
+            showOutline={!paintMode}
+            dimmed={me.caught}
+            fadeRef={bodyFade}
+            held={me.role === "seeker" && phase === "seeking" ? <Gun /> : undefined}
+          />
+        </group>
       </group>
-    </group>
+      {/* Outside the group above: that group moves and turns with the player
+          every frame, but the tracer's own coordinates are already in world
+          space (useShoot raycasts from the camera, not from this rig). */}
+      {tracer && <Tracer from={tracer.from} to={tracer.to} />}
+    </>
   );
 }

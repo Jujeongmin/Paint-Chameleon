@@ -7,6 +7,7 @@ import {
 } from "@agent8/gameserver";
 import { MIN_PLAYERS, type Phase } from "../game/constants";
 import { surfaceFor } from "../game/paint";
+import { playShot, shotGainFor } from "../audio/sound";
 import type { LeaderboardResult, PlayerState, RoomInfo, WireDab, WalletView, BuyResult } from "./types";
 import { useOfflineGame } from "./offline";
 
@@ -54,6 +55,17 @@ function useOnlineGame() {
 
   const roomId: string | undefined = rawRoom?.roomId;
 
+  // Read from a ref inside the "shot" handler below rather than putting
+  // rawMine?.pos in that effect's deps: pos changes every tick, so a dep on it
+  // would tear the subscription down and rebuild it every tick too. This repo
+  // has already hit that failure mode once (see HANDOFF) — a value pulled out
+  // of `game` landed in an effect's deps, the effect re-ran every render, and
+  // the main thread starved until the screen froze. Assigning a ref during
+  // render, as latest.current is done in useShoot.ts, keeps the handler
+  // reading fresh state without any of that.
+  const myPosRef = useRef<number[]>([0, 0, 0]);
+  myPosRef.current = Array.isArray(rawMine?.pos) ? (rawMine.pos as number[]) : [0, 0, 0];
+
   // Replay everyone else's brush strokes onto their own body texture.
   useEffect(() => {
     if (!roomId) return;
@@ -76,9 +88,21 @@ function useOnlineGame() {
       lastUV.delete(msg.account);
     });
 
+    const offShot = server.onRoomMessage(roomId, "shot", (msg: any) => {
+      if (!msg || msg.account === account) return; // our own shot already sounded locally
+      const from = Array.isArray(msg.from) ? msg.from : [0, 0, 0];
+      const mine = myPosRef.current;
+      const distance = Math.hypot(
+        Number(from[0]) - Number(mine[0]),
+        Number(from[2]) - Number(mine[2])
+      );
+      playShot(shotGainFor(distance));
+    });
+
     return () => {
       offPaint?.();
       offFill?.();
+      offShot?.();
     };
   }, [server, roomId, account]);
 
