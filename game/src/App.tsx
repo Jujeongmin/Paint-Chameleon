@@ -27,6 +27,7 @@ import {
 import { clearAllSurfaces, surfaceFor, type PaintDab } from "./game/paint";
 import { useControlsLearned } from "./game/input";
 import type { Tool } from "./game/useBrush";
+import type { ShotResult } from "./game/useShoot";
 import type { WireDab } from "./net/types";
 import { playCatch, playResults, playRoundStart } from "./audio/sound";
 import "./ui/ui.css";
@@ -278,7 +279,16 @@ export default function App() {
     [sendTransform]
   );
 
-  const onTag = useCallback((target: string) => game.requestShot(target).catch(() => {}), [game]);
+  const onShoot = useCallback(
+    (result: ShotResult) => {
+      // A miss is a legitimate outcome and costs nothing to send — but there is
+      // nobody to send it about, so it stops here. The tracer and the report are
+      // Task 5's job.
+      if (!result.account) return;
+      game.requestShot(result.account).catch(() => {});
+    },
+    [game]
+  );
 
   const toggleReady = useCallback(() => {
     const next = !ready;
@@ -343,9 +353,8 @@ export default function App() {
               paintMode={paintMode}
               charLocked={charLocked}
               onToggleLock={() => setCharLocked((v) => !v)}
-              players={players}
               onTransform={sendTransform}
-              onTag={onTag}
+              onShoot={onShoot}
               tool={tool}
               color={color}
               brushSize={brushSize}

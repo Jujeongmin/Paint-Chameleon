@@ -72,7 +72,9 @@ function RemotePlayer({
   });
 
   return (
-    <group ref={group}>
+    // The shot's raycast hits a mesh several levels down inside Humanoid, so the
+    // body has to say whose it is somewhere an ancestor walk can find it.
+    <group ref={group} userData={{ account: player.account }}>
       <Humanoid
         account={player.account}
         pose={player.pose ?? 0}

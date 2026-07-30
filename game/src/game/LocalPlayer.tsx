@@ -5,12 +5,13 @@ import { Humanoid, IDLE_MOTION, type BodyMotion } from "./Humanoid";
 import { useKeyboard, usePointerLook } from "./input";
 import { MAP_BOXES } from "./map";
 import { CELL_BOXES, CELL_FLOOR_Y, CELL_HALF, CELL_SPAWN, HUNT_START } from "./cell";
-import { CAMERA, MOVE, NET_EPSILON, NET_THROTTLE_MS, STAND_POSE, SHOT, type Phase } from "./constants";
+import { CAMERA, MOVE, NET_EPSILON, NET_THROTTLE_MS, STAND_POSE, type Phase } from "./constants";
 import { createMotionState, stepMotion } from "./movement";
 import { createFollowScratch, updateFollowCamera } from "./followCamera";
 import { surfaceFor, type PaintDab } from "./paint";
 import { playBrushTick } from "../audio/sound";
 import { useBrush, type Tool } from "./useBrush";
+import { useShoot, type ShotResult } from "./useShoot";
 import type { PlayerState } from "../net/types";
 
 interface Props {
@@ -29,9 +30,8 @@ interface Props {
   /** Character is pinned: position, facing and pose all held. Camera stays free. */
   charLocked: boolean;
   onToggleLock: () => void;
-  players: PlayerState[];
   onTransform: (pos: [number, number, number], rotY: number, pose: number, moving: boolean) => void;
-  onTag: (target: string) => void;
+  onShoot: (result: ShotResult) => void;
 
   // paint
   tool: Tool;
@@ -54,9 +54,8 @@ export function LocalPlayer({
   paintMode,
   charLocked,
   onToggleLock,
-  players,
   onTransform,
-  onTag,
+  onShoot,
   tool,
   color,
   brushSize,
@@ -108,7 +107,7 @@ export function LocalPlayer({
     }
   });
 
-  const look = usePointerLook(!paintMode && !frozen, MOVE.mouseSensitivity, yaw, pitch);
+  usePointerLook(!paintMode && !frozen, MOVE.mouseSensitivity, yaw, pitch);
 
   // Start the orbit behind the player so entering paint mode isn't disorienting.
   useEffect(() => {
@@ -193,57 +192,18 @@ export function LocalPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inCell]);
 
-  // Seeker tags by clicking. When we're free-looking rather than pointer-locked,
-  // a look-drag must not also count as a tag — so only a click that barely moved does.
-  useEffect(() => {
-    if (me.role !== "seeker" || phase !== "seeking") return;
-    const canvas = document.querySelector("canvas");
-    if (!canvas) return;
-
-    let downX = 0;
-    let downY = 0;
-
-    const tryTag = () => {
-      const [px, , pz] = motion.current.pos;
-      const fx = Math.sin(yaw.current);
-      const fz = Math.cos(yaw.current);
-
-      let best: string | null = null;
-      // The server no longer enforces a distance limit, but this candidate
-      // picker still needs *some* radius to search within, since it runs
-      // every click rather than a raycast. 2.6 is the old TAG.maxDistance,
-      // now just a local literal — removed in the shooting task.
-      let bestDist = 2.6;
-      for (const p of players) {
-        if (p.account === me.account || p.role !== "hider" || p.caught || !p.pos) continue;
-        const dx = (p.pos[0] ?? 0) - px;
-        const dz = (p.pos[2] ?? 0) - pz;
-        const d = Math.hypot(dx, dz);
-        if (d > bestDist) continue;
-        if ((dx / (d || 1)) * fx + (dz / (d || 1)) * fz < SHOT.minFacingDot) continue;
-        bestDist = d;
-        best = p.account;
-      }
-      if (best) onTag(best);
-    };
-
-    const onDown = (e: PointerEvent) => {
-      downX = e.clientX;
-      downY = e.clientY;
-    };
-    const onUp = (e: PointerEvent) => {
-      // Under pointer lock the cursor never moves, so every click is a tag.
-      const drift = look.locked.current ? 0 : Math.hypot(e.clientX - downX, e.clientY - downY);
-      if (drift <= 6) tryTag();
-    };
-
-    canvas.addEventListener("pointerdown", onDown);
-    canvas.addEventListener("pointerup", onUp);
-    return () => {
-      canvas.removeEventListener("pointerdown", onDown);
-      canvas.removeEventListener("pointerup", onUp);
-    };
-  }, [me.role, me.account, phase, players, onTag, look]);
+  // Aim and fire. The candidate search this replaced picked the nearest hider
+  // inside a 2.6u cone; a hitscan has no candidates — whatever the crosshair
+  // is on is the answer, and the server no longer measures distance at all.
+  //
+  // Painting also listens for pointerdown on this canvas, so the gun must stay
+  // off while paintMode is active — otherwise every brush stroke would burn
+  // the shot cooldown and could kill a hider down the crosshair by accident.
+  useShoot({
+    active: me.role === "seeker" && phase === "seeking" && !frozen && !paintMode,
+    selfAccount: me.account,
+    onFire: onShoot,
+  });
 
   useFrame((_, dt) => {
     const step = Math.min(dt, 0.05);
@@ -330,7 +290,12 @@ export function LocalPlayer({
 
   return (
     <group ref={group}>
-      <group ref={bodyRef}>
+      {/* useShoot's ancestor walk must be able to recognise this as our own
+          body and skip it — in third person the seeker's own torso sits
+          between the camera and everything else, so without this tag every
+          shot would register as a point-blank miss into ourselves. Nothing
+          local reads this userData; it exists purely for that raycast. */}
+      <group ref={bodyRef} userData={{ account: me.account }}>
         <Humanoid
           account={me.account}
           pose={pose}
