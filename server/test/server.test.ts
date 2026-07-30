@@ -112,11 +112,11 @@ describe("painting", () => {
 });
 
 describe("tagging", () => {
-  test("tag is refused outside the seeking phase", async (server) => {
+  test("shot is refused outside the seeking phase", async (server) => {
     server.connect({ account: "user-erin" });
     await server.joinGame("erin");
 
-    const res = await server.requestTag("user-frank");
+    const res = await server.requestShot("user-frank");
     expect(res.ok).toBe(false);
     expect(res.reason).toBe("not_seeking");
   });

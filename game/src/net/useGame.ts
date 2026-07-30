@@ -159,8 +159,8 @@ function useOnlineGame() {
     [server]
   );
 
-  const requestTag = useCallback(
-    (target: string) => server.remoteFunction("requestTag", [target]),
+  const requestShot = useCallback(
+    (target: string) => server.remoteFunction("requestShot", [target]),
     [server]
   );
 
@@ -201,7 +201,7 @@ function useOnlineGame() {
     setReady,
     paintDabs,
     paintFill,
-    requestTag,
+    requestShot,
     fetchLeaderboard,
     fetchWallet,
     buyAvatar,

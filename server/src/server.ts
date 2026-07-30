@@ -15,7 +15,8 @@ import {
   HUB_CAPACITY,
   POSE_COUNT,
   PHASE_SECONDS,
-  TAG,
+  canShoot,
+  type ShotFailure,
   SCORE,
   PAINT_LIMITS,
   MOVE_SPEED_CAP,
@@ -99,7 +100,7 @@ async function startRound(roomId: string, users: Array<Record<string, any>>, sta
       ready: false,
       pos: isSeeker ? CELL_SPAWN : randomSpawn(),
       rotY: 0,
-      lastTagAt: 0,
+      lastShotAt: 0,
       lastMoveAt: now,
     });
   }
@@ -332,7 +333,7 @@ export class Server {
       rotY: 0,
       pose: 0,
       moving: false,
-      lastTagAt: 0,
+      lastShotAt: 0,
       lastMoveAt: Date.now(),
     });
 
@@ -462,9 +463,10 @@ export class Server {
    * setters: a reported position further than physically possible since the
    * last update gets clamped to the reachable radius instead of trusted
    * outright. The client fully owns its own position otherwise (see
-   * README's "known limitations"), and `requestTag`'s distance check reads
+   * README's "known limitations"), and `requestShot`'s facing check reads
    * this same `pos` field, so an unvalidated write is exploitable for both
-   * movement and tagging.
+   * movement and the shot's facing check (there is no distance check any
+   * more — see canShoot in rules.ts).
    */
   async updateTransform(t: { pos: number[]; rotY: number; pose: number; moving: boolean }): Promise<void> {
     const pos = Array.isArray(t?.pos) ? t.pos : [0, 0, 0];
@@ -514,37 +516,57 @@ export class Server {
     });
   }
 
-  /** Seeker requests a catch. Server owns the decision. */
-  async requestTag(targetAccount: string): Promise<{ ok: boolean; reason?: string }> {
+  /**
+   * The seeker fires. The client decides whether the shot connected, because
+   * only it can see the geometry between the two of them; the server decides
+   * whether the shot was legal at all.
+   *
+   * The decision itself is canShoot() in rules.ts, pure, so check:shot can
+   * cover every refusal — the test harness cannot drive a room into the
+   * seeking phase to reach any of them from here.
+   */
+  async requestShot(targetAccount: string): Promise<{ ok: boolean; reason?: ShotFailure }> {
     const state = await $room.getRoomState();
-    if (state.phase !== "seeking") return { ok: false, reason: "not_seeking" };
-    if (state.seeker !== $sender.account) return { ok: false, reason: "not_seeker" };
 
     const users = await $room.getAllUserStates();
     const me = users.find((u) => u.account === $sender.account);
-    const target = users.find((u) => u.account === targetAccount);
-    if (!me || !target) return { ok: false, reason: "missing" };
-    if (target.role !== "hider" || target.caught) return { ok: false, reason: "invalid_target" };
-
+    const target = users.find((u) => u.account === targetAccount) ?? null;
     const now = Date.now();
-    if (now - num(me.lastTagAt) < TAG.cooldownMs) return { ok: false, reason: "cooldown" };
 
-    const a = me.pos || [0, 0, 0];
-    const b = target.pos || [0, 0, 0];
-    const dx = num(b[0]) - num(a[0]);
-    const dz = num(b[2]) - num(a[2]);
-    const dist = Math.sqrt(dx * dx + dz * dz);
-    if (dist > TAG.maxDistance) return { ok: false, reason: "too_far" };
+    // canShoot has no case for a missing sender — it isn't one of the six
+    // ShotFailure reasons, and a real seeker mid-round always has a user
+    // state (startRound/joinGame both write one before the room can ever
+    // reach "seeking"). So rather than invent a reason canShoot was never
+    // designed to return, a missing `me` is folded into the same "?? default"
+    // treatment as a missing field on an existing state: canShoot's own
+    // phase/senderIsSeeker checks fail first and refuse the shot before these
+    // defaults would ever matter. The only way senderIsSeeker could be true
+    // with `me` still missing is a corrupted room, which is already outside
+    // what any of this validates against.
+    const verdict = canShoot({
+      phase: String(state.phase ?? "lobby"),
+      senderIsSeeker: state.seeker === $sender.account,
+      target,
+      seekerPos: (me?.pos as number[]) ?? [0, 0, 0],
+      seekerRotY: num(me?.rotY),
+      now,
+      lastShotAt: num(me?.lastShotAt),
+    });
 
-    // Seeker must actually be looking at the target.
-    const len = dist || 1;
-    const fx = Math.sin(num(me.rotY));
-    const fz = Math.cos(num(me.rotY));
-    if ((dx / len) * fx + (dz / len) * fz < TAG.minFacingDot) {
-      return { ok: false, reason: "not_facing" };
-    }
+    // Everyone hears the gun, hit or miss — so the shot is recorded and
+    // broadcast before the hit is applied, and a refused request makes no
+    // noise at all.
+    if (!verdict.ok) return { ok: false, reason: verdict.reason };
 
-    await $room.updateMyState({ lastTagAt: now });
+    await $room.updateMyState({ lastShotAt: now });
+    await $room.broadcastToRoom("shot", {
+      account: $sender.account,
+      from: (me?.pos as number[]) ?? [0, 0, 0],
+      hit: targetAccount,
+    });
+
+    // Unchanged from the tag it replaces: same write, same broadcast. Nothing
+    // client-side subscribes to "caught" yet, but a later feature might.
     await $room.updateUserState(targetAccount, { caught: true, caughtAt: now });
     await $room.broadcastToRoom("caught", { account: targetAccount, by: $sender.account, at: now });
 

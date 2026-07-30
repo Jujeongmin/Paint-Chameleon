@@ -242,9 +242,9 @@ export function useOfflineGame() {
     // notify, these are no-ops offline.
     paintDabs: (_dabs: WireDab[]) => Promise.resolve(),
     paintFill: (_color: number) => Promise.resolve(),
-    requestTag: async (_target: string) => {
-      // Solo rehearsal: nobody else is ever in the room, so there's never a
-      // valid tag target.
+    requestShot: async (_target: string) => {
+      // Solo rehearsal: nobody else is ever in the room, so there is never
+      // anything to shoot.
       return { ok: false };
     },
     fetchLeaderboard: async (): Promise<LeaderboardResult> => {

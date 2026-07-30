@@ -5,7 +5,7 @@ import { Humanoid, IDLE_MOTION, type BodyMotion } from "./Humanoid";
 import { useKeyboard, usePointerLook } from "./input";
 import { MAP_BOXES } from "./map";
 import { CELL_BOXES, CELL_FLOOR_Y, CELL_HALF, CELL_SPAWN, HUNT_START } from "./cell";
-import { CAMERA, MOVE, NET_EPSILON, NET_THROTTLE_MS, STAND_POSE, TAG, type Phase } from "./constants";
+import { CAMERA, MOVE, NET_EPSILON, NET_THROTTLE_MS, STAND_POSE, SHOT, type Phase } from "./constants";
 import { createMotionState, stepMotion } from "./movement";
 import { createFollowScratch, updateFollowCamera } from "./followCamera";
 import { surfaceFor, type PaintDab } from "./paint";
@@ -209,14 +209,18 @@ export function LocalPlayer({
       const fz = Math.cos(yaw.current);
 
       let best: string | null = null;
-      let bestDist = TAG.maxDistance;
+      // The server no longer enforces a distance limit, but this candidate
+      // picker still needs *some* radius to search within, since it runs
+      // every click rather than a raycast. 2.6 is the old TAG.maxDistance,
+      // now just a local literal — removed in the shooting task.
+      let bestDist = 2.6;
       for (const p of players) {
         if (p.account === me.account || p.role !== "hider" || p.caught || !p.pos) continue;
         const dx = (p.pos[0] ?? 0) - px;
         const dz = (p.pos[2] ?? 0) - pz;
         const d = Math.hypot(dx, dz);
         if (d > bestDist) continue;
-        if ((dx / (d || 1)) * fx + (dz / (d || 1)) * fz < TAG.minFacingDot) continue;
+        if ((dx / (d || 1)) * fx + (dz / (d || 1)) * fz < SHOT.minFacingDot) continue;
         bestDist = d;
         best = p.account;
       }

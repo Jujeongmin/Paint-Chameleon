@@ -278,7 +278,7 @@ export default function App() {
     [sendTransform]
   );
 
-  const onTag = useCallback((target: string) => game.requestTag(target).catch(() => {}), [game]);
+  const onTag = useCallback((target: string) => game.requestShot(target).catch(() => {}), [game]);
 
   const toggleReady = useCallback(() => {
     const next = !ready;

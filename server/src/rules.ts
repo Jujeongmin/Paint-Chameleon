@@ -18,8 +18,6 @@ export const HUB_CAPACITY = 24;
 
 export const PHASE_SECONDS = { hiding: 30, seeking: 90, results: 10 };
 
-export const TAG = { maxDistance: 2.6, minFacingDot: 0.55, cooldownMs: 700 };
-
 export const SCORE = {
   hiderSurvived: 100,
   hiderPerSecondAlive: 1,

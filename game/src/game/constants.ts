@@ -70,10 +70,17 @@ export const MOVE = {
   coyoteMs: 110,
 };
 
-/** Seeker tag check. Server-authoritative — client only requests. */
-export const TAG = {
-  maxDistance: 2.6,
-  /** Seeker's forward vector must have at least this dot product with the direction to the target. */
+/**
+ * The seeker's shot. Server-authoritative for everything except the line of
+ * sight, which only the client can judge: the server has no map.
+ *
+ * There is no maxDistance. See the gun design doc's first section before
+ * adding one back — the server cannot check what it cannot see, so any limit
+ * here would be a number with no reasoning behind it.
+ *
+ * KEEP IN SYNC WITH SHOT in server/src/rules.ts — check:sync compares them.
+ */
+export const SHOT = {
   minFacingDot: 0.55,
   cooldownMs: 700,
 };

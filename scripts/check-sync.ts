@@ -20,7 +20,7 @@ import {
 } from "../game/src/game/arena";
 import { playerBlockedAt } from "../game/src/game/map";
 import { BODIES } from "../game/src/game/bodies";
-import { POSES, MOVE } from "../game/src/game/constants";
+import { POSES, MOVE, SHOT as CLIENT_SHOT } from "../game/src/game/constants";
 import { CELL_SPAWN as CLIENT_CELL, HUNT_START as CLIENT_HUNT_START } from "../game/src/game/cell";
 import {
   ARENA as SERVER_ARENA,
@@ -30,6 +30,7 @@ import {
   POSE_COUNT as SERVER_POSE_COUNT,
   MOVE_SPEED_CAP,
   AVATAR_PRICES,
+  SHOT as SERVER_SHOT,
 } from "../server/src/rules";
 
 let failures = 0;
@@ -124,6 +125,22 @@ if (MOVE_SPEED_CAP < fastestClientSpeed) {
   );
 } else {
   pass(`server cap ${MOVE_SPEED_CAP}u/s covers the client's fastest role (${fastestClientSpeed}u/s)`);
+}
+
+console.log("\nshot rules");
+
+// The client refuses a shot locally before asking, so a drift shows up as the
+// client blocking shots the server would have allowed, or asking for ones it
+// always refuses.
+if (
+  CLIENT_SHOT.minFacingDot !== SERVER_SHOT.minFacingDot ||
+  CLIENT_SHOT.cooldownMs !== SERVER_SHOT.cooldownMs
+) {
+  fail(
+    `shot rules differ: client ${JSON.stringify(CLIENT_SHOT)}, server ${JSON.stringify(SERVER_SHOT)}`
+  );
+} else {
+  pass(`shot rules match (dot ${CLIENT_SHOT.minFacingDot}, cooldown ${CLIENT_SHOT.cooldownMs}ms)`);
 }
 
 console.log("\navatar catalogue");
