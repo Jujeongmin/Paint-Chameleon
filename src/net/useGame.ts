@@ -5,7 +5,7 @@ import {
   useRoomMyState,
   useRoomAllUserStates,
 } from "@agent8/gameserver";
-import type { Phase } from "../game/constants";
+import { MIN_PLAYERS, type Phase } from "../game/constants";
 import { surfaceFor } from "../game/paint";
 import type { LeaderboardResult, PlayerState, RoomInfo, WireDab, WalletView, BuyResult } from "./types";
 import { useOfflineGame } from "./offline";
@@ -93,6 +93,8 @@ function useOnlineGame() {
       seeker: rawRoom.seeker ?? null,
       scores: rawRoom.scores || {},
       lastResults: rawRoom.lastResults ?? null,
+      // The live server won't start a round below MIN_PLAYERS — see RoomInfo.
+      minPlayers: MIN_PLAYERS,
     };
   }, [rawRoom]);
 

@@ -19,7 +19,6 @@ import { hsvToRgb, rgbToHsv } from "./ui/ColorWheel";
 import { ConnectingScreen, NickScreen, ResultsOverlay, WaitingBanner } from "./ui/Screens";
 import {
   BRUSH,
-  MIN_PLAYERS,
   NET_THROTTLE_MS,
   PAINT_FLUSH_MS,
   PAINT_MAX_BATCH,
@@ -441,8 +440,8 @@ export default function App() {
             />
           )}
 
-          {phase === "lobby" && players.length < MIN_PLAYERS && (
-            <WaitingBanner count={players.length} needed={MIN_PLAYERS} />
+          {phase === "lobby" && players.length < room.minPlayers && (
+            <WaitingBanner count={players.length} needed={room.minPlayers} />
           )}
         </>
       )}

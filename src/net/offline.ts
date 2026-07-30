@@ -167,8 +167,22 @@ export function useOfflineGame() {
         seeker: null,
         scores,
         lastResults: null,
+        // Unused in the hub — no round is starting here — but RoomInfo is one
+        // shape for both kinds.
+        minPlayers: 1,
       }
-    : { kind: "game", phase, phaseEndsAt, tickAt: Date.now(), round, seeker, scores, lastResults };
+    : {
+        kind: "game",
+        phase,
+        phaseEndsAt,
+        tickAt: Date.now(),
+        round,
+        seeker,
+        scores,
+        lastResults,
+        // Solo rehearsal starts the round with just you — see RoomInfo.
+        minPlayers: 1,
+      };
 
   const secondsLeft = phaseEndsAt ? Math.max(0, Math.ceil((phaseEndsAt - Date.now()) / 1000)) : 0;
 

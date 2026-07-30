@@ -26,6 +26,14 @@ export interface RoomInfo {
   seeker: string | null;
   scores: Record<string, number>;
   lastResults: any[] | null;
+  /**
+   * How many players this room needs before a round can start. The online
+   * and offline implementations disagree on this — the live server enforces
+   * `MIN_PLAYERS` (2), while the offline rehearsal rig runs solo and only
+   * ever has 1 — so each reports its own number here rather than callers
+   * importing a single constant that would be wrong for one of the two.
+   */
+  minPlayers: number;
 }
 
 /** A dab as it travels over the wire: `j` continues the previous stroke. */
