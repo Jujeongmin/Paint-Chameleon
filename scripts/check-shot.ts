@@ -167,6 +167,30 @@ console.log("\nphase and senderIsSeeker win over cooldown and facing, too");
   );
 }
 
+console.log("\nsenderMissing wins over target, cooldown and facing, too");
+{
+  // The "the shooter's own state is missing" case above spoils exactly one
+  // thing, so it would still answer sender_missing with the check moved
+  // anywhere in canShoot — it pins the reason but not the position. This case
+  // is wrong on four axes at once: sender missing, no target at all, inside
+  // the cooldown, and turned away. That pins the position canShoot's docstring
+  // claims, which is the whole safety argument: senderMissing must run before
+  // target/cooldown/facing, because those three would otherwise be handed the
+  // caller's defaults for state that does not exist ([0,0,0], yaw 0,
+  // lastShotAt 0 — a plausible arena position facing +Z with no cooldown).
+  const missing = valid();
+  missing.senderMissing = true;
+  missing.target = null; // the target is gone too
+  missing.lastShotAt = missing.now - (SHOT.cooldownMs - 1); // inside the cooldown too
+  missing.seekerRotY = Math.PI; // and turned away from where the target was
+  const result = canShoot(missing);
+  check(
+    "a missing sender with no target, inside the cooldown and facing backwards is refused with sender_missing",
+    !result.ok && result.reason === "sender_missing",
+    result.ok ? "it was allowed" : `got ${result.reason}`
+  );
+}
+
 console.log("\nthe cooldown's exact edge");
 {
   // Both sides of the boundary, off the constant rather than a literal, so

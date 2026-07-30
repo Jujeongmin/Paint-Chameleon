@@ -129,18 +129,34 @@ if (MOVE_SPEED_CAP < fastestClientSpeed) {
 
 console.log("\nshot rules");
 
-// The client refuses a shot locally before asking, so a drift shows up as the
-// client blocking shots the server would have allowed, or asking for ones it
-// always refuses.
-if (
-  CLIENT_SHOT.minFacingDot !== SERVER_SHOT.minFacingDot ||
-  CLIENT_SHOT.cooldownMs !== SERVER_SHOT.cooldownMs
-) {
-  fail(
-    `shot rules differ: client ${JSON.stringify(CLIENT_SHOT)}, server ${JSON.stringify(SERVER_SHOT)}`
-  );
-} else {
-  pass(`shot rules match (dot ${CLIENT_SHOT.minFacingDot}, cooldown ${CLIENT_SHOT.cooldownMs}ms)`);
+// The client refuses a shot locally before asking — useShoot.ts mirrors both
+// the cooldown and the facing cone — so a drift shows up as the client blocking
+// shots the server would have allowed, or asking for ones it always refuses.
+//
+// Key sets first, then values, the same shape as the avatar catalogue below:
+// comparing only the two fields we know about today would stay green if a
+// maxDistance (or any other rule) were added back to one copy alone, which is
+// exactly the drift this script exists to catch.
+{
+  const clientKeys = Object.keys(CLIENT_SHOT).sort();
+  const serverKeys = Object.keys(SERVER_SHOT).sort();
+
+  if (clientKeys.join(",") !== serverKeys.join(",")) {
+    fail(`shot rule keys differ: client [${clientKeys.join(", ")}], server [${serverKeys.join(", ")}]`);
+  } else {
+    pass(`both sides define the same ${clientKeys.length} shot rules (${clientKeys.join(", ")})`);
+
+    const client = CLIENT_SHOT as Record<string, unknown>;
+    const server = SERVER_SHOT as Record<string, unknown>;
+    const mismatched = clientKeys.filter((k) => client[k] !== server[k]);
+    if (mismatched.length) {
+      for (const k of mismatched) {
+        fail(`shot rule ${k} is ${String(client[k])} on the client but ${String(server[k])} on the server`);
+      }
+    } else {
+      pass(`shot rules match (dot ${CLIENT_SHOT.minFacingDot}, cooldown ${CLIENT_SHOT.cooldownMs}ms)`);
+    }
+  }
 }
 
 console.log("\navatar catalogue");

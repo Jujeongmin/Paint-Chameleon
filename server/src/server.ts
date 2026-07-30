@@ -3,7 +3,7 @@
  *
  * Phase machine runs in $roomTick (200-1000ms). Round deadlines are wall-clock
  * timestamps rather than accumulated deltas so a variable tick rate can't drift.
- * Tag resolution is a remote function, not a tick step, so catches feel instant.
+ * Shot resolution is a remote function, not a tick step, so catches feel instant.
  *
  * Paint is purely cosmetic: players only paint themselves and nothing is scored
  * on it, so the server relays dabs to the room without interpreting them.
@@ -541,12 +541,14 @@ export class Server {
     // are not neutral — [0,0,0]/yaw 0 is a plausible arena position, and
     // lastShotAt: 0 clears the cooldown outright — so a missing sender must
     // fail closed, not fall through to them.
+    const myPos = (me?.pos as number[]) ?? [0, 0, 0];
+
     const verdict = canShoot({
       phase: String(state.phase ?? "lobby"),
       senderIsSeeker: state.seeker === $sender.account,
       senderMissing: !me,
       target,
-      seekerPos: (me?.pos as number[]) ?? [0, 0, 0],
+      seekerPos: myPos,
       seekerRotY: num(me?.rotY),
       now,
       lastShotAt: num(me?.lastShotAt),
@@ -559,7 +561,9 @@ export class Server {
     await $room.updateMyState({ lastShotAt: now });
     await $room.broadcastToRoom("shot", {
       account: $sender.account,
-      from: (me?.pos as number[]) ?? [0, 0, 0],
+      // canShoot has already refused senderMissing, so `me` is non-null past
+      // this point and the fallback in myPos is unreachable here.
+      from: myPos,
       hit: targetAccount,
     });
 
