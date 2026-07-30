@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { SHOT } from "./constants";
 
 /**
  * The seeker's aim.
@@ -58,6 +59,15 @@ export function useShoot({ active, selfAccount, onFire, isRecapture }: Options):
   const { camera, scene, gl } = useThree();
   const latest = useRef({ selfAccount, onFire, isRecapture });
   latest.current = { selfAccount, onFire, isRecapture };
+  /**
+   * Mirrors the server's own cooldown so a click inside it produces no
+   * client-side result at all — no tracer, no sound, no RPC — instead of a
+   * shot that looks and sounds real but that canShoot() (rules.ts) is about
+   * to refuse. Declared outside the effect below so it survives `active`
+   * flipping off and on (e.g. painting toggled mid-cooldown) rather than
+   * resetting the gate on every remount.
+   */
+  const lastFireAt = useRef(0);
 
   useEffect(() => {
     if (!active) return;
@@ -66,6 +76,10 @@ export function useShoot({ active, selfAccount, onFire, isRecapture }: Options):
     const centre = new THREE.Vector2(0, 0);
 
     const fire = () => {
+      const now = performance.now();
+      if (now - lastFireAt.current < SHOT.cooldownMs) return;
+      lastFireAt.current = now;
+
       // The crosshair is the aim in both lock states, not the OS cursor. Under
       // lock that's obvious — the cursor is pinned there. Unlocked it still is:
       // Hud renders the crosshair fixed at the viewport centre and free look

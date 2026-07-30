@@ -14,14 +14,25 @@ import * as THREE from "three";
 
 const GUN_URL = "/models/blaster/blaster-j.glb";
 
+// Starts the fetch as soon as this module is evaluated (app start), rather
+// than waiting for the hiding→seeking transition that first mounts <Gun/>.
+// Still paired with its own <Suspense> at the call site in LocalPlayer —
+// preloading only makes the cache warm by the time it's needed on a normal
+// connection, it does not guarantee the fetch has finished, and it does
+// nothing to shrink the blast radius if the fetch fails outright.
+useLoader.preload(GLTFLoader, GUN_URL);
+
 /**
  * Native height of the model, from `npm run glb:size` — blaster-a and
- * blaster-r measured 0.800 and 0.683 on the same axis, blaster-j the shortest
- * at 0.610, so it reads closest to something held in one hand rather than
- * shouldered.
+ * blaster-r measured 0.800 and 0.683 on the same axis, blaster-j the
+ * shortest at 0.610 and the smallest candidate on every axis.
  */
 const GUN_NATIVE_LENGTH = 0.61;
-/** How long the gun should be in the hand. A forearm is about 0.3. */
+/**
+ * How long the gun should be in the hand. The default profile's arm capsule
+ * (bodies.ts: r 0.1, l 0.34) gives armHalf 0.27, so a full arm is 0.54 —
+ * 0.42 is about 78% of that, not "a forearm's worth" of it.
+ */
 const GUN_LENGTH = 0.42;
 
 export function Gun() {
@@ -53,11 +64,15 @@ interface TracerProps {
   to: [number, number, number];
 }
 
+// A stable no-op so R3F's applyProps assigns the same function every render
+// instead of detaching and reattaching a fresh one each time (which is what
+// happens if this is written inline as `raycast={() => {}}`).
+const NO_RAYCAST = () => {};
+
 /**
  * A thin bar from the shot's start point to wherever it stopped. LocalPlayer
  * passes the chest (roughly `CAMERA.shoulderHeight` above the feet), not a
- * true muzzle position, so this only reads as fired from the body — that is
- * the actual behaviour, not an approximation being glossed over here.
+ * true muzzle position, so this only reads as fired from the body.
  *
  * A cylinder rather than a THREE.Line: line width above 1 is ignored on every
  * platform this runs on, and a one-pixel tracer is invisible at the distances
@@ -92,9 +107,7 @@ export function Tracer({ from, to }: TracerProps) {
       // its default layer mask forever) and adds no clause to useShoot's own
       // filter loop, where every clause is one more thing that can wrongly
       // swallow a real hit.
-      ref={(mesh) => {
-        if (mesh) mesh.raycast = () => {};
-      }}
+      raycast={NO_RAYCAST}
     >
       <cylinderGeometry args={[0.02, 0.02, length, 6]} />
       <meshBasicMaterial color="#ffe6a0" transparent opacity={0.75} />

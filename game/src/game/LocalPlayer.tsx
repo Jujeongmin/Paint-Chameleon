@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { Humanoid, IDLE_MOTION, type BodyMotion } from "./Humanoid";
@@ -339,7 +339,19 @@ export function LocalPlayer({
             showOutline={!paintMode}
             dimmed={me.caught}
             fadeRef={bodyFade}
-            held={me.role === "seeker" && phase === "seeking" ? <Gun /> : undefined}
+            held={
+              me.role === "seeker" && phase === "seeking" ? (
+                // Its own boundary, not just the Arena's Suspense in App.tsx:
+                // that outer one wraps the whole scene, and a phase change is a
+                // default-priority update, so without this the entire arena
+                // would blank out on hiding→seeking while the gun's GLB is
+                // still fetching (or disappear if the fetch ever fails). This
+                // way a slow or failed load costs only the gun.
+                <Suspense fallback={null}>
+                  <Gun />
+                </Suspense>
+              ) : undefined
+            }
           />
         </group>
       </group>
