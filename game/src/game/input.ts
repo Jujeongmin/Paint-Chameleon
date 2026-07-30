@@ -141,7 +141,9 @@ export interface LookState {
   /** Pointer lock is currently held. */
   locked: React.MutableRefObject<boolean>;
   /**
-   * Pointer lock has succeeded at least once this activation. Distinguishes a
+   * Pointer lock has succeeded at least once since this hook's component
+   * mounted — the ref lives outside the effect and is never cleared, so
+   * toggling `enabled` off and on does not reset it. Distinguishes a
    * momentary loss of lock (Esc, then a click that's already recapturing it)
    * from an environment where lock has never worked at all (an iframe missing
    * allow="pointer-lock") and free look is this player's permanent mode.

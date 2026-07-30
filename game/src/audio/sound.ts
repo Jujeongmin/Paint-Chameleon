@@ -94,9 +94,15 @@ function noiseBurst(duration: number, gainValue: number, filterFreq: number): vo
 /**
  * How far a gunshot carries, and how loud it is at the muzzle.
  *
- * 60u is a little under half the arena's 124u diagonal: far enough that a shot
- * tells a hider roughly which quarter of the map the seeker is in, close enough
- * that it does not tell them the seeker fired at all from across the arena.
+ * This is a KILL cue, not a fire cue. App.tsx drops a miss before the RPC and
+ * server.ts returns before broadcasting on any refusal, so the only "shot"
+ * anyone else ever hears is one that caught somebody — at most once per hider
+ * per round. What the curve conveys is therefore how far away the seeker was
+ * when someone else died, not that the seeker is shooting.
+ *
+ * 60u is a little under half the arena's 124u diagonal: far enough that a
+ * catch nearby reads as nearby, close enough that a catch on the opposite side
+ * of the arena is silent rather than telling the whole map at once.
  */
 export const SHOT_AUDIO = { audibleDistance: 60, maxGain: 0.3 };
 

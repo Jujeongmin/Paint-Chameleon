@@ -70,7 +70,7 @@ export function attachRanks(sorted: LeaderboardEntry[]): RankedLeaderboardEntry[
  * The only reason the server ever carried arena geometry was randomSpawn's
  * search for an open spot. A hand-picked list does that job, so the whole map
  * copy is gone: movement validation clamps distance travelled since the last
- * reported position and never looks at a box, and neither does the tag check.
+ * reported position and never looks at a box, and neither does canShoot.
  */
 export const SPAWN_POINTS: [number, number][] = [
   [-34, -34], [-34, 0], [-34, 38],

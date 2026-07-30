@@ -133,7 +133,7 @@ export function Hud({
                 </>
               )}
             </div>
-            {isSeeker && room.phase === "seeking" && <div>클릭으로 잡기</div>}
+            {isSeeker && room.phase === "seeking" && <div>클릭으로 사격</div>}
           </div>
 
           {isSeeker && room.phase === "hiding" && (

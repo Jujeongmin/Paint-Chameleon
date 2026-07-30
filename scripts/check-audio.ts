@@ -79,9 +79,11 @@ console.log("\nplay* functions never throw without an AudioContext");
 
 console.log("\nshot loudness falls off with distance");
 {
-  // The gun has unlimited range and kills in one shot, so this curve is the
-  // only thing a hider has to go on. Too flat and every shot sounds adjacent;
-  // too steep and it may as well be silent.
+  // Only a shot that caught someone is ever broadcast (misses stop at the
+  // client, refusals stop at the server), so this curve is a kill cue: it is
+  // what tells a surviving hider how far away the seeker was when someone else
+  // was caught. Too flat and every catch sounds adjacent; too steep and it may
+  // as well be silent.
   check("your own shot is loudest", shotGainFor(0) === SHOT_AUDIO.maxGain);
 
   // Scans the whole audible range rather than re-checking distance 0 — a

@@ -91,7 +91,7 @@ export default function App() {
   const inCell = isSeeker && phase === "hiding";
   // Posing and painting share the same window: only hiders, only before or
   // during the hunt starts, never once caught. The seeker's own facing has to
-  // track their camera exactly for the server's tag check, so their pose is
+  // track their camera exactly for the server's shot facing check, so their pose is
   // fixed and the menu stays closed for them.
   const canPose = !inHub && !isSeeker && (phase === "hiding" || phase === "lobby") && !me?.caught;
   const canPaint = canPose || inCell;

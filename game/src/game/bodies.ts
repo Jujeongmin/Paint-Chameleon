@@ -3,10 +3,12 @@
  *
  * An avatar changes proportions only. Total height, foot level and maximum
  * half-width ALONG THE BODY'S LOCAL X AXIS are identical across every
- * profile, and the collision radius, camera and tag distance are all global
- * constants that never read the equipped profile — so no avatar can
- * physically reach a hiding spot another can't, and painting (the dominant
- * camouflage mechanic) is unaffected by which body you bought.
+ * profile, and the collision radius and camera are both global constants that
+ * never read the equipped profile — so no avatar can physically reach a hiding
+ * spot another can't, and painting (the dominant camouflage mechanic) is
+ * unaffected by which body you bought. There is no shot range to add to that
+ * list any more: the seeker's hitscan has no distance limit at all, so there
+ * is nothing there for a profile to be measured against either way.
  *
  * That is NOT the same claim as "every body is equally easy to hide in".
  * Frontal silhouette area and depth (the Z half-extent) are not equalised by

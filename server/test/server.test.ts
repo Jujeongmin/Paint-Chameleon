@@ -111,7 +111,7 @@ describe("painting", () => {
   });
 });
 
-describe("tagging", () => {
+describe("shooting", () => {
   test("shot is refused outside the seeking phase", async (server) => {
     server.connect({ account: "user-erin" });
     await server.joinGame("erin");
