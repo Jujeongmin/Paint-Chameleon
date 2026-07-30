@@ -102,7 +102,7 @@ export function LocalPlayer({
 
   const { read } = useKeyboard((code) => {
     // Hiders only — the seeker's reported facing is what the server checks when
-    // resolving a tag, so freezing their body would desync the hit test.
+    // resolving a shot, so freezing their body would desync the facing cone.
     // Only pin while standing on something; locking mid-air would leave you hovering.
     if (
       code === "KeyR" &&
@@ -212,6 +212,11 @@ export function LocalPlayer({
   useShoot({
     active: me.role === "seeker" && phase === "seeking" && !frozen && !paintMode,
     selfAccount: me.account,
+    // What the server will judge the shot against: `bodyYaw` is exactly the
+    // rotY reported by the network block below, and `motion.current.pos` the
+    // position. Reading them through a getter keeps useShoot off the render
+    // path — both are mutated every frame without a re-render.
+    aim: () => ({ pos: motion.current.pos, yaw: bodyYaw.current }),
     onFire: (result) => {
       const [px, py, pz] = motion.current.pos;
       // From roughly the chest rather than the feet, so the tracer does not
@@ -302,7 +307,7 @@ export function LocalPlayer({
 
     // Network: only send when something actually changed. Peers render our body,
     // so they get bodyYaw — for the seeker that always equals the camera yaw,
-    // which is what the server's tag facing test needs.
+    // which is what the server's shot facing test needs.
     const s = lastSent.current;
     const movedEnough =
       Math.abs(px - s.x) > NET_EPSILON.pos ||
