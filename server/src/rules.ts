@@ -101,6 +101,96 @@ export const CELL_SPAWN: [number, number, number] = [0, -8, 0];
  */
 export const HUNT_START: [number, number, number] = [0, 0, 0];
 
+// ------------------------------------------------------------ the seeker's shot
+
+/**
+ * The seeker's gun.
+ *
+ * There is no maxDistance any more: the shot is a hitscan with unlimited range
+ * and the client decides whether the line of sight was clear, because the
+ * server has no map to check it against. That trade, and what it costs, is the
+ * first section of the design doc — read it before adding a distance limit
+ * back, because any number chosen here would be arbitrary.
+ *
+ * KEEP IN SYNC WITH SHOT in game/src/game/constants.ts — check:sync compares them.
+ */
+export const SHOT = {
+  /** The seeker's forward vector must have at least this dot with the direction to the target. */
+  minFacingDot: 0.55,
+  cooldownMs: 700,
+};
+
+export type ShotFailure =
+  | "not_seeking"
+  | "not_seeker"
+  | "missing"
+  | "invalid_target"
+  | "cooldown"
+  | "not_facing";
+
+export interface ShotRequest {
+  phase: string;
+  senderIsSeeker: boolean;
+  /** null when the account named is not in the room any more. */
+  target: { role?: string; caught?: boolean; pos?: number[] } | null;
+  seekerPos: number[];
+  seekerRotY: number;
+  now: number;
+  lastShotAt: number;
+}
+
+/** Coerce anything off the wire to a real number. */
+function n(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : 0;
+}
+
+/**
+ * How much of the seeker's facing points at the target, on the horizontal plane.
+ * 1 is dead ahead, 0 is square to the side, -1 is directly behind.
+ *
+ * Height is deliberately excluded — shooting up at someone on a crate is still
+ * facing them, and folding y in would refuse it.
+ *
+ * yaw 0 faces +Z (see game/src/game/movement.ts). Inverting that would let the
+ * seeker shoot whatever is behind them, which is why check:shot pins all four
+ * cardinal directions rather than just the forward case.
+ */
+export function facingDot(from: number[], to: number[], rotY: number): number {
+  const dx = n(to?.[0]) - n(from?.[0]);
+  const dz = n(to?.[2]) - n(from?.[2]);
+  const length = Math.hypot(dx, dz);
+  if (length < 1e-9) return 1; // standing on top of each other counts as facing
+  return (dx / length) * Math.sin(n(rotY)) + (dz / length) * Math.cos(n(rotY));
+}
+
+/**
+ * Pure so it can be checked: the harness cannot drive a room into the seeking
+ * phase, so this decision is unreachable from a server test.
+ *
+ * Order matters. Cheap state checks come before the geometry, and "is this even
+ * a legal target" before the cooldown, so a player poking at the remote
+ * function learns nothing about who is still uncaught from the timing.
+ */
+export function canShoot(o: ShotRequest): { ok: true } | { ok: false; reason: ShotFailure } {
+  if (o.phase !== "seeking") return { ok: false, reason: "not_seeking" };
+  if (!o.senderIsSeeker) return { ok: false, reason: "not_seeker" };
+  if (!o.target) return { ok: false, reason: "missing" };
+  if (o.target.role !== "hider" || o.target.caught) return { ok: false, reason: "invalid_target" };
+  if (n(o.now) - n(o.lastShotAt) < SHOT.cooldownMs) return { ok: false, reason: "cooldown" };
+
+  // A target with no position, or a corrupted one, must not read as "in front
+  // of me": n() turns it into the origin, which for a seeker also at the
+  // origin would otherwise pass as facing.
+  const pos = o.target.pos;
+  const usable = Array.isArray(pos) && Number.isFinite(pos[0]) && Number.isFinite(pos[2]);
+  if (!usable) return { ok: false, reason: "not_facing" };
+
+  if (facingDot(o.seekerPos, pos, o.seekerRotY) < SHOT.minFacingDot) {
+    return { ok: false, reason: "not_facing" };
+  }
+  return { ok: true };
+}
+
 // ------------------------------------------------------------ avatar shop
 
 /** Collection name for per-account coins and owned avatars. */
