@@ -174,22 +174,6 @@ export function moveXZ(
   return [x, y, z];
 }
 
-/**
- * Move and snap to the surface underfoot. Used by anything that doesn't jump
- * (the offline bots); the local player runs moveXZ plus its own gravity.
- */
-export function resolveMove(
-  from: [number, number, number],
-  dx: number,
-  dz: number,
-  radius: number,
-  boxes = MAP_BOXES,
-  floorY = 0
-): [number, number, number] {
-  const [x, y, z] = moveXZ(from, dx, dz, radius, boxes);
-  return [x, groundHeightAt(x, z, y, boxes, floorY), z];
-}
-
 /** Spawn point clear of geometry. Mirrors randomSpawn() in server/src/rules.ts. */
 export function randomSpawn(boxes = MAP_BOXES): [number, number, number] {
   const limit = ARENA.size / 2 - 2.5;
