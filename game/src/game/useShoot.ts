@@ -28,6 +28,16 @@ interface Options {
   active: boolean;
   selfAccount: string;
   onFire: (result: ShotResult) => void;
+  /**
+   * True when the pending pointerdown is the click recapturing pointer lock
+   * rather than an aimed shot. usePointerLook's own listener requests lock on
+   * every canvas click while unlocked (Esc-then-click is how it's regained),
+   * and that request is asynchronous — so on that exact click
+   * `document.pointerLockElement` is still not the canvas. Without this check
+   * the same click that gets the mouse back also fires a shot along whatever
+   * the crosshair was left on.
+   */
+  isRecapture: () => boolean;
 }
 
 /** How far a tracer runs when the ray hits nothing at all. */
@@ -44,26 +54,24 @@ function accountOf(object: THREE.Object3D): string | null {
   return null;
 }
 
-export function useShoot({ active, selfAccount, onFire }: Options): void {
+export function useShoot({ active, selfAccount, onFire, isRecapture }: Options): void {
   const { camera, scene, gl } = useThree();
-  const latest = useRef({ selfAccount, onFire });
-  latest.current = { selfAccount, onFire };
+  const latest = useRef({ selfAccount, onFire, isRecapture });
+  latest.current = { selfAccount, onFire, isRecapture };
 
   useEffect(() => {
     if (!active) return;
     const canvas = gl.domElement;
     const raycaster = new THREE.Raycaster();
-    const centre = new THREE.Vector2();
+    const centre = new THREE.Vector2(0, 0);
 
-    const fire = (clientX: number, clientY: number) => {
-      // Under pointer lock the cursor is pinned, so the shot goes through the
-      // crosshair at the centre. Without it, aim where the cursor actually is.
-      if (document.pointerLockElement === canvas) {
-        centre.set(0, 0);
-      } else {
-        const r = canvas.getBoundingClientRect();
-        centre.set(((clientX - r.left) / r.width) * 2 - 1, -(((clientY - r.top) / r.height) * 2 - 1));
-      }
+    const fire = () => {
+      // The crosshair is the aim in both lock states, not the OS cursor. Under
+      // lock that's obvious — the cursor is pinned there. Unlocked it still is:
+      // Hud renders the crosshair fixed at the viewport centre and free look
+      // (input.ts) turns the camera on bare mousemove, so the camera — and
+      // with it the centre of the view — is what the cursor's own position
+      // never tracks.
       raycaster.setFromCamera(centre, camera);
 
       const hits = raycaster.intersectObjects(scene.children, true);
@@ -97,7 +105,8 @@ export function useShoot({ active, selfAccount, onFire }: Options): void {
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
-      fire(e.clientX, e.clientY);
+      if (latest.current.isRecapture()) return;
+      fire();
     };
 
     canvas.addEventListener("pointerdown", onPointerDown);

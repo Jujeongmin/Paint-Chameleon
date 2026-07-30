@@ -107,7 +107,7 @@ export function LocalPlayer({
     }
   });
 
-  usePointerLook(!paintMode && !frozen, MOVE.mouseSensitivity, yaw, pitch);
+  const look = usePointerLook(!paintMode && !frozen, MOVE.mouseSensitivity, yaw, pitch);
 
   // Start the orbit behind the player so entering paint mode isn't disorienting.
   useEffect(() => {
@@ -199,10 +199,21 @@ export function LocalPlayer({
   // Painting also listens for pointerdown on this canvas, so the gun must stay
   // off while paintMode is active — otherwise every brush stroke would burn
   // the shot cooldown and could kill a hider down the crosshair by accident.
+  // `frozen` already covers paintMode today (see App.tsx's frozen expression),
+  // so this clause is currently redundant with it — kept explicit anyway so a
+  // future change to what `frozen` means doesn't silently let painting shoot.
   useShoot({
     active: me.role === "seeker" && phase === "seeking" && !frozen && !paintMode,
     selfAccount: me.account,
     onFire: onShoot,
+    // Esc-then-click is how input.ts documents getting the mouse back; that
+    // same click also lands here, and requestPointerLock() hasn't resolved yet
+    // when it does. everLocked tells recapture (lock has worked before, so
+    // "not locked right now" means a request is already in flight) apart from
+    // genuine free look (lock has never worked this session — an iframe
+    // without allow="pointer-lock" — where clicking unlocked is this player's
+    // only way to ever fire, and must not be suppressed).
+    isRecapture: () => look.everLocked.current && !look.locked.current,
   });
 
   useFrame((_, dt) => {
