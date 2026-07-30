@@ -56,7 +56,7 @@
 ### 셀이 처음엔 아예 작동하지 않았습니다 — 최종 리뷰가 잡음
 
 셀 작업의 첫 태스크가 `groundHeightAt`의 `let best = 0`을 `floorY` 인자로 뽑아냈는데,
-**같은 암묵 평면이 `src/game/camera.ts`에 두 군데 더 있었습니다** — `cameraBlockedAt`의
+**같은 암묵 평면이 `game/src/game/camera.ts`에 두 군데 더 있었습니다** — `cameraBlockedAt`의
 `if (y < CAMERA_FLOOR)`와 `cameraInsideSolid`의 `if (y < 0)`. 태스크마다 붙인 리뷰는 자기
 diff만 보므로 이걸 볼 수 없었고, 전체 브랜치 리뷰에서야 나왔습니다.
 
@@ -197,33 +197,33 @@ npx vite build      # 성공
 
 ### 한 일
 
-**폐기:** `src/ui/Shop.tsx`, `ui.css`의 `.shop-*` 모달 블록, `atShop()`,
+**폐기:** `game/src/ui/Shop.tsx`, `ui.css`의 `.shop-*` 모달 블록, `atShop()`,
 `SHOP.triggerRadius`, `onShopProximity`, `shopOpen`/`shopDismissed`/`nearShop` 상태.
 상점은 더 이상 이동을 얼리지 않고 커서도 필요로 하지 않습니다.
 
-**`src/hub/hubMap.ts`** — `STAND` 상수(`spacing 2.2` / `triggerRadius 1.0` / `stepZ 1.5`),
+**`game/src/hub/hubMap.ts`** — `STAND` 상수(`spacing 2.2` / `triggerRadius 1.0` / `stepZ 1.5`),
 `Stand` 인터페이스, `BODIES`에서 파생한 `STANDS`, 최근접 우선 `standAt()`. 카운터 박스 2개를
 백드롭 1개(폭은 `(BODIES.length - 1) * spacing + 1.6` = 8.2로 파생)로 교체하고, 맨 왼쪽 발판
 트리거를 덮던 소품 `[-12, 6, ...]`을 삭제했습니다.
 
-**`src/hub/Hub.tsx`** — 마네킹 4개(`classic` 포함)가 `STANDS`를 순회하고, 발판마다 바닥에
+**`game/src/hub/Hub.tsx`** — 마네킹 4개(`classic` 포함)가 `STANDS`를 순회하고, 발판마다 바닥에
 트리거 원을 그립니다. 현재 장착 중인 발판은 초록으로 강조.
 
-**`src/hub/HubPlayer.tsx`** — `standRef`에 매 프레임 기록(`portalRef`와 같은 폴링 패턴).
+**`game/src/hub/HubPlayer.tsx`** — `standRef`에 매 프레임 기록(`portalRef`와 같은 폴링 패턴).
 
-**`src/ui/ShopPrompt.tsx` (신규)** — 비모달 하단 프롬프트, `pointer-events: none`,
+**`game/src/ui/ShopPrompt.tsx` (신규)** — 비모달 하단 프롬프트, `pointer-events: none`,
 `e.repeat` 가드가 있는 `KeyE` 리스너. 리스너는 `buy`/`equip`이 실제로 가능할 때만 등록됩니다.
 
-**`src/ui/standAction.ts` (신규, 지시서에 없던 추가)** — `[E] 한 번이 무엇을 하는가`를
+**`game/src/ui/standAction.ts` (신규, 지시서에 없던 추가)** — `[E] 한 번이 무엇을 하는가`를
 순수 함수로 분리했습니다: `loading`/`equipped`/`equip`/`buy`/`broke`. 모달이 사라지면서
 "무엇이 가능한지"를 알려주던 비활성 버튼이 전부 없어졌기 때문에, 이 결정표가 곧 상호작용
 전부입니다. `check:shop`이 9개 케이스로 검증합니다.
 
-**`src/ui/useWallet.ts` (신규)** — 지갑 + busy + 자동 소멸 메시지를 한 훅으로. 4차 세션의
+**`game/src/ui/useWallet.ts` (신규)** — 지갑 + busy + 자동 소멸 메시지를 한 훅으로. 4차 세션의
 교훈 유지: **`buyAvatar`가 반환한 지갑을 그대로 쓰고 절대 재조회하지 않습니다.**
 
-**`src/ui/HubHud.tsx`** — `standRef` 폴링을 기존 60ms `portalRef` 인터벌에 합치고, 상단 바에
-코인 칩 상시 표시. **`src/App.tsx`** — 상점 상태 4개가 `useWallet` 하나로.
+**`game/src/ui/HubHud.tsx`** — `standRef` 폴링을 기존 60ms `portalRef` 인터벌에 합치고, 상단 바에
+코인 칩 상시 표시. **`game/src/App.tsx`** — 상점 상태 4개가 `useWallet` 하나로.
 
 **`scripts/check-hub.ts`** — 상점 검사를 발판별로 재작성(설 수 있는 자리인지 / 스폰에서
 도달 가능한지 / 트리거끼리 안 겹치는지 / 포털과 안 겹치는지). `STANDS`가 `BODIES`에서
@@ -234,17 +234,17 @@ npx vite build      # 성공
 
 > "리더보드도 아바타상점처럼 구조물처럼 표시해줘"
 
-상점과 똑같은 처리를 했습니다. HUD 패널(`src/ui/Leaderboard.tsx`, `.leaderboard-*` CSS)을
+상점과 똑같은 처리를 했습니다. HUD 패널(`game/src/ui/Leaderboard.tsx`, `.leaderboard-*` CSS)을
 폐기하고, 카펫 건너 상점과 대칭 위치(`x: 9.5, z: 4`)에 **기념비**를 세웠습니다.
 
-- **`src/hub/leaderboardFace.ts` (신규)** — 판면을 그리는 순수 캔버스 코드. 컴포넌트에서
+- **`game/src/hub/leaderboardFace.ts` (신규)** — 판면을 그리는 순수 캔버스 코드. 컴포넌트에서
   분리한 이유는 검증입니다: 3D 씬은 애니메이션 프레임 안에서만 그려지는데 이 코드는
   프레임이 필요 없어서, **렌더러를 띄우지 않고 판면만 이미지로 뽑아 눈으로 확인**할 수
   있습니다. 실제로 그렇게 확인했습니다(아래 검증 참고).
-- **`src/hub/LeaderboardBoard.tsx` (신규)** — 캔버스 텍스처를 판면 평면에 붙입니다.
+- **`game/src/hub/LeaderboardBoard.tsx` (신규)** — 캔버스 텍스처를 판면 평면에 붙입니다.
   `NameTag`와 달리 빌보드가 아니고 depth test를 **합니다** — 물리적 물체의 표면이라
   가려지고 같이 돌아야 합니다. 조명 무관하게 대비를 유지하려고 `meshBasicMaterial`.
-- **`src/ui/useLeaderboard.ts` (신규)** — 폴링을 컴포넌트 밖으로. 판면은 이제 월드
+- **`game/src/ui/useLeaderboard.ts` (신규)** — 폴링을 컴포넌트 밖으로. 판면은 이제 월드
   지오메트리라 시선을 돌리면 언마운트되는 컴포넌트에 폴링을 두면 매번 재시작됩니다.
   `enabled`로 매치 중에는 안 돕니다.
 - `hubMap.ts` — `LEADERBOARD` 상수 + 판/받침 박스. 소품 `[12, 6, ...]`도 삭제했습니다
@@ -289,7 +289,7 @@ R3F는 아예 마운트조차 하지 않습니다(캔버스가 기본 300x150에
 
 전부 화면에서 돌려봤기 때문에 나온 것들입니다. 코드 리뷰로는 안 나왔을 종류입니다.
 
-**1. 참가 즉시 게임이 멈춤 (`18279d0`).** 오프라인 리허설 리그(`src/net/offline.ts`)는
+**1. 참가 즉시 게임이 멈춤 (`18279d0`).** 오프라인 리허설 리그(`game/src/net/offline.ts`)는
 원격 함수를 **매 렌더 새 화살표 함수**로 만듭니다 — 현재 state를 클로저에 담아야 해서
 구조상 그렇습니다. 그걸 effect 의존성에 넣으면 fetch → `setState` → 리렌더 → 새 신원 →
 effect 재실행 → 무한 루프. 값이 틀리는 게 아니라 **메인 스레드가 굶어서 화면이 멈춥니다.**
@@ -364,7 +364,7 @@ effect 재실행 → 무한 루프. 값이 틀리는 게 아니라 **메인 스�
 
 ### 체형 4종, 전부 증명 가능하게 동일한 판정 크기
 
-`src/game/bodies.ts`에 `classic`(기본, 무료) / `bean`(콩이, 40) / `stick`(막대, 60) /
+`game/src/game/bodies.ts`에 `classic`(기본, 무료) / `bean`(콩이, 40) / `stick`(막대, 60) /
 `tank`(떡대, 90) 네 프로필. 총 키(`TOP_Y` 1.86), 발 높이(`FOOT_Y` 0.13), 최대 반폭
 (`maxHalfWidth` ≤ `MOVE.playerRadius` 0.45)이 네 체형 전부 동일합니다.
 
@@ -391,12 +391,12 @@ effect 재실행 → 무한 루프. 값이 틀리는 게 아니라 **메인 스�
 - 코인 적립은 `endRound`에 들어가 있고, 리더보드 쓰기와 **같은 계약**을 따릅니다 — 페이즈를
   먼저 `results`로 전환한 뒤 지갑 쓰기를 시도하고, 실패해도 라운드 진행을 막지 않습니다
   (커밋 `88d005c`의 그 교훈을 그대로 재사용).
-- 클라: `WalletView`/`BuyFailure` 타입(`src/net/types.ts`), 오프라인 리허설 모드는 코인
+- 클라: `WalletView`/`BuyFailure` 타입(`game/src/net/types.ts`), 오프라인 리허설 모드는 코인
   100개로 시작하는 인메모리 지갑을 흉내냅니다.
 
 ### 허브 상점 키오스크 + 구매 패널
 
-- `src/hub/hubMap.ts`의 `SHOP`(좌표 `x:-9.5, z:4`, `triggerRadius: 3.0`)과 `atShop()`.
+- `game/src/hub/hubMap.ts`의 `SHOP`(좌표 `x:-9.5, z:4`, `triggerRadius: 3.0`)과 `atShop()`.
   스폰 지점과 포털 사이, 카펫 옆에 배치해서 일부러 찾아가지 않아도 지나가게 됩니다.
 - 유료 세 체형(`bean`/`stick`/`tank`)이 실제 크기 마네킹으로 턴테이블 위에 서 있습니다
   (`0afb866`).
@@ -430,7 +430,7 @@ effect 재실행 → 무한 루프. 값이 틀리는 게 아니라 **메인 스�
    사정입니다(로컬 구현은 인메모리, 서버 재시작 시 소실). 배포 후 확인 필요.
 4. **실제 네트워크 멀티플레이어(두 진짜 클라이언트 간 동기화)는 이번 세션도 검증
    못했습니다 — 4세션 연속입니다.** `.env` 파일 자체가 존재하지 않아 `VITE_AGENT8_VERSE`가
-   비어 있고, 앱은 항상 오프라인 리허설 모드로 뜹니다(`src/net/useGame.ts:20`). 실서버를
+   비어 있고, 앱은 항상 오프라인 리허설 모드로 뜹니다(`game/src/net/useGame.ts:20`). 실서버를
    붙여서 두 브라우저 탭(또는 두 기기)으로 접속해보는 것이 여전히 남아 있습니다.
 
 README의 "3D 로비 허브 미구현" 항목은 이번 세션에서 바로잡았습니다 — 허브는 오래전부터
@@ -490,3 +490,34 @@ npm run check:shop      # 코인 계산·구매·장착 순수 로직 개별 확
     확인했고 사용자가 수동 테스트로 재확인했습니다. 막고 있던 것은 도구 버그가 아니라
     **브라우저 패널이 표시되지 않으면 페이지가 백그라운드 탭이 되어 `requestAnimationFrame`이
     아예 돌지 않는다**는 것이었습니다(R3F는 마운트조차 안 함). 패널을 띄우면 됩니다.
+
+---
+
+## 구조 변경 — `game/`이 Vite root입니다 (2026-07-30)
+
+`index.html`과 `src/`가 `game/` 안으로 들어갔습니다. Verse8이 그 구조라는 프로젝트 소유자의
+지시입니다.
+
+```
+game/index.html      Vite root의 진입점
+game/src/            클라이언트 전체
+public/              정적 에셋 (game/ 밖, vite.config의 publicDir가 가리킴)
+server/              서버 (번들 대상 아님)
+scripts/             검사 스크립트 (번들 대상 아님)
+dist/                빌드 산출물
+```
+
+`src/`가 같이 움직여야 했던 이유는 Vite가 root 밖의 모듈을 서빙하지 않고, `index.html`의
+스크립트 태그가 root 기준 `/src/main.tsx`이기 때문입니다. `publicDir`와 `outDir`는 `game/`
+밖을 가리켜 `public/`·`dist/`는 제자리에 있습니다 — 에셋 URL과 배포 단계가 그대로 동작합니다.
+
+검사 스크립트 31곳의 import가 `../game/src/`로 바뀌었고, `tsconfig.json`의 `include`도
+`game/src`가 됐습니다.
+
+**정직하게 남기는 두 가지.** Vite 공식 문서는 `index.html`을 프로젝트 루트에 두라고 하고,
+Verse8 문서에서는 `game/` 요구사항을 찾지 못했습니다 — 시작하기 문서는 `src/`와 `public/`을
+루트에 둔 구조를 보여주고, 클라이언트 빌드·퍼블리싱 페이지 자체가 없습니다. 배포가 이 구조를
+거부하면 되돌리는 건 커밋 하나입니다.
+
+**배포는 여전히 미검증입니다.** `.env`가 없어 `VITE_AGENT8_VERSE`가 비어 있고 앱은 항상
+오프라인으로 뜹니다. 이 구조가 Verse8에서 실제로 도는 것은 아무도 확인하지 않았습니다.

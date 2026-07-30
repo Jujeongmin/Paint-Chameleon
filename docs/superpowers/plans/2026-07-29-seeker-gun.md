@@ -17,7 +17,7 @@
 - 서버(`server/src/`)는 격리된 VM에서 돌아 `src/`를 import할 수 없다. 공유가 필요한 값은 복제하고 `check:sync`가 대조한다.
 - 소스 주석은 영어, 왜 그런지를 적는다. 커밋 제목도 영어.
 - 기존 상수는 바꾸지 않는다: `MOVE.playerRadius` 0.45, `MOVE.jumpSpeed` 7.4, `MOVE.gravity` 22, `STEP_HEIGHT` 0.45, `TOP_Y` 1.86.
-- `src/game/arena.ts`, `src/hub/hubMap.ts`, `src/game/cell.ts`는 건드리지 않는다. `check:map`·`check:cell`·`check:hub`는 계속 통과해야 한다.
+- `game/src/game/arena.ts`, `game/src/hub/hubMap.ts`, `game/src/game/cell.ts`는 건드리지 않는다. `check:map`·`check:cell`·`check:hub`는 계속 통과해야 한다.
 - 명령은 저장소 루트에서 돌린다. PowerShell 작업 디렉터리가 밀렸으면 `Set-Location`으로 되돌린다.
 - **PowerShell은 `git commit -m` 안의 큰따옴표에서 인자를 쪼갠다.** 본문에 따옴표가 들어가면 메시지를 파일에 쓰고 `git commit -F <파일>`.
 - 총 모델은 `public/models/blaster/`에 이미 있다 (Kenney Blaster Kit 2.1, GLB 40개 + 자기 `Textures/colormap.png`). **다른 킷 폴더와 섞지 않는다** — GLB가 colormap을 상대경로로 참조하므로 섞으면 팔레트가 뒤집힌다.
@@ -30,18 +30,18 @@
 |---|---|---|
 | `server/src/rules.ts` (수정) | `SHOT` 상수, `facingDot()`, `canShoot()` — 순수 | 1 |
 | `scripts/check-shot.ts` (신규) | `canShoot` 결정표 전수 | 1 |
-| `src/game/constants.ts` (수정) | `TAG` → `SHOT`, `maxDistance` 삭제 | 2 |
+| `game/src/game/constants.ts` (수정) | `TAG` → `SHOT`, `maxDistance` 삭제 | 2 |
 | `server/src/server.ts` (수정) | `requestShot` 배선 + 발사 브로드캐스트 | 2 |
-| `src/net/useGame.ts`·`offline.ts`·`types.ts` (수정) | `requestTag` → `requestShot` | 2 |
+| `game/src/net/useGame.ts`·`offline.ts`·`types.ts` (수정) | `requestTag` → `requestShot` | 2 |
 | `server/test/server.test.ts` (수정) | 사격 거절 테스트 이름·호출 갱신 | 2 |
-| `src/audio/sound.ts` (수정) | `shotGainFor()` 순수 + `playShot()` | 3 |
+| `game/src/audio/sound.ts` (수정) | `shotGainFor()` 순수 + `playShot()` | 3 |
 | `scripts/check-audio.ts` (수정) | 감쇠 곡선 검사 | 3 |
-| `src/game/RemotePlayers.tsx` (수정) | 몸 그룹에 `userData.account` | 4 |
-| `src/game/useShoot.ts` (신규) | 조준·레이캐스트·명중 판정 | 4 |
-| `src/game/LocalPlayer.tsx` (수정) | 클릭-태그 제거, `useShoot` 연결 | 4 |
-| `src/App.tsx` (수정) | `onTag` → `onShoot` | 4 |
-| `src/game/Gun.tsx` (신규) | 블래스터 모델 + 트레이서 + 머즐 플래시 | 5 |
-| `src/game/Humanoid.tsx` (수정) | `held?: ReactNode` 슬롯 | 5 |
+| `game/src/game/RemotePlayers.tsx` (수정) | 몸 그룹에 `userData.account` | 4 |
+| `game/src/game/useShoot.ts` (신규) | 조준·레이캐스트·명중 판정 | 4 |
+| `game/src/game/LocalPlayer.tsx` (수정) | 클릭-태그 제거, `useShoot` 연결 | 4 |
+| `game/src/App.tsx` (수정) | `onTag` → `onShoot` | 4 |
+| `game/src/game/Gun.tsx` (신규) | 블래스터 모델 + 트레이서 + 머즐 플래시 | 5 |
+| `game/src/game/Humanoid.tsx` (수정) | `held?: ReactNode` 슬롯 | 5 |
 | `README.md`·`HANDOFF.md` (수정) | 안티치트 약화 기록 | 6 |
 
 ---
@@ -250,7 +250,7 @@ Expected: FAIL — `canShoot`/`facingDot`/`SHOT`이 없어 import가 깨진다.
  * first section of the design doc — read it before adding a distance limit
  * back, because any number chosen here would be arbitrary.
  *
- * KEEP IN SYNC WITH SHOT in src/game/constants.ts — check:sync compares them.
+ * KEEP IN SYNC WITH SHOT in game/src/game/constants.ts — check:sync compares them.
  */
 export const SHOT = {
   /** The seeker's forward vector must have at least this dot with the direction to the target. */
@@ -289,7 +289,7 @@ function n(v: unknown): number {
  * Height is deliberately excluded — shooting up at someone on a crate is still
  * facing them, and folding y in would refuse it.
  *
- * yaw 0 faces +Z (see src/game/movement.ts). Inverting that would let the
+ * yaw 0 faces +Z (see game/src/game/movement.ts). Inverting that would let the
  * seeker shoot whatever is behind them, which is why check:shot pins all four
  * cardinal directions rather than just the forward case.
  */
@@ -335,7 +335,7 @@ export function canShoot(o: ShotRequest): { ok: true } | { ok: false; reason: Sh
 Run: `npm run check:shot`
 Expected: PASS — 전부 통과.
 
-**실패하면**: `facingDot`의 부호가 뒤집혔다면 `src/game/movement.ts`의 규약을 다시 본다 — `forward = (sin yaw, cos yaw)`이고, 이 프로젝트는 예전에 이 부호를 한 번 틀린 이력이 있다(`check:movement` 상단 주석).
+**실패하면**: `facingDot`의 부호가 뒤집혔다면 `game/src/game/movement.ts`의 규약을 다시 본다 — `forward = (sin yaw, cos yaw)`이고, 이 프로젝트는 예전에 이 부호를 한 번 틀린 이력이 있다(`check:movement` 상단 주석).
 
 - [ ] **Step 6: 전체 검사**
 
@@ -354,16 +354,16 @@ git commit -m "test: state the shot decision as pure logic before wiring it"
 ### Task 2: 서버 배선 — 태그를 사격으로 바꾸고 거리 검사를 버린다
 
 **Files:**
-- Modify: `src/game/constants.ts`, `server/src/server.ts`, `server/test/server.test.ts`, `src/net/types.ts`, `src/net/useGame.ts`, `src/net/offline.ts`, `scripts/check-sync.ts`
+- Modify: `game/src/game/constants.ts`, `server/src/server.ts`, `server/test/server.test.ts`, `game/src/net/types.ts`, `game/src/net/useGame.ts`, `game/src/net/offline.ts`, `scripts/check-sync.ts`
 
 **Interfaces:**
 - Consumes: `SHOT`, `canShoot`, `facingDot` (`server/src/rules.ts`)
 - Produces:
-  - 클라이언트 `SHOT = { minFacingDot: 0.55, cooldownMs: 700 }` (`src/game/constants.ts`)
+  - 클라이언트 `SHOT = { minFacingDot: 0.55, cooldownMs: 700 }` (`game/src/game/constants.ts`)
   - 게임 뷰의 `requestShot(target: string): Promise<{ ok: boolean }>`
   - 방 브로드캐스트 `"shot"` — `{ account: string; from: [number, number, number]; hit: string | null }`
 
-- [ ] **Step 1: `src/game/constants.ts` — `TAG`를 `SHOT`으로**
+- [ ] **Step 1: `game/src/game/constants.ts` — `TAG`를 `SHOT`으로**
 
 기존 블록을 지우고 다음을 넣는다. 이름을 바꾸는 이유는 정직함이다 — 이제 태그가 아니다.
 
@@ -384,7 +384,7 @@ export const SHOT = {
 };
 ```
 
-`npx tsc --noEmit`으로 `TAG`를 쓰던 곳을 찾는다 — `src/game/LocalPlayer.tsx`가 `TAG.maxDistance`와 `TAG.minFacingDot`으로 자기 쪽 후보를 고르고 있다. **그 블록은 Task 4에서 통째로 사라지므로**, 여기서는 컴파일이 되게만 최소 수정하고(`TAG` → `SHOT`, `maxDistance` 참조는 잠시 상수 `2.6` 리터럴로) Task 4에서 지운다. 그 리터럴 옆에 `// removed in the shooting task` 주석을 남긴다.
+`npx tsc --noEmit`으로 `TAG`를 쓰던 곳을 찾는다 — `game/src/game/LocalPlayer.tsx`가 `TAG.maxDistance`와 `TAG.minFacingDot`으로 자기 쪽 후보를 고르고 있다. **그 블록은 Task 4에서 통째로 사라지므로**, 여기서는 컴파일이 되게만 최소 수정하고(`TAG` → `SHOT`, `maxDistance` 참조는 잠시 상수 `2.6` 리터럴로) Task 4에서 지운다. 그 리터럴 옆에 `// removed in the shooting task` 주석을 남긴다.
 
 - [ ] **Step 2: `scripts/check-sync.ts`에 `SHOT` 대조 추가**
 
@@ -466,9 +466,9 @@ if (
 
 - [ ] **Step 4: 클라이언트 원격 함수 이름 변경**
 
-- `src/net/useGame.ts` — `requestTag` → `requestShot`, `server.remoteFunction("requestShot", [target])`
-- `src/net/types.ts` — 게임 뷰 타입에 있으면 같이
-- `src/net/offline.ts` — `requestTag` → `requestShot`, 주석도 갱신:
+- `game/src/net/useGame.ts` — `requestTag` → `requestShot`, `server.remoteFunction("requestShot", [target])`
+- `game/src/net/types.ts` — 게임 뷰 타입에 있으면 같이
+- `game/src/net/offline.ts` — `requestTag` → `requestShot`, 주석도 갱신:
 
 ```ts
     requestShot: async (_target: string) => {
@@ -478,7 +478,7 @@ if (
     },
 ```
 
-- `src/App.tsx` — `onTag`는 Task 4에서 이름을 바꾸므로 여기서는 `game.requestShot`만 부르게 고친다.
+- `game/src/App.tsx` — `onTag`는 Task 4에서 이름을 바꾸므로 여기서는 `game.requestShot`만 부르게 고친다.
 
 - [ ] **Step 5: 서버 테스트 갱신**
 
@@ -492,7 +492,7 @@ Expected: 전부 통과. 서버 테스트 22개.
 - [ ] **Step 7: 커밋**
 
 ```bash
-git add src/game/constants.ts server/src/rules.ts server/src/server.ts server/test/server.test.ts src/net scripts/check-sync.ts src/App.tsx
+git add game/src/game/constants.ts server/src/rules.ts server/src/server.ts server/test/server.test.ts game/src/net scripts/check-sync.ts game/src/App.tsx
 git commit -m "feat: replace the close-range tag with a shot the server no longer measures"
 ```
 
@@ -501,7 +501,7 @@ git commit -m "feat: replace the close-range tag with a shot the server no longe
 ### Task 3: 총소리 — 거리 감쇠를 순수 함수로
 
 **Files:**
-- Modify: `src/audio/sound.ts`, `scripts/check-audio.ts`
+- Modify: `game/src/audio/sound.ts`, `scripts/check-audio.ts`
 
 **Interfaces:**
 - Produces:
@@ -568,7 +568,7 @@ console.log("\nthe shot can be played without an AudioContext");
 Run: `npm run check:audio`
 Expected: FAIL — `shotGainFor` 등이 없어 import가 깨진다.
 
-- [ ] **Step 3: `src/audio/sound.ts`에 구현 추가**
+- [ ] **Step 3: `game/src/audio/sound.ts`에 구현 추가**
 
 `playCatch` 앞에 넣는다.
 
@@ -620,7 +620,7 @@ Expected: PASS.
 - [ ] **Step 5: 커밋**
 
 ```bash
-git add src/audio/sound.ts scripts/check-audio.ts
+git add game/src/audio/sound.ts scripts/check-audio.ts
 git commit -m "feat: give the gunshot a distance falloff a hider can navigate by"
 ```
 
@@ -629,16 +629,16 @@ git commit -m "feat: give the gunshot a distance falloff a hider can navigate by
 ### Task 4: 클라이언트 명중 판정
 
 **Files:**
-- Modify: `src/game/RemotePlayers.tsx`, `src/game/LocalPlayer.tsx`, `src/App.tsx`
-- Create: `src/game/useShoot.ts`
+- Modify: `game/src/game/RemotePlayers.tsx`, `game/src/game/LocalPlayer.tsx`, `game/src/App.tsx`
+- Create: `game/src/game/useShoot.ts`
 
 **Interfaces:**
-- Consumes: `SHOT` (`src/game/constants.ts`)
+- Consumes: `SHOT` (`game/src/game/constants.ts`)
 - Produces:
   - `export interface ShotResult { account: string | null; point: [number, number, number] }`
   - `export function useShoot(o: { active: boolean; selfAccount: string; onFire: (result: ShotResult) => void }): void`
 
-- [ ] **Step 1: `src/game/RemotePlayers.tsx` — 몸이 자기 정체를 들고 있게 한다**
+- [ ] **Step 1: `game/src/game/RemotePlayers.tsx` — 몸이 자기 정체를 들고 있게 한다**
 
 `RemotePlayer`의 반환 `<group ref={group}>`에 `userData`를 추가한다.
 
@@ -653,7 +653,7 @@ git commit -m "feat: give the gunshot a distance falloff a hider can navigate by
   // body has to say whose it is somewhere an ancestor walk can find it.
 ```
 
-- [ ] **Step 2: `src/game/useShoot.ts` 작성**
+- [ ] **Step 2: `game/src/game/useShoot.ts` 작성**
 
 ```ts
 import { useEffect, useRef } from "react";
@@ -765,7 +765,7 @@ export function useShoot({ active, selfAccount, onFire }: Options): void {
 
 **왜 pointerdown이고 드리프트를 안 보는가**: 기존 태그는 "6px 이하로 움직인 클릭"만 태그로 셌다 — 자유 시점에서 시점을 끄는 드래그와 구분하려고. 사격은 그럴 이유가 없다. 쏘면서 조준을 옮기는 건 정상 행동이고, 발사 시점의 조준선만 중요하다.
 
-- [ ] **Step 3: `src/game/LocalPlayer.tsx` — 클릭-태그를 버리고 `useShoot`을 붙인다**
+- [ ] **Step 3: `game/src/game/LocalPlayer.tsx` — 클릭-태그를 버리고 `useShoot`을 붙인다**
 
 `onTag` prop을 `onShoot: (result: ShotResult) => void`로 바꾸고, `me.role === "seeker" && phase === "seeking"`을 감시하던 **pointerdown/pointerup 태그 effect 전체를 삭제한다** (거리·시선으로 후보를 고르던 `tryTag` 포함). Task 2에서 남긴 `2.6` 리터럴도 여기서 사라진다.
 
@@ -792,7 +792,7 @@ import { useShoot, type ShotResult } from "./useShoot";
 
 `TAG`/`SHOT` import가 더 이상 쓰이지 않으면 지운다.
 
-- [ ] **Step 4: `src/App.tsx` — `onTag`를 `onShoot`으로**
+- [ ] **Step 4: `game/src/App.tsx` — `onTag`를 `onShoot`으로**
 
 ```tsx
   const onShoot = useCallback(
@@ -817,7 +817,7 @@ Expected: 전부 통과.
 - [ ] **Step 6: 커밋**
 
 ```bash
-git add src/game/useShoot.ts src/game/RemotePlayers.tsx src/game/LocalPlayer.tsx src/App.tsx
+git add game/src/game/useShoot.ts game/src/game/RemotePlayers.tsx game/src/game/LocalPlayer.tsx game/src/App.tsx
 git commit -m "feat: decide the hit with one raycast, so cover works for free"
 ```
 
@@ -826,11 +826,11 @@ git commit -m "feat: decide the hit with one raycast, so cover works for free"
 ### Task 5: 총, 트레이서, 총소리
 
 **Files:**
-- Create: `src/game/Gun.tsx`
-- Modify: `src/game/Humanoid.tsx`, `src/game/LocalPlayer.tsx`, `src/App.tsx`, `src/net/useGame.ts`
+- Create: `game/src/game/Gun.tsx`
+- Modify: `game/src/game/Humanoid.tsx`, `game/src/game/LocalPlayer.tsx`, `game/src/App.tsx`, `game/src/net/useGame.ts`
 
 **Interfaces:**
-- Consumes: `ShotResult` (`src/game/useShoot.ts`), `playShot`/`shotGainFor` (`src/audio/sound.ts`)
+- Consumes: `ShotResult` (`game/src/game/useShoot.ts`), `playShot`/`shotGainFor` (`game/src/audio/sound.ts`)
 - Produces: `<Gun />`, `<Tracer from to />`; `Humanoid`의 `held?: ReactNode`
 
 - [ ] **Step 1: 모델 치수를 실측한다**
@@ -839,7 +839,7 @@ Run: `npm run glb:size -- public/models/blaster/blaster-a.glb public/models/blas
 
 `blaster-j`가 0.155 × 0.362 × 0.610으로 가장 짧아 손에 쥐는 크기에 가깝다. 실제 선택은 화면에서 정한다.
 
-- [ ] **Step 2: `src/game/Humanoid.tsx`에 `held` 슬롯 추가**
+- [ ] **Step 2: `game/src/game/Humanoid.tsx`에 `held` 슬롯 추가**
 
 `Props`에 더한다:
 
@@ -863,7 +863,7 @@ Run: `npm run glb:size -- public/models/blaster/blaster-a.glb public/models/blas
 
 `armHalf * 2`는 팔의 끝, 즉 손이 있을 자리다.
 
-- [ ] **Step 3: `src/game/Gun.tsx` 작성**
+- [ ] **Step 3: `game/src/game/Gun.tsx` 작성**
 
 ```tsx
 import { useMemo } from "react";
@@ -947,7 +947,7 @@ export function Tracer({ from, to }: TracerProps) {
 }
 ```
 
-- [ ] **Step 4: `src/game/LocalPlayer.tsx` — 총을 쥐고 트레이서를 그린다**
+- [ ] **Step 4: `game/src/game/LocalPlayer.tsx` — 총을 쥐고 트레이서를 그린다**
 
 술래이고 추적 페이즈일 때만 `held`를 넘긴다. `Humanoid`를 렌더하는 곳을 찾아:
 
@@ -987,7 +987,7 @@ export function Tracer({ from, to }: TracerProps) {
 
 `onFire` 안에서 `playShot(shotGainFor(0))`을 부른다 — 자기 총은 거리 0이다.
 
-- [ ] **Step 6: `src/net/useGame.ts` — 남의 총소리를 듣는다**
+- [ ] **Step 6: `game/src/net/useGame.ts` — 남의 총소리를 듣는다**
 
 기존 `"paint"`/`"paintFill"` 구독 옆에 더한다. `me.pos`가 이 스코프에 없으므로, 거리를 재려면 자기 위치가 필요하다 — `rawMine?.pos`를 쓴다.
 
@@ -1020,7 +1020,7 @@ Expected: 전부 통과.
 - [ ] **Step 8: 커밋**
 
 ```bash
-git add src/game/Gun.tsx src/game/Humanoid.tsx src/game/LocalPlayer.tsx src/App.tsx src/net/useGame.ts
+git add game/src/game/Gun.tsx game/src/game/Humanoid.tsx game/src/game/LocalPlayer.tsx game/src/App.tsx game/src/net/useGame.ts
 git commit -m "feat: put the blaster in the seeker's hand and let everyone hear it"
 ```
 
