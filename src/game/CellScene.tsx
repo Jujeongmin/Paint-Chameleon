@@ -1,4 +1,3 @@
-import { ThreeEvent } from "@react-three/fiber";
 import { CELL_BOXES } from "./cell";
 
 /**
@@ -6,27 +5,24 @@ import { CELL_BOXES } from "./cell";
  *
  * Flat colours rather than the kit models the arena uses: this is a concrete
  * box, and the only thing in it worth looking at is your own body.
+ *
+ * No onClick/onPickColor here: the eyedropper (useBrush's pickAt) doesn't go
+ * through R3F's event system at all — it raycasts scene.children directly and
+ * reads surfaceColor(), which falls back to the mesh's material colour when
+ * there's no texture. These slabs have no texture, so their flat colour is
+ * already what the eyedropper reports; a click handler would be dead weight
+ * duplicating a path that already works.
  */
 
 function hex(c: number): string {
   return "#" + c.toString(16).padStart(6, "0");
 }
 
-interface Props {
-  onPickColor?: (color: number) => void;
-}
-
-export function CellScene({ onPickColor }: Props) {
-  const pick = (color: number) => (e: ThreeEvent<MouseEvent>) => {
-    if (!onPickColor) return;
-    e.stopPropagation();
-    onPickColor(color);
-  };
-
+export function CellScene() {
   return (
     <group>
       {CELL_BOXES.map((b, i) => (
-        <mesh key={i} position={b.p} receiveShadow onClick={pick(b.c)}>
+        <mesh key={i} position={b.p} receiveShadow>
           <boxGeometry args={b.s} />
           <meshStandardMaterial color={hex(b.c)} roughness={0.95} metalness={0.02} />
         </mesh>

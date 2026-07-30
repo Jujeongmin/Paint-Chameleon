@@ -135,13 +135,13 @@ export function Hud({
             </div>
             {isSeeker && room.phase === "seeking" && <div>클릭으로 잡기</div>}
           </div>
-        </>
-      )}
 
-      {isSeeker && room.phase === "hiding" && (
-        <div className="cell-note">
-          <strong>{secondsLeft}초</strong> 후 추적이 시작됩니다 · 숨는 사람 {remaining}명
-        </div>
+          {isSeeker && room.phase === "hiding" && (
+            <div className="cell-note">
+              <strong>{secondsLeft}초</strong> 후 추적이 시작됩니다 · 숨는 사람 {remaining}명
+            </div>
+          )}
+        </>
       )}
 
       {me.caught && room.phase === "seeking" && !paintMode && (
