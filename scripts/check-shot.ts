@@ -27,6 +27,7 @@ function valid(): ShotRequest {
   return {
     phase: "seeking",
     senderIsSeeker: true,
+    senderMissing: false,
     target: { role: "hider", caught: false, pos: [0, 0, 10] },
     seekerPos: [0, 0, 0],
     seekerRotY: 0, // yaw 0 faces +Z, straight at the target
@@ -76,6 +77,15 @@ console.log("\nevery refusal reason");
   hider.senderIsSeeker = false;
   cases.push(["a hider pulling the trigger", hider, "not_seeker"]);
 
+  // The shooter's own room-user state can be legitimately absent (see the
+  // "shot is refused outside the seeking phase" server test, caught right
+  // after joinGame). If it is, the request must be refused outright rather
+  // than falling through to defaulted seekerPos/seekerRotY/lastShotAt values
+  // that would otherwise be trusted as real state.
+  const noSender = valid();
+  noSender.senderMissing = true;
+  cases.push(["the shooter's own state is missing", noSender, "sender_missing"]);
+
   const gone = valid();
   gone.target = null;
   cases.push(["shooting someone who left", gone, "missing"]);
@@ -122,6 +132,38 @@ console.log("\nrefusal order when two reasons hold at once");
     "an invalid target during an active cooldown is refused with invalid_target, not cooldown",
     !result.ok && result.reason === "invalid_target",
     result.ok ? "it was allowed" : `got ${result.reason}`
+  );
+}
+
+console.log("\nphase and senderIsSeeker win over cooldown and facing, too");
+{
+  // rules.ts's canShoot docstring claims the cheap state checks (phase,
+  // senderIsSeeker) run before the geometry checks (cooldown, facing). The
+  // block above only pins invalid_target-before-cooldown; nothing pinned the
+  // other half of that claim. Each case here is wrong on three axes at once —
+  // phase (or senderIsSeeker), cooldown, and facing — so if either state
+  // check were ever moved after cooldown or facing, the reason returned here
+  // would silently change and this assertion would catch it.
+  const wrongPhase = valid();
+  wrongPhase.phase = "hiding";
+  wrongPhase.lastShotAt = wrongPhase.now - (SHOT.cooldownMs - 1); // inside cooldown too
+  wrongPhase.target = { role: "hider", caught: false, pos: [0, 0, -10] }; // facing backwards too
+  const phaseResult = canShoot(wrongPhase);
+  check(
+    "wrong phase + active cooldown + facing backwards is refused with not_seeking",
+    !phaseResult.ok && phaseResult.reason === "not_seeking",
+    phaseResult.ok ? "it was allowed" : `got ${phaseResult.reason}`
+  );
+
+  const notSeeker = valid();
+  notSeeker.senderIsSeeker = false;
+  notSeeker.lastShotAt = notSeeker.now - (SHOT.cooldownMs - 1); // inside cooldown too
+  notSeeker.target = { role: "hider", caught: false, pos: [0, 0, -10] }; // facing backwards too
+  const seekerResult = canShoot(notSeeker);
+  check(
+    "not the seeker + active cooldown + facing backwards is refused with not_seeker",
+    !seekerResult.ok && seekerResult.reason === "not_seeker",
+    seekerResult.ok ? "it was allowed" : `got ${seekerResult.reason}`
   );
 }
 

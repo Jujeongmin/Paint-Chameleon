@@ -121,6 +121,7 @@ export const SHOT = {
 export type ShotFailure =
   | "not_seeking"
   | "not_seeker"
+  | "sender_missing"
   | "missing"
   | "invalid_target"
   | "cooldown"
@@ -129,6 +130,17 @@ export type ShotFailure =
 export interface ShotRequest {
   phase: string;
   senderIsSeeker: boolean;
+  /**
+   * True when the shooter's own room-user state could not be found (distinct
+   * from `target`, which is nullable for the same reason on the other end).
+   * Checked before seekerPos/seekerRotY/lastShotAt are read below, because the
+   * caller's defaults for those fields when the state is missing (`0`,
+   * `[0,0,0]`) are not neutral: `lastShotAt: 0` clears the cooldown outright
+   * (now - 0 is always >= cooldownMs), and `[0,0,0]`/yaw 0 is a plausible
+   * arena position, not a sentinel — it would pass the facing cone for a wide
+   * arc of the map instead of refusing. A missing sender must fail closed.
+   */
+  senderMissing: boolean;
   /** null when the account named is not in the room any more. */
   target: { role?: string; caught?: boolean; pos?: number[] } | null;
   seekerPos: number[];
@@ -165,13 +177,20 @@ export function facingDot(from: number[], to: number[], rotY: number): number {
  * Pure so it can be checked: the harness cannot drive a room into the seeking
  * phase, so this decision is unreachable from a server test.
  *
- * The refusal order below is exactly what check:shot's "refusal order when
- * two reasons hold at once" case pins — invalid_target before cooldown — so
+ * Order matters and check:shot pins more of it than just the one case: phase
+ * and senderIsSeeker are cheap state checks and must win even when cooldown
+ * or facing would also refuse the same request — "refusal order when two
+ * reasons hold at once" pins invalid_target before cooldown, and a second
+ * block pins phase/senderIsSeeker ahead of cooldown and facing too. senderMissing
+ * runs right after those two and before target/cooldown/facing for the same
+ * reason: it guards the defaults those later checks would otherwise trust.
+ * None of this is enforced by the type system, only by the pinned tests, so
  * it cannot drift silently.
  */
 export function canShoot(o: ShotRequest): { ok: true } | { ok: false; reason: ShotFailure } {
   if (o.phase !== "seeking") return { ok: false, reason: "not_seeking" };
   if (!o.senderIsSeeker) return { ok: false, reason: "not_seeker" };
+  if (o.senderMissing) return { ok: false, reason: "sender_missing" };
   if (!o.target) return { ok: false, reason: "missing" };
   if (o.target.role !== "hider" || o.target.caught) return { ok: false, reason: "invalid_target" };
   if (n(o.now) - n(o.lastShotAt) < SHOT.cooldownMs) return { ok: false, reason: "cooldown" };

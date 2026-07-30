@@ -439,9 +439,8 @@ if (
       lastShotAt: num(me?.lastShotAt),
     });
 
-    // Everyone hears the gun, hit or miss — see below. So the shot is recorded
-    // and broadcast before the hit is applied, and a refused request makes no
-    // noise at all.
+    // The shot is recorded and broadcast before the catch is applied, and a
+    // refused request broadcasts nothing.
     if (!verdict.ok) return { ok: false, reason: verdict.reason };
 
     await $room.updateMyState({ lastShotAt: now });

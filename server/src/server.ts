@@ -533,19 +533,18 @@ export class Server {
     const target = users.find((u) => u.account === targetAccount) ?? null;
     const now = Date.now();
 
-    // canShoot has no case for a missing sender — it isn't one of the six
-    // ShotFailure reasons, and a real seeker mid-round always has a user
-    // state (startRound/joinGame both write one before the room can ever
-    // reach "seeking"). So rather than invent a reason canShoot was never
-    // designed to return, a missing `me` is folded into the same "?? default"
-    // treatment as a missing field on an existing state: canShoot's own
-    // phase/senderIsSeeker checks fail first and refuse the shot before these
-    // defaults would ever matter. The only way senderIsSeeker could be true
-    // with `me` still missing is a corrupted room, which is already outside
-    // what any of this validates against.
+    // `me` can be legitimately missing right after joinGame (see the "shot is
+    // refused outside the seeking phase" test), so its absence must be passed
+    // into canShoot rather than papered over here: canShoot's senderMissing
+    // check refuses it before seekerPos/seekerRotY/lastShotAt's defaults
+    // ([0,0,0], 0, 0) would otherwise be trusted as real state. Those defaults
+    // are not neutral — [0,0,0]/yaw 0 is a plausible arena position, and
+    // lastShotAt: 0 clears the cooldown outright — so a missing sender must
+    // fail closed, not fall through to them.
     const verdict = canShoot({
       phase: String(state.phase ?? "lobby"),
       senderIsSeeker: state.seeker === $sender.account,
+      senderMissing: !me,
       target,
       seekerPos: (me?.pos as number[]) ?? [0, 0, 0],
       seekerRotY: num(me?.rotY),
@@ -553,9 +552,8 @@ export class Server {
       lastShotAt: num(me?.lastShotAt),
     });
 
-    // Everyone hears the gun, hit or miss — so the shot is recorded and
-    // broadcast before the hit is applied, and a refused request makes no
-    // noise at all.
+    // The shot is recorded and broadcast before the catch is applied, and a
+    // refused request broadcasts nothing.
     if (!verdict.ok) return { ok: false, reason: verdict.reason };
 
     await $room.updateMyState({ lastShotAt: now });
