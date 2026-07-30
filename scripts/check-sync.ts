@@ -21,11 +21,12 @@ import {
 import { playerBlockedAt } from "../src/game/map";
 import { BODIES } from "../src/game/bodies";
 import { POSES, MOVE } from "../src/game/constants";
-import { CELL_SPAWN as CLIENT_CELL } from "../src/game/cell";
+import { CELL_SPAWN as CLIENT_CELL, HUNT_START as CLIENT_HUNT_START } from "../src/game/cell";
 import {
   ARENA as SERVER_ARENA,
   SPAWN_POINTS as SERVER_SPAWNS,
   CELL_SPAWN as SERVER_CELL,
+  HUNT_START as SERVER_HUNT_START,
   POSE_COUNT as SERVER_POSE_COUNT,
   MOVE_SPEED_CAP,
   AVATAR_PRICES,
@@ -84,6 +85,14 @@ if (CLIENT_CELL.some((v, i) => v !== SERVER_CELL[i])) {
   fail(`cell spawn differs: client [${CLIENT_CELL}], server [${SERVER_CELL}]`);
 } else {
   pass(`cell spawn [${CLIENT_CELL}] matches on both sides`);
+}
+
+// The exit half of the same contract: the server teleports the seeker here
+// when the hunt starts, and never simulates anything past that write.
+if (CLIENT_HUNT_START.some((v, i) => v !== SERVER_HUNT_START[i])) {
+  fail(`hunt start differs: client [${CLIENT_HUNT_START}], server [${SERVER_HUNT_START}]`);
+} else {
+  pass(`hunt start [${CLIENT_HUNT_START}] matches on both sides`);
 }
 
 console.log("\npose count");

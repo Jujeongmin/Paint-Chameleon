@@ -46,6 +46,13 @@ const THICKNESS = 0.5;
 
 export const CELL_SPAWN: [number, number, number] = [0, CELL_FLOOR_Y, 0];
 
+/**
+ * Where the hunt starts: the server lifts the seeker out of the cell to the
+ * arena centre on the hiding -> seeking transition. Must match HUNT_START in
+ * server/src/rules.ts — check:sync compares them.
+ */
+export const HUNT_START: [number, number, number] = [0, 0, 0];
+
 const CONCRETE = 0x6f7378;
 const TRIM = 0x8a8f96;
 

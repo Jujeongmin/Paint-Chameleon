@@ -95,6 +95,12 @@ export function randomSpawn(): [number, number, number] {
  */
 export const CELL_SPAWN: [number, number, number] = [0, -8, 0];
 
+/**
+ * Where the seeker is teleported when the hunt starts (hiding -> seeking).
+ * Must match HUNT_START in src/game/cell.ts — check:sync compares them.
+ */
+export const HUNT_START: [number, number, number] = [0, 0, 0];
+
 // ------------------------------------------------------------ avatar shop
 
 /** Collection name for per-account coins and owned avatars. */

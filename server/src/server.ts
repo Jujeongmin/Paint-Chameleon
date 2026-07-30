@@ -26,6 +26,7 @@ import {
   attachRanks,
   randomSpawn,
   CELL_SPAWN,
+  HUNT_START,
   type RankedLeaderboardEntry,
   WALLET_COLLECTION,
   DEFAULT_WALLET,
@@ -586,9 +587,13 @@ export class Server {
           // the server's own teleport reads as a speed hack and gets clamped
           // back toward the cell.
           const seeker = state.seeker as string | undefined;
-          if (seeker) {
+          // Guard against a seeker who has already left the room: without
+          // this, a write to a non-member throws, the tick never advances
+          // past `hiding`, and every later tick re-enters this branch and
+          // re-throws — the room wedges in the hiding phase forever.
+          if (seeker && users.includes(seeker)) {
             await $global.updateRoomUserState(roomId, seeker, {
-              pos: [0, 0, 0],
+              pos: HUNT_START,
               lastMoveAt: now,
             });
           }

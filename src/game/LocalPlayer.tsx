@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { Humanoid, IDLE_MOTION, type BodyMotion } from "./Humanoid";
 import { useKeyboard, usePointerLook } from "./input";
 import { MAP_BOXES } from "./map";
-import { CELL_BOXES, CELL_FLOOR_Y, CELL_HALF, CELL_SPAWN } from "./cell";
+import { CELL_BOXES, CELL_FLOOR_Y, CELL_HALF, CELL_SPAWN, HUNT_START } from "./cell";
 import { CAMERA, MOVE, NET_EPSILON, NET_THROTTLE_MS, STAND_POSE, TAG, type Phase } from "./constants";
 import { createMotionState, stepMotion } from "./movement";
 import { createFollowScratch, updateFollowCamera } from "./followCamera";
@@ -187,7 +187,7 @@ export function LocalPlayer({
     if (firstRun && !inCell) return;
 
     motion.current = createMotionState(
-      inCell ? ([...CELL_SPAWN] as [number, number, number]) : [0, 0, 0]
+      inCell ? ([...CELL_SPAWN] as [number, number, number]) : ([...HUNT_START] as [number, number, number])
     );
     lastSent.current.pose = -1;
     // eslint-disable-next-line react-hooks/exhaustive-deps
