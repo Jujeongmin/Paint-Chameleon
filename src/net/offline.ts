@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PHASE_SECONDS, type Phase } from "../game/constants";
 import { randomSpawn } from "../game/map";
+import { CELL_SPAWN, HUNT_START } from "../game/cell";
 import { surfaceFor } from "../game/paint";
 import { BODIES, DEFAULT_BODY_ID } from "../game/bodies";
 import type { BuyResult, LeaderboardResult, PlayerState, RoomInfo, WalletView, WireDab } from "./types";
@@ -71,7 +72,9 @@ export function useOfflineGame() {
 
     caught.current = false;
     caughtAt.current = null;
-    myPos.current = randomSpawn();
+    // Mirrors startRound in server/src/server.ts: the seeker (always you,
+    // here) starts in the holding cell, not an arena spawn.
+    myPos.current = [...CELL_SPAWN] as [number, number, number];
     surfaceFor(ME).clear();
   }, []);
 
@@ -104,6 +107,9 @@ export function useOfflineGame() {
       if (phase === "lobby") {
         if (ready) startRound();
       } else if (phase === "hiding" && now >= phaseEndsAt) {
+        // Mirrors the hiding case in server/src/server.ts's $roomTick: lift
+        // the seeker out of the cell to the arena centre on this transition.
+        myPos.current = [...HUNT_START] as [number, number, number];
         setPhase("seeking");
         setPhaseEndsAt(now + PHASE_SECONDS.seeking * 1000);
       } else if (phase === "seeking") {
