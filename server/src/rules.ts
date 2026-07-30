@@ -167,17 +167,9 @@ export function facingDot(from: number[], to: number[], rotY: number): number {
  * Pure so it can be checked: the harness cannot drive a room into the seeking
  * phase, so this decision is unreachable from a server test.
  *
- * Order matters, but only for cost, not secrecy. Five of the six refusals —
- * not_seeking, not_seeker, missing, invalid_target, cooldown — return before
- * `facingDot` runs, so those checks never pay for the trig. not_facing is the
- * exception: it IS facingDot's verdict, so it can never be cheaper than the
- * geometry it comes from. There's no information to hide in the ordering
- * either way — a target's `caught` flag is already public room-user state,
- * visible to every client, so which reason a probing caller sees first
- * reveals nothing they couldn't already read directly. check:shot's "cooldown
- * and an invalid target at once" case pins the current order (invalid_target
- * wins) so it can't drift silently, not because the order is load-bearing for
- * security.
+ * The refusal order below is exactly what check:shot's "refusal order when
+ * two reasons hold at once" case pins — invalid_target before cooldown — so
+ * it cannot drift silently.
  */
 export function canShoot(o: ShotRequest): { ok: true } | { ok: false; reason: ShotFailure } {
   if (o.phase !== "seeking") return { ok: false, reason: "not_seeking" };
