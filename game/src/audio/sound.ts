@@ -91,6 +91,42 @@ function noiseBurst(duration: number, gainValue: number, filterFreq: number): vo
   source.stop(t0 + duration);
 }
 
+/**
+ * How far a gunshot carries, and how loud it is at the muzzle.
+ *
+ * 60u is a little under half the arena's 124u diagonal: far enough that a shot
+ * tells a hider roughly which quarter of the map the seeker is in, close enough
+ * that it does not tell them the seeker fired at all from across the arena.
+ */
+export const SHOT_AUDIO = { audibleDistance: 60, maxGain: 0.3 };
+
+/**
+ * Gain for a shot heard `distance` away. Pure so check:audio can pin the curve
+ * — there is no AudioContext under Node.
+ *
+ * Quadratic rather than linear: linear falloff sounds wrong, because loudness
+ * is perceived roughly logarithmically and a straight ramp reads as a shot that
+ * stays loud and then stops abruptly.
+ */
+export function shotGainFor(distance: number): number {
+  if (!Number.isFinite(distance) || distance < 0) return 0;
+  if (distance >= SHOT_AUDIO.audibleDistance) return 0;
+  const t = distance / SHOT_AUDIO.audibleDistance;
+  return SHOT_AUDIO.maxGain * (1 - t) * (1 - t);
+}
+
+/**
+ * A gunshot: a filtered noise crack with a short low thump under it.
+ *
+ * `gain` comes from shotGainFor, so the same broadcast is loud for the shooter
+ * and faint for a hider two zones away.
+ */
+export function playShot(gain: number): void {
+  if (gain <= 0) return;
+  noiseBurst(0.08, gain, 2600);
+  tone(90, 0.12, gain * 0.6, "square");
+}
+
 /** Short, bright two-note stinger — a hider or seeker was just caught. */
 export function playCatch(): void {
   tone(440, 0.2, 0.3, "square");
