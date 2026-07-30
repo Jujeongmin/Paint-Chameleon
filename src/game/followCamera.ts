@@ -44,6 +44,8 @@ export interface FollowOptions {
   fadeStart: number;
   /** Paint mode keeps the body solid — you have to see what you're painting. */
   allowFade: boolean;
+  /** Height of the implicit floor plane; the holding cell's is below zero. */
+  floorY?: number;
 }
 
 /** Positions the camera and returns how solid the local body should be (0..1). */
@@ -71,7 +73,14 @@ export function updateFollowCamera(
     )
     .normalize();
 
-  const allowed = clearCameraDistance(target, back, opts.desired, opts.minDistance, opts.boxes);
+  const allowed = clearCameraDistance(
+    target,
+    back,
+    opts.desired,
+    opts.minDistance,
+    opts.boxes,
+    opts.floorY ?? 0
+  );
 
   // Snap inward the instant something intrudes — easing in would clip through
   // it — but ease back out once the way is clear, or the camera pops.

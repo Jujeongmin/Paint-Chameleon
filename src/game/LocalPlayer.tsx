@@ -299,6 +299,7 @@ export function LocalPlayer({
       fadeEnd: CAMERA.fadeEnd,
       fadeStart: CAMERA.fadeStart,
       allowFade: !paintMode,
+      floorY: inCell ? CELL_FLOOR_Y : 0,
     });
 
     // Network: only send when something actually changed. Peers render our body,

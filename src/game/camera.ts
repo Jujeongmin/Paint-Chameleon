@@ -34,9 +34,11 @@ export function cameraInsideSolid(
   x: number,
   y: number,
   z: number,
-  boxes: MapBox[] = MAP_BOXES
+  boxes: MapBox[] = MAP_BOXES,
+  /** Height of the implicit floor plane; the holding cell's is below zero. */
+  floorY = 0
 ): boolean {
-  if (y < 0) return true;
+  if (y < floorY) return true;
   for (const b of boxes) {
     if (
       Math.abs(x - b.p[0]) < b.s[0] / 2 &&
@@ -53,9 +55,11 @@ export function cameraBlockedAt(
   x: number,
   y: number,
   z: number,
-  boxes: MapBox[] = MAP_BOXES
+  boxes: MapBox[] = MAP_BOXES,
+  /** Height of the implicit floor plane; the holding cell's is below zero. */
+  floorY = 0
 ): boolean {
-  if (y < CAMERA_FLOOR) return true;
+  if (y < floorY + CAMERA_FLOOR) return true;
   for (const b of boxes) {
     if (
       Math.abs(x - b.p[0]) < b.s[0] / 2 + CAMERA_RADIUS &&
@@ -79,14 +83,18 @@ export function clearCameraDistance(
   dir: { x: number; y: number; z: number },
   desired: number,
   minDistance: number,
-  boxes: MapBox[] = MAP_BOXES
+  boxes: MapBox[] = MAP_BOXES,
+  /** Height of the implicit floor plane; the holding cell's is below zero. */
+  floorY = 0
 ): number {
   const steps = 24;
   let safe = 0;
 
   for (let i = 1; i <= steps; i++) {
     const d = (desired * i) / steps;
-    if (cameraBlockedAt(target.x + dir.x * d, target.y + dir.y * d, target.z + dir.z * d, boxes)) {
+    if (
+      cameraBlockedAt(target.x + dir.x * d, target.y + dir.y * d, target.z + dir.z * d, boxes, floorY)
+    ) {
       break;
     }
     safe = d;
