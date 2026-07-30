@@ -14,13 +14,13 @@ import {
   CELL_INNER,
   CELL_SPAWN,
   HUNT_START,
-} from "../src/game/cell";
-import { MAP_BOXES, ARENA } from "../src/game/arena";
-import { groundHeightAt, playerBlockedAt } from "../src/game/map";
-import { createMotionState, stepMotion } from "../src/game/movement";
-import { CAMERA, MOVE } from "../src/game/constants";
-import { clearCameraDistance } from "../src/game/camera";
-import { TOP_Y } from "../src/game/bodies";
+} from "../game/src/game/cell";
+import { MAP_BOXES, ARENA } from "../game/src/game/arena";
+import { groundHeightAt, playerBlockedAt } from "../game/src/game/map";
+import { createMotionState, stepMotion } from "../game/src/game/movement";
+import { CAMERA, MOVE } from "../game/src/game/constants";
+import { clearCameraDistance } from "../game/src/game/camera";
+import { TOP_Y } from "../game/src/game/bodies";
 
 let failures = 0;
 

@@ -22,7 +22,7 @@ class MemoryStorage {
 }
 (globalThis as any).localStorage = new MemoryStorage();
 
-import { isMuted, shouldPlayBrushTick, toggleMuted, playCatch, playBrushTick, playRoundStart, playResults } from "../src/audio/sound";
+import { isMuted, shouldPlayBrushTick, toggleMuted, playCatch, playBrushTick, playRoundStart, playResults } from "../game/src/audio/sound";
 
 let failures = 0;
 

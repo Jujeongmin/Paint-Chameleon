@@ -17,11 +17,11 @@ import {
   MAP_BOXES as CLIENT_BOXES,
   ARENA as CLIENT_ARENA,
   SPAWN_POINTS as CLIENT_SPAWNS,
-} from "../src/game/arena";
-import { playerBlockedAt } from "../src/game/map";
-import { BODIES } from "../src/game/bodies";
-import { POSES, MOVE } from "../src/game/constants";
-import { CELL_SPAWN as CLIENT_CELL, HUNT_START as CLIENT_HUNT_START } from "../src/game/cell";
+} from "../game/src/game/arena";
+import { playerBlockedAt } from "../game/src/game/map";
+import { BODIES } from "../game/src/game/bodies";
+import { POSES, MOVE } from "../game/src/game/constants";
+import { CELL_SPAWN as CLIENT_CELL, HUNT_START as CLIENT_HUNT_START } from "../game/src/game/cell";
 import {
   ARENA as SERVER_ARENA,
   SPAWN_POINTS as SERVER_SPAWNS,

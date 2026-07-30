@@ -18,10 +18,10 @@ import {
   STANDS,
   portalAt,
   standAt,
-} from "../src/hub/hubMap";
-import { createMotionState, stepMotion } from "../src/game/movement";
-import { groundHeightAt, playerBlockedAt } from "../src/game/map";
-import { MOVE } from "../src/game/constants";
+} from "../game/src/hub/hubMap";
+import { createMotionState, stepMotion } from "../game/src/game/movement";
+import { groundHeightAt, playerBlockedAt } from "../game/src/game/map";
+import { MOVE } from "../game/src/game/constants";
 
 let failures = 0;
 

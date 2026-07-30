@@ -14,11 +14,11 @@ import {
   rightVector,
   stepMotion,
   wishDirection,
-} from "../src/game/movement";
-import { groundHeightAt, moveXZ, MAP_BOXES, ARENA, STEP_HEIGHT } from "../src/game/map";
-import { bodyFadeFor, cameraInsideSolid, clearCameraDistance } from "../src/game/camera";
-import { CAMERA, MOVE } from "../src/game/constants";
-import { BODIES, derive } from "../src/game/bodies";
+} from "../game/src/game/movement";
+import { groundHeightAt, moveXZ, MAP_BOXES, ARENA, STEP_HEIGHT } from "../game/src/game/map";
+import { bodyFadeFor, cameraInsideSolid, clearCameraDistance } from "../game/src/game/camera";
+import { CAMERA, MOVE } from "../game/src/game/constants";
+import { BODIES, derive } from "../game/src/game/bodies";
 
 let failures = 0;
 const close = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) < tol;

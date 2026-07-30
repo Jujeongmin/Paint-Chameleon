@@ -10,10 +10,10 @@
  * Run: npm run check:map
  */
 
-import { MAP_BOXES, SPAWN_POINTS, ARENA, CLUSTERS, slotOf } from "../src/game/arena";
-import { groundHeightAt, playerBlockedAt, STEP_HEIGHT } from "../src/game/map";
-import { createMotionState, stepMotion } from "../src/game/movement";
-import { MOVE } from "../src/game/constants";
+import { MAP_BOXES, SPAWN_POINTS, ARENA, CLUSTERS, slotOf } from "../game/src/game/arena";
+import { groundHeightAt, playerBlockedAt, STEP_HEIGHT } from "../game/src/game/map";
+import { createMotionState, stepMotion } from "../game/src/game/movement";
+import { MOVE } from "../game/src/game/constants";
 
 let failures = 0;
 

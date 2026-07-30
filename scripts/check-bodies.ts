@@ -8,8 +8,8 @@
  * Run: npm run check:bodies
  */
 
-import { CAMERA, MOVE, STAND_POSE } from "../src/game/constants";
-import { poseBounds, poseSize } from "../src/game/poseBounds";
+import { CAMERA, MOVE, STAND_POSE } from "../game/src/game/constants";
+import { poseBounds, poseSize } from "../game/src/game/poseBounds";
 import {
   BODIES,
   DEFAULT_BODY_ID,
@@ -22,7 +22,7 @@ import {
   profileFor,
   validateProfile,
   type BodyProfile,
-} from "../src/game/bodies";
+} from "../game/src/game/bodies";
 
 let failures = 0;
 

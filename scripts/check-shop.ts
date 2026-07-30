@@ -20,8 +20,8 @@ import {
   serializeOwned,
   type WalletState,
 } from "../server/src/rules";
-import { standAction } from "../src/ui/standAction";
-import { STANDS } from "../src/hub/hubMap";
+import { standAction } from "../game/src/ui/standAction";
+import { STANDS } from "../game/src/hub/hubMap";
 
 let failures = 0;
 
