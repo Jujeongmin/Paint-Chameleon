@@ -114,6 +114,19 @@ console.log("\nshot loudness falls off with distance");
     mid > SHOT_AUDIO.maxGain * 0.1
   );
 
+  // shotGainFor is pure specifically so this curve can be pinned here — the
+  // docstring says so. A linear falloff clears every other check above (it
+  // still starts at maxGain, ends at 0, never rises, stays under the
+  // mid-audibility floor), so without this, swapping in a straight ramp would
+  // leave check:audio green while quietly changing the only cue a hider has.
+  // Halfway out, quadratic gives maxGain/4; linear gives maxGain/2 — the
+  // threshold splits the two.
+  const halfway = shotGainFor(SHOT_AUDIO.audibleDistance / 2);
+  check(
+    `curve decays faster than linear at the midpoint (${halfway.toFixed(3)})`,
+    halfway < SHOT_AUDIO.maxGain / 3
+  );
+
   // Rubbish in must not become a burst of noise at full volume.
   check("NaN is silent", shotGainFor(NaN) === 0);
   check("a negative distance is silent", shotGainFor(-5) === 0);
