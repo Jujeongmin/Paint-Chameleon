@@ -73,10 +73,56 @@ export function cameraBlockedAt(
 }
 
 /**
+ * Distance along `dir` at which the ray first enters a box, or null if it
+ * never does. Slab method, against the same box `cameraBlockedAt` describes:
+ * grown by CAMERA_RADIUS on every axis, which is what makes a point test stand
+ * in for a camera with size. Returns 0 when the ray starts inside one.
+ */
+function rayBoxEntry(
+  origin: { x: number; y: number; z: number },
+  dir: { x: number; y: number; z: number },
+  box: MapBox
+): number | null {
+  const o = [origin.x, origin.y, origin.z];
+  const d = [dir.x, dir.y, dir.z];
+  let near = 0;
+  let far = Infinity;
+
+  for (let axis = 0; axis < 3; axis++) {
+    const half = box.s[axis] / 2 + CAMERA_RADIUS;
+    const low = box.p[axis] - half;
+    const high = box.p[axis] + half;
+
+    if (Math.abs(d[axis]) < 1e-9) {
+      // Parallel to this pair of faces: either always between them or never.
+      if (o[axis] < low || o[axis] > high) return null;
+      continue;
+    }
+
+    const t1 = (low - o[axis]) / d[axis];
+    const t2 = (high - o[axis]) / d[axis];
+    near = Math.max(near, Math.min(t1, t2));
+    far = Math.min(far, Math.max(t1, t2));
+    if (near > far) return null;
+  }
+
+  return near;
+}
+
+/**
  * How far back the camera can sit along `dir` before something gets in the way.
- * Walks outward from the player and stops at the first blocked sample, so the
- * result is always on the player's side of any wall — checking only the far end
- * would happily park the camera in open space beyond it.
+ *
+ * Solved rather than sampled. Marching outward and stopping at the first
+ * blocked point looks equivalent and is not: with 24 steps over 5.2u the
+ * samples are 0.22u apart, and the arena is 621 props of about that size, so
+ * whether a barrel behind the player was seen at all depended on where the
+ * samples happened to land. Half a step of walking moved them, the answer
+ * flipped between "clear at 5.2" and "blocked at 0" — and since the rig snaps
+ * inward the instant something intrudes, that read on screen as the camera
+ * hurling itself through the player's head and back out again.
+ *
+ * The geometry each box describes is unchanged: same CAMERA_RADIUS padding on
+ * every axis, same floor. Only the aliasing is gone.
  */
 export function clearCameraDistance(
   target: { x: number; y: number; z: number },
@@ -87,21 +133,24 @@ export function clearCameraDistance(
   /** Height of the implicit floor plane; the holding cell's is below zero. */
   floorY = 0
 ): number {
-  const steps = 24;
-  let safe = 0;
+  let allowed = desired;
 
-  for (let i = 1; i <= steps; i++) {
-    const d = (desired * i) / steps;
-    if (
-      cameraBlockedAt(target.x + dir.x * d, target.y + dir.y * d, target.z + dir.z * d, boxes, floorY)
-    ) {
-      break;
-    }
-    safe = d;
+  // The floor is a plane, not a box, and only ever blocks a downward ray.
+  if (dir.y < -1e-9) {
+    const hit = (floorY + CAMERA_FLOOR - target.y) / dir.y;
+    if (hit < allowed) allowed = Math.max(0, hit);
+  } else if (target.y < floorY + CAMERA_FLOOR) {
+    // Already under it — the pivot itself is below the floor plane.
+    allowed = 0;
+  }
+
+  for (const box of boxes) {
+    const hit = rayBoxEntry(target, dir, box);
+    if (hit !== null && hit < allowed) allowed = hit;
   }
 
   // Wedged into a corner: pull all the way in rather than punch through.
-  return safe < minDistance ? Math.min(minDistance, Math.max(safe, 0)) : safe;
+  return allowed < minDistance ? Math.min(minDistance, Math.max(allowed, 0)) : allowed;
 }
 
 /**
