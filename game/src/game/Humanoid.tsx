@@ -46,8 +46,6 @@ interface Props {
    */
   motionRef?: React.MutableRefObject<BodyMotion>;
   dimmed?: boolean;
-  /** Faint wireframe so you can pick yourself out in third person. */
-  showOutline?: boolean;
   /** 0..1 solidity, driven per-frame by camera proximity. Also a ref. */
   fadeRef?: React.MutableRefObject<number>;
   /** Body profile id. Unknown or missing values fall back to the default. */
@@ -83,7 +81,6 @@ export function Humanoid({
   pose,
   motionRef,
   dimmed,
-  showOutline,
   fadeRef,
   body,
   held,
@@ -154,15 +151,15 @@ export function Humanoid({
     const k = Math.min(1, step * 9);
     const m = motionRef?.current ?? IDLE_MOTION;
 
-    // Caught players ghost out; the local body also dissolves as the camera is
-    // forced in. Transparent surfaces must stop writing depth or they punch
-    // holes in whatever is drawn behind them.
     // Twinkle. A body that has been sitting still for ninety seconds reads as
     // scenery once it stops moving; the pulse is what makes the eye find it.
     if (revealed) {
       revealMaterial.opacity = 0.34 + 0.3 * (0.5 + 0.5 * Math.sin(performance.now() / 190));
     }
 
+    // Caught players ghost out; the local body also dissolves as the camera is
+    // forced in. Transparent surfaces must stop writing depth or they punch
+    // holes in whatever is drawn behind them.
     const alpha = (dimmed ? 0.35 : 1) * (fadeRef?.current ?? 1);
     if (Math.abs(material.opacity - alpha) > 0.002) {
       material.opacity = alpha;
@@ -358,12 +355,6 @@ export function Humanoid({
         </>
       )}
 
-      {showOutline && (
-        <mesh position={[0, 0.95, 0]} scale={[0.62, 1.05, 0.45]}>
-          <sphereGeometry args={[1, 14, 10]} />
-          <meshBasicMaterial color="#ffffff" wireframe transparent opacity={0.1} />
-        </mesh>
-      )}
     </group>
   );
 }

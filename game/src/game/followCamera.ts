@@ -56,15 +56,6 @@ export function updateFollowCamera(
 ): number {
   const [px, py, pz] = opts.pos;
 
-  // Pivot rises toward the eyes as the camera is forced in. Uses last frame's
-  // distance — the pivot must exist before we can trace from it, and a single
-  // frame of lag is imperceptible.
-  const closeness = opts.allowFade
-    ? 1 - bodyFadeFor(scratch.distance, opts.fadeEnd, opts.fadeStart)
-    : 0;
-  const pivot = THREE.MathUtils.lerp(opts.shoulderHeight, opts.eyeHeight, closeness);
-
-  const target = scratch.target.set(px, py + pivot, pz);
   const back = scratch.back
     .set(
       -Math.sin(opts.yaw) * Math.cos(opts.pitch),
@@ -73,8 +64,16 @@ export function updateFollowCamera(
     )
     .normalize();
 
+  // Trace from the shoulder, always. The rendered pivot rises toward the eyes
+  // as the camera is forced in (below), and tracing from THAT was a feedback
+  // loop: raising the pivot lifted the ray over the obstacle, which allowed a
+  // longer distance, which lowered the pivot again, which put the ray back into
+  // the obstacle. The camera oscillated for as long as you stood near anything
+  // roughly shoulder-high — which in this arena is most of the props.
+  const trace = scratch.target.set(px, py + opts.shoulderHeight, pz);
+
   const allowed = clearCameraDistance(
-    target,
+    trace,
     back,
     opts.desired,
     opts.minDistance,
@@ -82,12 +81,24 @@ export function updateFollowCamera(
     opts.floorY ?? 0
   );
 
-  // Snap inward the instant something intrudes — easing in would clip through
-  // it — but ease back out once the way is clear, or the camera pops.
-  scratch.distance =
-    allowed < scratch.distance
-      ? allowed
-      : THREE.MathUtils.lerp(scratch.distance, allowed, Math.min(1, opts.dt * 8));
+  // Inward fast, outward slow. Instant inward was the other half of the same
+  // jitter: a prop's edge sliding across the ray moved `allowed` by metres in
+  // one frame, and snapping to it read as the camera being thrown at the
+  // player's head. dt * 30 covers 5.2u in about a tenth of a second, fast
+  // enough that the sliver of clipping it allows is not on screen long enough
+  // to see, and the pull-out stays slower still so the camera does not pop.
+  const rate = allowed < scratch.distance ? 30 : 8;
+  scratch.distance = THREE.MathUtils.lerp(
+    scratch.distance,
+    allowed,
+    Math.min(1, opts.dt * rate)
+  );
+
+  const closeness = opts.allowFade
+    ? 1 - bodyFadeFor(scratch.distance, opts.fadeEnd, opts.fadeStart)
+    : 0;
+  const pivot = THREE.MathUtils.lerp(opts.shoulderHeight, opts.eyeHeight, closeness);
+  const target = scratch.target.set(px, py + pivot, pz);
 
   camera.position.copy(target).addScaledVector(back, scratch.distance);
 

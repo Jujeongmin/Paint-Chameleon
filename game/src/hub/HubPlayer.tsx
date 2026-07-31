@@ -150,7 +150,7 @@ export function HubPlayer({
 
   return (
     <group ref={group}>
-      <Humanoid account={account} pose={0} body={body} motionRef={bodyMotion} showOutline fadeRef={bodyFade} />
+      <Humanoid account={account} pose={0} body={body} motionRef={bodyMotion} fadeRef={bodyFade} />
       <NameTag text={nick} color="#6fbf5c" />
     </group>
   );
