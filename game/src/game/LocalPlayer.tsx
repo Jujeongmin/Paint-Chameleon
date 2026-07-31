@@ -421,7 +421,7 @@ export function LocalPlayer({
             // The outline is a wireframe sphere around the whole body, so in
             // first person it wraps the camera and draws a cage over the view.
             showOutline={!paintMode && mode !== "firstPerson"}
-            hideHead={mode === "firstPerson"}
+            hideBody={mode === "firstPerson"}
             dimmed={me.caught}
             fadeRef={bodyFade}
             held={

@@ -188,7 +188,8 @@ console.log("\nfirst person");
   for (const b of BODIES) {
     const hand = aimHandOffset(b);
     const down = (Math.atan2(CAMERA.eyeHeight - hand.y, hand.z) * 180) / Math.PI;
-    const side = (Math.atan2(hand.x, hand.z) * 180) / Math.PI;
+    // Magnitude only: the gun is on the body's right, so hand.x is negative.
+    const side = (Math.atan2(Math.abs(hand.x), hand.z) * 180) / Math.PI;
 
     check(
       `${b.id}: the gun sits below the view axis but inside it (${down.toFixed(1)}°)`,
@@ -217,7 +218,7 @@ console.log("\nfirst person");
     // envelope every other check in this file defends is untouched by aiming.
     check(
       `${b.id}: aiming does not widen the body (hand x ${hand.x.toFixed(2)})`,
-      hand.x <= maxHalfWidth(b) + EPS
+      Math.abs(hand.x) <= maxHalfWidth(b) + EPS
     );
   }
 }

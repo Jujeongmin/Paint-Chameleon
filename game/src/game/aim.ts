@@ -26,7 +26,11 @@ export const AIM_ARM_PITCH = -1.75;
 export function aimHandOffset(profile: BodyProfile): { x: number; y: number; z: number } {
   const armLength = derive(profile).armHalf * 2;
   return {
-    x: profile.shoulderX,
+    // Negative x is the body's right: facing +Z with +Y up, right is
+    // forward x up = -X, which is also how movement.ts defines its own right
+    // vector. Humanoid mounts the gun on the shoulder at -shoulderX for the
+    // same reason — the arm the atlas happens to label armL.
+    x: -profile.shoulderX,
     y: profile.shoulderY - armLength * Math.cos(AIM_ARM_PITCH),
     z: -armLength * Math.sin(AIM_ARM_PITCH),
   };

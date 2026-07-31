@@ -58,12 +58,15 @@ interface Props {
    */
   held?: React.ReactNode;
   /**
-   * Drop the head mesh. First person parks the camera inside it, and looking at
-   * the inside of your own skull is worse than having no head in your own view.
-   * Only ever set on the local body — everyone else still sees the head, and
-   * the shadow loses its head along with the mesh.
+   * Drop every body mesh, keeping whatever is `held`. First person parks the
+   * camera inside the head, and the rest of the body hangs across the lower
+   * half of the view; the gun is the only part of yourself worth seeing from
+   * in here. The limb groups stay, because the gun hangs off one of them.
+   *
+   * Only ever set on the local body: everyone else still sees a whole player.
+   * The cost is your own shadow, which an invisible mesh does not cast.
    */
-  hideHead?: boolean;
+  hideBody?: boolean;
 }
 
 export function Humanoid({
@@ -75,7 +78,7 @@ export function Humanoid({
   fadeRef,
   body,
   held,
-  hideHead,
+  hideBody,
 }: Props) {
   const root = useRef<THREE.Group>(null);
   const torso = useRef<THREE.Mesh>(null);
@@ -182,13 +185,14 @@ export function Humanoid({
 
     // Arms: pose sets the resting angle, the walk swings around it, and being
     // airborne overrides both.
-    const armPitchL = THREE.MathUtils.lerp(spec.armPitch + swing, airArm, air);
-    // The gun arm holds one angle: no walk swing, no jump override. The hand
-    // group below negates exactly this angle to bring the barrel back level,
-    // and that negation is only right while the arm is actually at it.
-    const armPitchR = held
+    // The gun arm — the one at -shoulderX, see the render below — holds a
+    // single angle: no walk swing, no jump override. The hand group negates
+    // exactly this angle to bring the barrel back level, and that negation is
+    // only right while the arm is actually at it.
+    const armPitchL = held
       ? AIM_ARM_PITCH
-      : THREE.MathUtils.lerp(spec.armPitch - swing, airArm, air);
+      : THREE.MathUtils.lerp(spec.armPitch + swing, airArm, air);
+    const armPitchR = THREE.MathUtils.lerp(spec.armPitch - swing, airArm, air);
     if (shoulderL.current) {
       shoulderL.current.rotation.x += (armPitchL - shoulderL.current.rotation.x) * k;
       // Mirrored: positive spread pushes each arm away from the body.
@@ -215,22 +219,28 @@ export function Humanoid({
 
   return (
     <group ref={root} name="humanoid">
-      {!hideHead && (
-        <mesh ref={head} geometry={geoms.head} material={material} position={[0, headY, 0]} castShadow />
+      {!hideBody && (
+        <>
+          <mesh ref={head} geometry={geoms.head} material={material} position={[0, headY, 0]} castShadow />
+          <mesh
+            ref={torso}
+            geometry={geoms.torso}
+            material={material}
+            position={[0, profile.torso.y, 0]}
+            castShadow
+          />
+        </>
       )}
-      <mesh
-        ref={torso}
-        geometry={geoms.torso}
-        material={material}
-        position={[0, profile.torso.y, 0]}
-        castShadow
-      />
 
+      {/* The gun hangs on the group at -shoulderX, and that is the body's RIGHT
+          arm: facing +Z with +Y up, right is forward x up = -X, the same
+          convention movement.ts states for its own right vector. The atlas
+          labels (armL / armR) predate anyone needing to know which is which and
+          do not match; the gun follows the body, not the label. */}
       <group ref={shoulderL} position={[-profile.shoulderX, profile.shoulderY, 0]}>
-        <mesh geometry={geoms.armL} material={material} position={[0, -armHalf, 0]} castShadow />
-      </group>
-      <group ref={shoulderR} position={[profile.shoulderX, profile.shoulderY, 0]}>
-        <mesh geometry={geoms.armR} material={material} position={[0, -armHalf, 0]} castShadow />
+        {!hideBody && (
+          <mesh geometry={geoms.armL} material={material} position={[0, -armHalf, 0]} castShadow />
+        )}
         {/* Undo the shoulder's aiming pitch. The gun hangs off that joint, so
             the joint's rotation carries the gun's own axes with it — leaving
             this off points the barrel at the sky rather than down the body's
@@ -241,13 +251,22 @@ export function Humanoid({
           </group>
         )}
       </group>
+      <group ref={shoulderR} position={[profile.shoulderX, profile.shoulderY, 0]}>
+        {!hideBody && (
+          <mesh geometry={geoms.armR} material={material} position={[0, -armHalf, 0]} castShadow />
+        )}
+      </group>
 
-      <group ref={hipL} position={[-profile.hipX, hipY, 0]}>
-        <mesh geometry={geoms.legL} material={material} position={[0, -legHalf, 0]} castShadow />
-      </group>
-      <group ref={hipR} position={[profile.hipX, hipY, 0]}>
-        <mesh geometry={geoms.legR} material={material} position={[0, -legHalf, 0]} castShadow />
-      </group>
+      {!hideBody && (
+        <>
+          <group ref={hipL} position={[-profile.hipX, hipY, 0]}>
+            <mesh geometry={geoms.legL} material={material} position={[0, -legHalf, 0]} castShadow />
+          </group>
+          <group ref={hipR} position={[profile.hipX, hipY, 0]}>
+            <mesh geometry={geoms.legR} material={material} position={[0, -legHalf, 0]} castShadow />
+          </group>
+        </>
+      )}
 
       {showOutline && (
         <mesh position={[0, 0.95, 0]} scale={[0.62, 1.05, 0.45]}>
