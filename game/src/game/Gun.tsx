@@ -55,11 +55,12 @@ export function Gun() {
     return holder;
   }, [gltf]);
 
-  // No rotation. The barrel runs along the model's longest axis, and
+  // No rotation here. The barrel runs along the model's longest axis, and
   // `npm run glb:size` measures blaster-j at 0.155 x 0.362 x 0.610 — so that
   // axis is the model's local Z, and leaving it unrotated keeps it on the
-  // body's own forward (+Z). An X rotation would take it off that axis
-  // entirely; the previous Math.PI/2 mapped it onto -Y, straight down the arm.
+  // body's own forward (+Z). Humanoid's hand group is what cancels the aiming
+  // shoulder's pitch, so by the time this mounts the frame is already level;
+  // adding a rotation here would tilt it back off.
   //
   // What the bounding box cannot tell us is which END of that axis the muzzle
   // is on. If it points backwards the fix is rotation={[0, Math.PI, 0]} — a Y

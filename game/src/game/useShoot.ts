@@ -130,21 +130,30 @@ export function useShoot({ active, selfAccount, aim, onFire, isRecapture }: Opti
         if ((material as THREE.Material & { wireframe?: boolean })?.wireframe) continue;
 
         const account = accountOf(mesh);
-        // Our own body sits between the camera and the world in third person;
-        // without this it would eat every shot as a point-blank miss on
-        // ourselves. Both RemotePlayer and LocalPlayer tag their body group
-        // with userData.account so this walk always has something to match.
+        // Something of ours is always in the way: in third person the camera
+        // looks through our own back, and in first person the gun itself hangs
+        // half a unit in front of the lens. Without this every shot would die
+        // as a point-blank miss on ourselves. Both RemotePlayer and LocalPlayer
+        // tag their body group with userData.account, and the gun is mounted
+        // inside that group, so this walk always has something to match.
         if (account === latest.current.selfAccount) continue;
 
         // Mirror the server's facing cone, the same way the cooldown above is
-        // mirrored. The ray starts at the camera, which the follow rig parks
-        // CAMERA.playDistance behind the player and aims back through them, so
-        // the screen centre passes through the player's own pivot: every hit
-        // nearer than that is strictly BEHIND them and canShoot() would refuse
-        // it with not_facing — after the tracer, the crack and the fire rate
-        // had all already been spent here. `continue` rather than a return,
-        // because something standing behind the shooter must not swallow a
-        // legal shot at whatever is in front of them.
+        // mirrored, so a shot the server will refuse costs no tracer, no crack
+        // and no fire rate here.
+        //
+        // The seeker hunts in first person, so the ray now starts at their own
+        // eyes and a hit behind them is not something the crosshair can reach:
+        // for that camera this clause is close to never taken. It earned its
+        // place under the third-person rig, which parks the camera
+        // CAMERA.playDistance behind the player and aims back THROUGH them —
+        // the screen centre passes through the player's own pivot, so every hit
+        // nearer than that is strictly behind them, and a hider who walked up
+        // behind the seeker filled the screen and came back as the closest hit.
+        // That rig is still what hiders, painting and the flying camera use, and
+        // it is one prop away from being the seeker's again, so the clause
+        // stays. `continue` rather than a return, because something standing
+        // behind the shooter must not swallow a legal shot in front of them.
         //
         // Not bit-for-bit the server's verdict: this measures to the impact
         // point on the body, the server to the target's last reported feet
