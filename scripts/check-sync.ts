@@ -20,7 +20,7 @@ import {
 } from "../game/src/game/arena";
 import { playerBlockedAt } from "../game/src/game/map";
 import { BODIES } from "../game/src/game/bodies";
-import { POSES, MOVE, SHOT as CLIENT_SHOT } from "../game/src/game/constants";
+import { POSES, MOVE, PAINT as CLIENT_PAINT, SHOT as CLIENT_SHOT } from "../game/src/game/constants";
 import { CELL_SPAWN as CLIENT_CELL, HUNT_START as CLIENT_HUNT_START } from "../game/src/game/cell";
 import {
   ARENA as SERVER_ARENA,
@@ -31,6 +31,7 @@ import {
   MOVE_SPEED_CAP,
   AVATAR_PRICES,
   SHOT as SERVER_SHOT,
+  PAINT_LIMITS as SERVER_PAINT,
 } from "../server/src/rules";
 
 let failures = 0;
@@ -155,6 +156,33 @@ console.log("\nshot rules");
       }
     } else {
       pass(`shot rules match (dot ${CLIENT_SHOT.minFacingDot}, cooldown ${CLIENT_SHOT.cooldownMs}ms)`);
+    }
+  }
+}
+
+console.log("\npaint limits");
+
+// The client converts a world-sized brush into a texel radius and clamps it to
+// PAINT.maxRadius before sending. The server clamps what it relays. If those
+// two numbers drift apart the painter is the only person who sees the dab they
+// painted — everyone else gets the server's clamped version. Key sets first,
+// then values, the same shape as the shot rules above.
+{
+  const clientKeys = Object.keys(CLIENT_PAINT).sort();
+  const serverKeys = Object.keys(SERVER_PAINT).sort();
+
+  if (clientKeys.join(",") !== serverKeys.join(",")) {
+    fail(`paint limit keys differ: client [${clientKeys.join(", ")}], server [${serverKeys.join(", ")}]`);
+  } else {
+    const client = CLIENT_PAINT as Record<string, unknown>;
+    const server = SERVER_PAINT as Record<string, unknown>;
+    const mismatched = clientKeys.filter((k) => client[k] !== server[k]);
+    if (mismatched.length) {
+      for (const k of mismatched) {
+        fail(`paint limit ${k} is ${String(client[k])} on the client but ${String(server[k])} on the server`);
+      }
+    } else {
+      pass(`paint limits match (radius ${CLIENT_PAINT.maxRadius}, batch ${CLIENT_PAINT.maxBatch})`);
     }
   }
 }

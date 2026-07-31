@@ -58,13 +58,13 @@ interface Props {
    */
   held?: React.ReactNode;
   /**
-   * Drop every body mesh, keeping whatever is `held`. First person parks the
-   * camera inside the head, and the rest of the body hangs across the lower
-   * half of the view; the gun is the only part of yourself worth seeing from
-   * in here. The limb groups stay, because the gun hangs off one of them.
+   * Drop the head, torso and legs, keeping the arms and whatever is `held`.
+   * First person parks the camera inside the head and the torso and legs hang
+   * across the lower half of the view; the arms are what make the gun read as
+   * held rather than floating.
    *
    * Only ever set on the local body: everyone else still sees a whole player.
-   * The cost is your own shadow, which an invisible mesh does not cast.
+   * The cost is most of your own shadow, since an invisible mesh casts none.
    */
   hideBody?: boolean;
 }
@@ -238,9 +238,7 @@ export function Humanoid({
           labels (armL / armR) predate anyone needing to know which is which and
           do not match; the gun follows the body, not the label. */}
       <group ref={shoulderL} position={[-profile.shoulderX, profile.shoulderY, 0]}>
-        {!hideBody && (
-          <mesh geometry={geoms.armL} material={material} position={[0, -armHalf, 0]} castShadow />
-        )}
+        <mesh geometry={geoms.armL} material={material} position={[0, -armHalf, 0]} castShadow />
         {/* Undo the shoulder's aiming pitch. The gun hangs off that joint, so
             the joint's rotation carries the gun's own axes with it — leaving
             this off points the barrel at the sky rather than down the body's
@@ -252,9 +250,7 @@ export function Humanoid({
         )}
       </group>
       <group ref={shoulderR} position={[profile.shoulderX, profile.shoulderY, 0]}>
-        {!hideBody && (
-          <mesh geometry={geoms.armR} material={material} position={[0, -armHalf, 0]} castShadow />
-        )}
+        <mesh geometry={geoms.armR} material={material} position={[0, -armHalf, 0]} castShadow />
       </group>
 
       {!hideBody && (

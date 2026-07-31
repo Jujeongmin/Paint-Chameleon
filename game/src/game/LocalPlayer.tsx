@@ -43,6 +43,10 @@ interface Props {
   brushSize: number;
   zoom: number;
   onZoom: (zoom: number) => void;
+  /** One wheel notch of brush size, +1 bigger / -1 smaller. */
+  onBrushStep: (dir: number) => void;
+  /** Brush ring position and screen radius, or null when off the body. */
+  onCursor: (cursor: { x: number; y: number; radius: number } | null) => void;
   onDab: (dab: PaintDab, join: boolean) => void;
   onColorPicked: (color: number) => void;
 }
@@ -65,6 +69,8 @@ export function LocalPlayer({
   brushSize,
   zoom,
   onZoom,
+  onBrushStep,
+  onCursor,
   onDab,
   onColorPicked,
 }: Props) {
@@ -172,6 +178,8 @@ export function LocalPlayer({
       orbitPitch.current = THREE.MathUtils.clamp(orbitPitch.current + dy * 0.005, -0.7, 1.2);
     },
     onZoom: (dir) => onZoom(THREE.MathUtils.clamp(zoom - dir * 8, 0, 100)),
+    onBrushStep,
+    onCursor,
   });
 
   // Adopt the server position once on entry, then again whenever a new round

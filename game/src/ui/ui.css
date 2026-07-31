@@ -286,6 +286,20 @@ body.hide-cursor canvas {
 }
 
 /* Fixed at the centre of the viewport — this is the aim point, not the cursor. */
+/*
+ * The brush's own footprint, drawn where the pointer is and sized to what the
+ * dab will actually cover on the body. The centred crosshair cannot do this
+ * job: painting aims with the OS cursor, and a fixed dot cannot show a size.
+ */
+.brush-cursor {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
 .crosshair {
   position: absolute;
   top: 50%;

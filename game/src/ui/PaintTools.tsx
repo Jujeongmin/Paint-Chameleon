@@ -1,4 +1,5 @@
 import { ColorWheel, hsvToRgb, toCss } from "./ColorWheel";
+import { BRUSH } from "../game/constants";
 import type { Tool } from "../game/useBrush";
 
 interface Props {
@@ -83,13 +84,16 @@ export function PaintTools({
       </div>
 
       <div className="paint-right">
+        {/* The slider works in whole centimetres because a range input with a
+            0.01 step reads back floating-point dust; brush size itself is world
+            units, so the two ends are BRUSH.min and BRUSH.max scaled by 100. */}
         <VerticalSlider
           label=""
-          readout={`${brushSize}`}
-          value={brushSize}
-          min={4}
-          max={100}
-          onChange={onBrushSize}
+          readout={`${Math.round(brushSize * 100)}`}
+          value={Math.round(brushSize * 100)}
+          min={Math.round(BRUSH.min * 100)}
+          max={Math.round(BRUSH.max * 100)}
+          onChange={(v) => onBrushSize(v / 100)}
           height={190}
         />
         <span className="brush-caption">BRUSH SIZE</span>

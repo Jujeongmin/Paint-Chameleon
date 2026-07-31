@@ -152,6 +152,14 @@ export function packUVs(geometry: THREE.BufferGeometry, part: BodyPart): void {
   const originU = cx * cellU + (cellU - fitU) / 2;
   const originV = cy * cellV + (cellV - fitV) / 2;
 
+  // How many texels of this atlas cover one world unit of this part's surface.
+  // Both axes agree by construction — that agreement is what makes a dab round
+  // — so one number describes the whole part. useBrush turns a brush radius in
+  // world units into the texel radius that goes over the wire with it.
+  if (shape) {
+    geometry.userData.texelsPerWorld = (fitU * SURFACE_SIZE) / (2 * Math.PI * shape.widest);
+  }
+
   for (let i = 0; i < uv.count; i++) {
     const u = THREE.MathUtils.clamp(uv.getX(i), 0, 1);
     const v = THREE.MathUtils.clamp(uv.getY(i), 0, 1);

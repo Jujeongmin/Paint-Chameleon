@@ -92,14 +92,50 @@ export const NET_EPSILON = { pos: 0.06, rot: 0.03 };
 
 /** Paint dabs are batched and flushed on this interval rather than per-dab. */
 export const PAINT_FLUSH_MS = 140;
-/** Hard cap per flush so a frantic drag can't blow up a single message. */
-export const PAINT_MAX_BATCH = 32;
+/**
+ * Hard cap per flush so a frantic drag can't blow up a single message. Reads
+ * the mirrored limit rather than restating 32: the server drops everything past
+ * its own maxBatch, so a second copy of this number could only ever be a way to
+ * silently throw dabs away.
+ */
+export const PAINT_MAX_BATCH = PAINT.maxBatch;
 
-/** Brush defaults, matching the reference game's slider range. */
+/**
+ * Brush radius in WORLD units — how wide a dab is on the body, not how many
+ * texels it covers.
+ *
+ * Texels were the wrong unit: each part's uv rect is fitted to that part's own
+ * proportions (see packUVs), so one texel is about 0.013 world units on a head
+ * and 0.004 on an arm. The same slider value painted a dot on one part and a
+ * stripe on another, and the smallest setting was only small on some of them.
+ *
+ * The wire still carries texels — useBrush converts at the moment of the dab,
+ * using the scale packUVs recorded on the part it hit, so every client redraws
+ * the identical dab without needing to know whose body it landed on.
+ *
+ * Both ends are set by the catalogue's extremes rather than by feel, and
+ * check:paint pins them. The coarsest surface is bean's head at 65 texels per
+ * world unit, so anything under 0.023 lands beneath the dab's own 1.5-texel
+ * floor and the bottom of the slider would stop doing anything. The finest is
+ * stick's arm at 349, so anything over 0.34 is clamped by the server on its way
+ * to everyone else and the painter would be the only one seeing the real size.
+ */
 export const BRUSH = {
-  min: 4,
-  max: 100,
-  default: 48,
+  min: 0.025,
+  max: 0.3,
+  default: 0.12,
+};
+
+/**
+ * Mirror of PAINT_LIMITS in server/src/rules.ts, which clamps every dab it
+ * relays. A radius the server would clamp has to be clamped here first, or the
+ * dab a player sees on their own body is not the one everyone else gets.
+ *
+ * KEEP IN SYNC — check:sync compares them.
+ */
+export const PAINT = {
+  maxRadius: 120,
+  maxBatch: 32,
 };
 
 /** Third-person camera. See camera.ts for why the near-range values exist. */

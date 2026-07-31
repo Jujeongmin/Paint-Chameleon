@@ -1,9 +1,21 @@
 import { useEffect, useRef } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import type { PaintDab } from "./paint";
+import { SURFACE_SIZE, type PaintDab } from "./paint";
+import { PAINT } from "./constants";
 
 export type Tool = "brush" | "picker";
+
+/**
+ * Texels per world unit for a part packUVs did not measure — nothing in the
+ * catalogue today, since every part is a sphere or a capsule, but a body made
+ * of some other shape would land here rather than painting nothing. Roughly
+ * what a limb reports, so the brush stays the size the slider says.
+ */
+const FALLBACK_SCALE = 260;
+
+/** The dab's own floor: below this a radial gradient has nothing to grade. */
+const MIN_TEXEL_RADIUS = 1.5;
 
 interface Options {
   active: boolean;
@@ -11,10 +23,19 @@ interface Options {
   bodyRef: React.RefObject<THREE.Group>;
   tool: Tool;
   color: number;
-  /** Brush radius in texture pixels. */
+  /** Brush radius in world units; see BRUSH in constants.ts. */
   brushSize: number;
   /** Called for every dab; `join` continues the previous stroke rather than starting one. */
   onDab: (dab: PaintDab, join: boolean) => void;
+  /** One wheel notch of brush size, +1 bigger / -1 smaller. */
+  onBrushStep: (dir: number) => void;
+  /**
+   * Where the brush would land and how big it would be, in screen pixels, or
+   * null when the pointer is off the body. Drives the ring drawn under the
+   * cursor — the crosshair cannot show a size, and the size is the one thing
+   * about this brush you cannot otherwise see before committing to a stroke.
+   */
+  onCursor: (cursor: { x: number; y: number; radius: number } | null) => void;
   /** Reads a colour out of the local player's own paint texture. */
   sampleBody: (u: number, v: number) => number;
   /** Resolved eyedropper colour, from the world or from your own body. */
@@ -179,7 +200,33 @@ export function useBrush(opts: Options) {
 
       toNdc(clientX, clientY);
       const hit = raycaster.intersectObjects(bodyMeshes, false)[0];
-      return hit?.uv ? { u: hit.uv.x, v: hit.uv.y } : null;
+      if (!hit?.uv) return null;
+
+      // Brush size is a world measurement; the dab is drawn in texels. packUVs
+      // recorded what one world unit is worth on this part, because that number
+      // is different on every part — the whole reason a texel-sized brush
+      // painted a dot on an arm and a saucer on a head.
+      const mesh = hit.object as THREE.Mesh;
+      const scale = (mesh.geometry?.userData?.texelsPerWorld as number | undefined) ?? FALLBACK_SCALE;
+      const radius = Math.min(
+        PAINT.maxRadius,
+        Math.max(MIN_TEXEL_RADIUS, latest.current.brushSize * scale)
+      );
+
+      return { u: hit.uv.x, v: hit.uv.y, radius, distance: hit.distance };
+    };
+
+    /** Radius on screen, in CSS pixels, of a world-sized brush at `distance`. */
+    const screenRadius = (distance: number) => {
+      const fov = ((camera as THREE.PerspectiveCamera).fov ?? 70) * (Math.PI / 180);
+      const halfHeight = Math.tan(fov / 2) * Math.max(distance, 0.01);
+      return (latest.current.brushSize / halfHeight) * (canvas.clientHeight / 2);
+    };
+
+    const showCursor = (e: PointerEvent, hit: { distance: number } | null) => {
+      latest.current.onCursor(
+        hit ? { x: e.clientX, y: e.clientY, radius: screenRadius(hit.distance) } : null
+      );
     };
 
     /** Eyedropper: whatever is under the cursor, world or body. */
@@ -205,9 +252,9 @@ export function useBrush(opts: Options) {
       return null;
     };
 
-    const emit = (uv: { u: number; v: number }, join: boolean) => {
-      const { brushSize, color, onDab } = latest.current;
-      onDab({ u: uv.u, v: uv.v, r: brushSize, c: color }, join);
+    const emit = (uv: { u: number; v: number; radius: number }, join: boolean) => {
+      const { color, onDab } = latest.current;
+      onDab({ u: uv.u, v: uv.v, r: uv.radius, c: color }, join);
       lastSentUV = uv;
     };
 
@@ -238,18 +285,21 @@ export function useBrush(opts: Options) {
     const onPointerMove = (e: PointerEvent) => {
       if (orbiting) {
         latest.current.onOrbit(e.movementX, e.movementY);
+        latest.current.onCursor(null);
         return;
       }
-      if (!painting) return;
 
       const uv = hitBody(e.clientX, e.clientY);
-      if (!uv) return;
+      // Hovering counts: the ring has to be there before the stroke starts, or
+      // it cannot tell you what size you are about to commit to.
+      showCursor(e, latest.current.tool === "brush" ? uv : null);
+      if (!painting || !uv) return;
 
       // Decimate: only send once the brush has travelled a fraction of its own
       // width, so a slow drag doesn't flood the wire with near-identical dabs.
       if (lastSentUV) {
-        const px = Math.hypot(uv.u - lastSentUV.u, uv.v - lastSentUV.v) * 512;
-        if (px < Math.max(2, latest.current.brushSize * 0.35)) return;
+        const px = Math.hypot(uv.u - lastSentUV.u, uv.v - lastSentUV.v) * SURFACE_SIZE;
+        if (px < Math.max(2, uv.radius * 0.35)) return;
       }
       emit(uv, true);
     };
@@ -261,15 +311,21 @@ export function useBrush(opts: Options) {
       if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
     };
 
+    const onPointerLeave = () => latest.current.onCursor(null);
+
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      latest.current.onZoom(Math.sign(e.deltaY));
+      // Shift picks the brush; the wheel on its own stays the zoom it has
+      // always been, which is what the left slider shows.
+      if (e.shiftKey) latest.current.onBrushStep(-Math.sign(e.deltaY));
+      else latest.current.onZoom(Math.sign(e.deltaY));
     };
 
     canvas.addEventListener("pointerdown", onPointerDown);
     canvas.addEventListener("pointermove", onPointerMove);
     canvas.addEventListener("pointerup", onPointerUp);
     canvas.addEventListener("pointercancel", onPointerUp);
+    canvas.addEventListener("pointerleave", onPointerLeave);
     canvas.addEventListener("wheel", onWheel, { passive: false });
 
     return () => {
@@ -277,7 +333,10 @@ export function useBrush(opts: Options) {
       canvas.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("pointerup", onPointerUp);
       canvas.removeEventListener("pointercancel", onPointerUp);
+      canvas.removeEventListener("pointerleave", onPointerLeave);
       canvas.removeEventListener("wheel", onWheel);
+      // Leaving paint mode has to take the ring with it; nothing else clears it.
+      latest.current.onCursor(null);
     };
   }, [opts.active, gl, camera, scene]);
 }

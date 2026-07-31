@@ -18,6 +18,7 @@ import {
 } from "../game/src/game/paint";
 import { buildPartGeometries } from "../game/src/game/bodyGeometry";
 import { BODIES } from "../game/src/game/bodies";
+import { BRUSH, PAINT } from "../game/src/game/constants";
 
 let failures = 0;
 function check(ok: boolean, label: string, detail = ""): void {
@@ -129,6 +130,35 @@ for (const profile of BODIES) {
       median <= MEDIAN_LIMIT && p90 <= P90_LIMIT,
       `${profile.id}/${part}`,
       `median ${median.toFixed(2)} (<= ${MEDIAN_LIMIT}), 90th ${p90.toFixed(2)} (<= ${P90_LIMIT})`
+    );
+  }
+}
+
+/* --------------------------------------------------- brush size conversion */
+
+/**
+ * The brush is set in world units and drawn in texels, and the exchange rate is
+ * different on every part. Both ends of the slider have to survive that trip on
+ * every part of every avatar: too small and PaintSurface's own 1.5-texel floor
+ * quietly takes over, so the bottom of the slider stops doing anything; too
+ * large and the server clamps the radius it relays, so what the painter sees on
+ * their own body is not what anyone else gets.
+ */
+console.log("\nbrush size survives the world-to-texel conversion\n");
+for (const profile of BODIES) {
+  const geoms = buildPartGeometries(profile);
+  for (const part of BODY_PARTS) {
+    const scale = geoms[part].userData.texelsPerWorld as number | undefined;
+    if (typeof scale !== "number") {
+      check(false, `${profile.id}/${part}`, "packUVs recorded no texelsPerWorld");
+      continue;
+    }
+    const small = BRUSH.min * scale;
+    const large = BRUSH.max * scale;
+    check(
+      small >= 1.5 && large <= PAINT.maxRadius,
+      `${profile.id}/${part}`,
+      `${small.toFixed(1)}..${large.toFixed(1)} texels (need 1.5..${PAINT.maxRadius})`
     );
   }
 }

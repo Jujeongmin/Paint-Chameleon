@@ -54,11 +54,27 @@ export default function App() {
   const [tool, setTool] = useState<Tool>("brush");
   const [brushSize, setBrushSize] = useState(BRUSH.default);
   const [zoom, setZoom] = useState(0);
+  /** Where the brush ring is drawn, and how big; null when off the body. */
+  const [brushCursor, setBrushCursor] = useState<{
+    x: number;
+    y: number;
+    radius: number;
+  } | null>(null);
   const [hue, setHue] = useState(0.05);
   const [sat, setSat] = useState(0.85);
   const [value, setValue] = useState(0.95);
 
   const color = hsvToRgb(hue, sat, value);
+
+  // Wheel notches are multiplicative, not additive: a step that reads as a
+  // small change at 0.02 would be imperceptible at 0.30, and one that reads at
+  // 0.30 would skip the whole bottom of the range. 16 notches end to end.
+  const stepBrush = useCallback((dir: number) => {
+    const factor = Math.pow(BRUSH.max / BRUSH.min, 1 / 16);
+    setBrushSize((r) =>
+      Math.min(BRUSH.max, Math.max(BRUSH.min, r * (dir > 0 ? factor : 1 / factor)))
+    );
+  }, []);
 
   // Room state already carries the authoritative body (joinHub/joinGame seed
   // it from the wallet, equipAvatar updates it), so prefer `me.body` over the
@@ -361,6 +377,8 @@ export default function App() {
               brushSize={brushSize}
               zoom={zoom}
               onZoom={setZoom}
+              onBrushStep={stepBrush}
+              onCursor={setBrushCursor}
               onDab={onDab}
               onColorPicked={onColorPicked}
             />
@@ -432,10 +450,21 @@ export default function App() {
                 onFill={onFill}
                 onExit={() => setPaintMode(false)}
               />
+              {brushCursor && tool === "brush" && (
+                <div
+                  className="brush-cursor"
+                  style={{
+                    left: brushCursor.x,
+                    top: brushCursor.y,
+                    width: brushCursor.radius * 2,
+                    height: brushCursor.radius * 2,
+                  }}
+                />
+              )}
               <div className="paint-hint">
                 {tool === "picker"
                   ? "스포이드 — 벽·바닥이나 자기 몸을 클릭해 색을 뽑으세요"
-                  : "몸을 드래그해 칠하고, 빈 공간을 드래그해 시점을 돌리세요 · 휠로 확대"}
+                  : "몸을 드래그해 칠하고, 빈 공간을 드래그해 시점을 돌리세요 · 휠로 확대 · Shift+휠로 붓 크기"}
                 {phase === "hiding" && ` · ${secondsLeft}초 남음`}
               </div>
             </div>
