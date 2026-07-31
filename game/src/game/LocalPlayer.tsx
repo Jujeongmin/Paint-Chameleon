@@ -5,7 +5,7 @@ import { Humanoid, IDLE_MOTION, type BodyMotion } from "./Humanoid";
 import { Gun, Tracer } from "./Gun";
 import { aimHandOffset } from "./aim";
 import { profileFor } from "./bodies";
-import { cameraModeFor } from "./cameraMode";
+import { FREE_FLY, cameraModeFor, clampFreeCamera } from "./cameraMode";
 import { useKeyboard, usePointerLook } from "./input";
 import { MAP_BOXES } from "./map";
 import { CELL_BOXES, CELL_FLOOR_Y, CELL_HALF, CELL_SPAWN, HUNT_START } from "./cell";
@@ -87,6 +87,10 @@ export function LocalPlayer({
   const bodyYaw = useRef(0);
 
   const follow = useRef(createFollowScratch(CAMERA.playDistance));
+  /** Where the camera is while it flies on its own; null whenever it isn't. */
+  const freeFly = useRef<[number, number, number] | null>(null);
+  /** Reused every frame — allocating two vectors per frame is two per frame. */
+  const flyScratch = useRef({ forward: new THREE.Vector3(), right: new THREE.Vector3() });
   const bodyFade = useRef(1);
   /** Fed to the rig every frame; see Humanoid for why this isn't a prop. */
   const bodyMotion = useRef<BodyMotion>({ ...IDLE_MOTION });
@@ -269,7 +273,8 @@ export function LocalPlayer({
     const step = Math.min(dt, 0.05);
     const now = performance.now();
     const held = frozen || charLocked;
-    const input = held ? { forward: 0, strafe: 0, jump: false } : read();
+    const keys = read();
+    const input = held ? { forward: 0, strafe: 0, jump: false } : keys;
 
     let speed = me.role === "seeker" ? MOVE.seekerSpeed : MOVE.hiderSpeed;
     // Holding a pose other than standing is slow — you commit to being still.
@@ -309,6 +314,45 @@ export function LocalPlayer({
     }
 
     const firstPerson = mode === "firstPerson";
+
+    if (mode === "freeFly") {
+      // Seeded from wherever the follow camera had got to, so pinning the body
+      // does not jump the view; after that the camera owns its own position.
+      if (!freeFly.current) {
+        freeFly.current = [camera.position.x, camera.position.y, camera.position.z];
+      }
+
+      // WASD flies the camera along its own view direction. No new binding:
+      // with the body pinned these keys were already doing nothing.
+      const forward = flyScratch.current.forward.set(
+        Math.sin(yaw.current) * Math.cos(pitch.current),
+        -Math.sin(pitch.current),
+        Math.cos(yaw.current) * Math.cos(pitch.current)
+      );
+      const right = flyScratch.current.right.set(Math.cos(yaw.current), 0, -Math.sin(yaw.current));
+      const reach = FREE_FLY.speed * step;
+
+      const [fx, fy, fz] = clampFreeCamera(
+        freeFly.current[0] + forward.x * keys.forward * reach + right.x * keys.strafe * reach,
+        freeFly.current[1] + forward.y * keys.forward * reach,
+        freeFly.current[2] + forward.z * keys.forward * reach + right.z * keys.strafe * reach
+      );
+      freeFly.current = [fx, fy, fz];
+
+      camera.position.set(fx, fy, fz);
+      camera.lookAt(fx + forward.x, fy + forward.y, fz + forward.z);
+      // Solid: the point of flying is to look at the world, your own pinned
+      // body included, from somewhere else entirely.
+      bodyFade.current = 1;
+      return;
+    }
+
+    if (freeFly.current) {
+      // Cut back rather than interpolate. Easing home from the far side of the
+      // map would sweep the screen across the whole arena for seconds.
+      freeFly.current = null;
+      follow.current.distance = CAMERA.playDistance;
+    }
 
     bodyFade.current = updateFollowCamera(camera, follow.current, {
       pos: motion.current.pos,
