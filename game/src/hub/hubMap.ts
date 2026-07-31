@@ -35,7 +35,9 @@ export interface Portal {
 export const PORTALS: Portal[] = [
   {
     id: "warehouse",
-    label: "HIDE AND PAINT",
+    // The game's own name, not the Poki original's — this build is deliberately
+    // not a copy of Hide and Paint, and the front door should not claim it is.
+    label: "PAINT CHAMELEON",
     sub: "WAREHOUSE",
     x: 0,
     z: -11,
