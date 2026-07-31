@@ -90,6 +90,18 @@ export const NET_THROTTLE_MS = 100;
 /** Don't resend unless the player actually moved/turned this much. Keeps still hiders silent. */
 export const NET_EPSILON = { pos: 0.06, rot: 0.03 };
 
+/**
+ * Mirror of PAINT_LIMITS in server/src/rules.ts, which clamps every dab it
+ * relays. A radius the server would clamp has to be clamped here first, or the
+ * dab a player sees on their own body is not the one everyone else gets.
+ *
+ * KEEP IN SYNC — check:sync compares them.
+ */
+export const PAINT = {
+  maxRadius: 120,
+  maxBatch: 32,
+};
+
 /** Paint dabs are batched and flushed on this interval rather than per-dab. */
 export const PAINT_FLUSH_MS = 140;
 /**
@@ -124,18 +136,6 @@ export const BRUSH = {
   min: 0.025,
   max: 0.3,
   default: 0.12,
-};
-
-/**
- * Mirror of PAINT_LIMITS in server/src/rules.ts, which clamps every dab it
- * relays. A radius the server would clamp has to be clamped here first, or the
- * dab a player sees on their own body is not the one everyone else gets.
- *
- * KEEP IN SYNC — check:sync compares them.
- */
-export const PAINT = {
-  maxRadius: 120,
-  maxBatch: 32,
 };
 
 /** Third-person camera. See camera.ts for why the near-range values exist. */
