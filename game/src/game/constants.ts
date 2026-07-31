@@ -57,6 +57,18 @@ export const STAND_POSE = 0;
 
 export const POSE_COUNT = POSES.length;
 
+/**
+ * The seeker is drawn, collided and eye-heighted at this multiple of a hider.
+ * Client-only: the server checks neither radius nor map, so nothing there
+ * reads it — clampMoveXZ bounds speed, not size.
+ *
+ * Everything size-shaped multiplies by this in exactly one place each
+ * (LocalPlayer for the local rig, RemotePlayers for peers, cell.ts for the
+ * room that has to hold the giant), so the hider path stays byte-for-byte
+ * unchanged when this is 1.
+ */
+export const SEEKER_SCALE = 2;
+
 /** Movement tuning (world units per second). */
 export const MOVE = {
   hiderSpeed: 6.0,

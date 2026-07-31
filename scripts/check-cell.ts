@@ -18,9 +18,15 @@ import {
 import { MAP_BOXES, ARENA } from "../game/src/game/arena";
 import { groundHeightAt, playerBlockedAt } from "../game/src/game/map";
 import { createMotionState, stepMotion } from "../game/src/game/movement";
-import { CAMERA, MOVE } from "../game/src/game/constants";
+import { CAMERA, MOVE, SEEKER_SCALE } from "../game/src/game/constants";
 import { clearCameraDistance } from "../game/src/game/camera";
 import { TOP_Y } from "../game/src/game/bodies";
+
+// The cell's only occupant is the seeker, who is SEEKER_SCALE times a hider in
+// every dimension. Everything in this script measures the giant, not the
+// profile constants — a cell that only fits a hider is a cell that fails.
+const R = MOVE.playerRadius * SEEKER_SCALE;
+const HEAD = TOP_Y * SEEKER_SCALE;
 
 let failures = 0;
 
@@ -69,11 +75,11 @@ console.log("\nthe cell is somewhere you can stand");
       dt,
       now: i * dt * 1000,
       speed: MOVE.seekerSpeed,
-      radius: MOVE.playerRadius,
+      radius: R,
       floorY: CELL_FLOOR_Y,
     });
-    peakHead = Math.max(peakHead, state.pos[1] + TOP_Y);
-    if (playerBlockedAt(state.pos[0], state.pos[2], state.pos[1], MOVE.playerRadius, CELL_BOXES)) {
+    peakHead = Math.max(peakHead, state.pos[1] + HEAD);
+    if (playerBlockedAt(state.pos[0], state.pos[2], state.pos[1], R, CELL_BOXES)) {
       everBlocked = true;
     }
   }
@@ -97,7 +103,7 @@ check(
 );
 check(
   "the spawn is not inside a wall",
-  !playerBlockedAt(CELL_SPAWN[0], CELL_SPAWN[2], CELL_FLOOR_Y, MOVE.playerRadius, CELL_BOXES)
+  !playerBlockedAt(CELL_SPAWN[0], CELL_SPAWN[2], CELL_FLOOR_Y, R, CELL_BOXES)
 );
 
 console.log("\nthe cell is sealed");
@@ -127,7 +133,7 @@ console.log("\nthe cell is sealed");
         dt,
         now: i * dt * 1000,
         speed: MOVE.seekerSpeed,
-        radius: MOVE.playerRadius,
+        radius: R,
         worldHalfSize: FAR_OUTSIDE,
         floorY: CELL_FLOOR_Y,
       });
@@ -165,15 +171,14 @@ console.log("\nthe seeker has somewhere to land");
   // inside a partition.
   const half = ARENA.size / 2;
   const inBounds =
-    Math.abs(HUNT_START[0]) < half - MOVE.playerRadius &&
-    Math.abs(HUNT_START[2]) < half - MOVE.playerRadius;
+    Math.abs(HUNT_START[0]) < half - R && Math.abs(HUNT_START[2]) < half - R;
   check(
     `HUNT_START [${HUNT_START}] is within the arena's walkable bounds`,
     inBounds
   );
   check(
     "HUNT_START is not inside a partition",
-    !playerBlockedAt(HUNT_START[0], HUNT_START[2], HUNT_START[1], MOVE.playerRadius, MAP_BOXES)
+    !playerBlockedAt(HUNT_START[0], HUNT_START[2], HUNT_START[1], R, MAP_BOXES)
   );
 }
 
@@ -187,19 +192,27 @@ console.log("\nthe cell has room to see your own body");
   // updateFollowCamera does: the camera starts fully third person
   // (distance >= fadeStart), so closeness is 0 and the pivot is
   // shoulderHeight.
-  const target = { x: CELL_SPAWN[0], y: CELL_SPAWN[1] + CAMERA.shoulderHeight, z: CELL_SPAWN[2] };
+  // Every camera length scales with the occupant (see LocalPlayer): pivot
+  // height, desired distance and the fade band all multiply by SEEKER_SCALE,
+  // so the clearance the room owes the camera scales with them.
+  const target = {
+    x: CELL_SPAWN[0],
+    y: CELL_SPAWN[1] + CAMERA.shoulderHeight * SEEKER_SCALE,
+    z: CELL_SPAWN[2],
+  };
   const dir = { x: 0, y: 0, z: -1 };
   const allowed = clearCameraDistance(
     target,
     dir,
-    CAMERA.playDistance,
-    CAMERA.minDistance,
+    CAMERA.playDistance * SEEKER_SCALE,
+    CAMERA.minDistance * SEEKER_SCALE,
     CELL_BOXES,
     CELL_FLOOR_Y
   );
+  const needed = CAMERA.fadeStart * SEEKER_SCALE;
   check(
-    `the camera clears fadeStart from the cell pivot (${allowed.toFixed(2)} > ${CAMERA.fadeStart})`,
-    allowed > CAMERA.fadeStart
+    `the camera clears the scaled fadeStart from the cell pivot (${allowed.toFixed(2)} > ${needed.toFixed(2)})`,
+    allowed > needed
   );
 }
 

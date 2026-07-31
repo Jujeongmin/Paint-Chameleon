@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { Humanoid, IDLE_MOTION, type BodyMotion } from "./Humanoid";
 import { NameTag } from "./NameTag";
 import { MAP_BOXES, groundHeightAt, type MapBox } from "./map";
+import { SEEKER_SCALE } from "./constants";
 import type { PlayerState } from "../net/types";
 
 /** Shortest-path angle lerp so crossing ±π doesn't spin the model around. */
@@ -76,7 +77,13 @@ function RemotePlayer({
   return (
     // The shot's raycast hits a mesh several levels down inside Humanoid, so the
     // body has to say whose it is somewhere an ancestor walk can find it.
-    <group ref={group} userData={{ account: player.account }}>
+    // The seeker is drawn at giant scale for everyone; feet stay on the floor
+    // because the group's origin is at them.
+    <group
+      ref={group}
+      userData={{ account: player.account }}
+      scale={player.role === "seeker" ? SEEKER_SCALE : 1}
+    >
       <Humanoid
         account={player.account}
         pose={player.pose ?? 0}

@@ -16,17 +16,24 @@
  */
 
 import type { MapBox } from "./arena";
-import { MOVE } from "./constants";
+import { MOVE, SEEKER_SCALE } from "./constants";
 import { TOP_Y } from "./bodies";
 
 /** Deep enough that nothing in the arena reaches down to it. */
 export const CELL_FLOOR_Y = -8;
 
+/**
+ * The cell's only occupant is the seeker, and the seeker is SEEKER_SCALE times
+ * a hider in every dimension — so the room is sized for the giant, not for the
+ * profile constants alone.
+ */
+const OCCUPANT_RADIUS = MOVE.playerRadius * SEEKER_SCALE;
+
 /** Inner side length. Room to walk and to orbit the camera round your body. */
-export const CELL_INNER = 6;
+export const CELL_INNER = 6 * SEEKER_SCALE;
 
 /** Half-extent handed to moveXZ, which clamps to ±(worldHalfSize - radius). */
-export const CELL_HALF = CELL_INNER / 2 + MOVE.playerRadius;
+export const CELL_HALF = CELL_INNER / 2 + OCCUPANT_RADIUS;
 
 /** How far a jump lifts the feet above the floor. */
 const JUMP_APEX = (MOVE.jumpSpeed * MOVE.jumpSpeed) / (2 * MOVE.gravity);
@@ -36,11 +43,12 @@ const JUMP_APEX = (MOVE.jumpSpeed * MOVE.jumpSpeed) / (2 * MOVE.gravity);
  * engine — groundHeightAt only ever treats a box's top as something to land
  * on, never something to bump into overhead — so a jumping head is stopped by
  * nothing but the room being tall enough on its own. The ceiling has to clear
- * a body at the very top of a jump (TOP_Y above the floor, plus JUMP_APEX of
- * lift), not just a standing one, with a margin so a graze doesn't become a
- * clip if the tuning constants move.
+ * the OCCUPANT's body at the very top of a jump (the scaled TOP_Y above the
+ * floor, plus JUMP_APEX of lift — the jump itself is physics, not body size,
+ * so it does not scale), with a margin so a graze doesn't become a clip if
+ * the tuning constants move.
  */
-const CELL_HEIGHT = TOP_Y + JUMP_APEX + 0.2;
+const CELL_HEIGHT = TOP_Y * SEEKER_SCALE + JUMP_APEX + 0.2;
 
 const THICKNESS = 0.5;
 

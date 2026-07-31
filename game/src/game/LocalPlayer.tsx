@@ -9,7 +9,15 @@ import { FREE_FLY, cameraModeFor, clampFreeCamera } from "./cameraMode";
 import { useKeyboard, usePointerLook } from "./input";
 import { MAP_BOXES } from "./map";
 import { CELL_BOXES, CELL_FLOOR_Y, CELL_HALF, CELL_SPAWN, HUNT_START } from "./cell";
-import { CAMERA, MOVE, NET_EPSILON, NET_THROTTLE_MS, STAND_POSE, type Phase } from "./constants";
+import {
+  CAMERA,
+  MOVE,
+  NET_EPSILON,
+  NET_THROTTLE_MS,
+  SEEKER_SCALE,
+  STAND_POSE,
+  type Phase,
+} from "./constants";
 import { createMotionState, stepMotion } from "./movement";
 import { createFollowScratch, updateFollowCamera } from "./followCamera";
 import { surfaceFor, type PaintDab } from "./paint";
@@ -248,11 +256,15 @@ export function LocalPlayer({
       // 5.2u behind the body; from behind our own eyes it would be a bar
       // rising out of the bottom of the screen. aimHandOffset is in body
       // coordinates, so it turns with the body's yaw.
+      // The whole rig is scaled, gun hand included.
       const hand = aimHandOffset(profileFor(body));
+      const hx = hand.x * SEEKER_SCALE;
+      const hy = hand.y * SEEKER_SCALE;
+      const hz = hand.z * SEEKER_SCALE;
       const sin = Math.sin(bodyYaw.current);
       const cos = Math.cos(bodyYaw.current);
       setTracer({
-        from: [px + hand.x * cos + hand.z * sin, py + hand.y, pz - hand.x * sin + hand.z * cos],
+        from: [px + hx * cos + hz * sin, py + hy, pz - hx * sin + hz * cos],
         to: result.point,
       });
       // Our own shot is always at distance 0 — everyone else's arrives over
@@ -284,6 +296,12 @@ export function LocalPlayer({
     const keys = read();
     const input = held ? { forward: 0, strafe: 0, jump: false } : keys;
 
+    // The seeker is a giant: every length below — collision radius, camera
+    // pivot heights, follow distance, fade band — multiplies by this so the
+    // world treats and frames the big body consistently. Speed does not scale;
+    // the chase balance is tuned in world units, not body lengths.
+    const scale = me.role === "seeker" ? SEEKER_SCALE : 1;
+
     let speed = me.role === "seeker" ? MOVE.seekerSpeed : MOVE.hiderSpeed;
     // Holding a pose other than standing is slow — you commit to being still.
     if (pose !== 0) speed *= 0.35;
@@ -298,7 +316,7 @@ export function LocalPlayer({
       dt: step,
       now,
       speed,
-      radius: MOVE.playerRadius,
+      radius: MOVE.playerRadius * scale,
       locked: charLocked,
       worldHalfSize: inCell ? CELL_HALF : undefined,
       floorY: inCell ? CELL_FLOOR_Y : 0,
@@ -372,17 +390,23 @@ export function LocalPlayer({
         ? THREE.MathUtils.lerp(CAMERA.paintFar, CAMERA.paintNear, zoom / 100)
         : firstPerson
           ? 0
-          : CAMERA.playDistance,
-      minDistance: paintMode ? CAMERA.paintMinDistance : firstPerson ? 0 : CAMERA.minDistance,
+          : CAMERA.playDistance * scale,
+      minDistance: paintMode
+        ? CAMERA.paintMinDistance
+        : firstPerson
+          ? 0
+          : CAMERA.minDistance * scale,
       boxes: inCell ? CELL_BOXES : MAP_BOXES,
       dt: step,
       // First person pivots at the eyes at both ends of the rig's shoulder-to-
       // eye lerp, so there is nowhere for the view to travel to and it cannot
       // sink to the chest while the distance settles.
-      shoulderHeight: paintMode ? 0.95 : firstPerson ? CAMERA.eyeHeight : CAMERA.shoulderHeight,
-      eyeHeight: paintMode ? 0.95 : CAMERA.eyeHeight,
-      fadeEnd: CAMERA.fadeEnd,
-      fadeStart: CAMERA.fadeStart,
+      shoulderHeight: paintMode
+        ? 0.95
+        : (firstPerson ? CAMERA.eyeHeight : CAMERA.shoulderHeight) * scale,
+      eyeHeight: paintMode ? 0.95 : CAMERA.eyeHeight * scale,
+      fadeEnd: CAMERA.fadeEnd * scale,
+      fadeStart: CAMERA.fadeStart * scale,
       // Fading is the third-person rig's answer to a wall shoving the camera
       // into the body. At a distance of zero chosen on purpose it would simply
       // delete the body — and the gun in its hand with it.
@@ -419,8 +443,15 @@ export function LocalPlayer({
             body and skip it — in third person the seeker's own torso sits
             between the camera and everything else, so without this tag every
             shot would register as a point-blank miss into ourselves. Nothing
-            local reads this userData; it exists purely for that raycast. */}
-        <group ref={bodyRef} userData={{ account: me.account }}>
+            local reads this userData; it exists purely for that raycast.
+
+            The scale is the seeker's size: the group's origin is the feet, so
+            the body grows upward and stays standing on the same floor. */}
+        <group
+          ref={bodyRef}
+          userData={{ account: me.account }}
+          scale={me.role === "seeker" ? SEEKER_SCALE : 1}
+        >
           <Humanoid
             account={me.account}
             pose={pose}

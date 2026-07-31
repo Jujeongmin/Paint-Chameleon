@@ -13,7 +13,7 @@
 import { MAP_BOXES, SPAWN_POINTS, ARENA, CLUSTERS, slotOf } from "../game/src/game/arena";
 import { groundHeightAt, playerBlockedAt, STEP_HEIGHT } from "../game/src/game/map";
 import { createMotionState, stepMotion } from "../game/src/game/movement";
-import { MOVE } from "../game/src/game/constants";
+import { MOVE, SEEKER_SCALE } from "../game/src/game/constants";
 
 let failures = 0;
 
@@ -220,6 +220,53 @@ console.log("\nfamily step rules");
   check(`something can be walked over (${walkable.length}, the pallets)`, walkable.length > 0);
   check(`something needs a jump (${mountable.length}, the crates)`, mountable.length > 0);
   check(`something cannot be climbed at all (${tall.length}, drums/pillars/partitions)`, tall.length > 0);
+}
+
+console.log("\nthe giant seeker can reach every hiding zone");
+{
+  // The seeker's collision radius is SEEKER_SCALE times a hider's. A gap a
+  // hider slips through and the seeker cannot is not cover, it is a place the
+  // game cannot end — so from the hunt's start every spawn point must be
+  // reachable at the seeker's radius. Same flood-fill as the slot checks, at
+  // the bigger radius; the route-walking stage is skipped because stepMotion
+  // is already exercised above and only the radius differs here.
+  const R = MOVE.playerRadius * SEEKER_SCALE;
+  const seekerLimit = Math.floor((ARENA.size / 2 - R) / GRID);
+  const blocked = (ix: number, iz: number) =>
+    Math.abs(ix) > seekerLimit ||
+    Math.abs(iz) > seekerLimit ||
+    playerBlockedAt(ix * GRID, iz * GRID, 0, R, MAP_BOXES);
+
+  const parent = new Map<number, boolean>();
+  const queue: [number, number][] = [[0, 0]];
+  parent.set(cellKey(0, 0), true);
+  for (let head = 0; head < queue.length; head++) {
+    const [x, z] = queue[head];
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      const nx = x + dx;
+      const nz = z + dz;
+      const k = cellKey(nx, nz);
+      if (parent.has(k) || blocked(nx, nz)) continue;
+      parent.set(k, true);
+      queue.push([nx, nz]);
+    }
+  }
+
+  for (const [sx, sz] of SPAWN_POINTS) {
+    // The spawn itself only needs a hider to fit; the seeker needs to get NEAR
+    // it. Within 2u is close enough that nothing there is out of the gun's
+    // reach around a corner.
+    let ok = false;
+    const cx = Math.round(sx / GRID);
+    const cz = Math.round(sz / GRID);
+    const reach = Math.ceil(2 / GRID);
+    for (let dx = -reach; dx <= reach && !ok; dx++) {
+      for (let dz = -reach; dz <= reach && !ok; dz++) {
+        if (parent.has(cellKey(cx + dx, cz + dz))) ok = true;
+      }
+    }
+    check(`the seeker (radius ${R}) can get within 2u of spawn [${sx}, ${sz}]`, ok);
+  }
 }
 
 console.log("\nsightlines from the centre");
