@@ -2,7 +2,13 @@
  * Camera mode priority. All of it is a decision table, so none of it needs a
  * renderer — which is the reason cameraModeFor is a pure function at all.
  */
-import { cameraModeFor, type CameraModeInput } from "../game/src/game/cameraMode";
+import {
+  FREE_FLY,
+  cameraModeFor,
+  clampFreeCamera,
+  type CameraModeInput,
+} from "../game/src/game/cameraMode";
+import { ARENA } from "../game/src/game/arena";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = ""): void {
@@ -48,6 +54,34 @@ check(
 check(
   "painting beats free flight",
   cameraModeFor({ ...base, paintMode: true, charLocked: true }) === "paint"
+);
+
+console.log("\nfree flight box\n");
+
+const far = clampFreeCamera(500, 500, -500);
+check(
+  "flying at the sky and the far corner stops at the box",
+  far[0] === FREE_FLY.half && far[1] === FREE_FLY.ceiling && far[2] === -FREE_FLY.half,
+  far.map((n) => n.toFixed(1)).join(", ")
+);
+
+const under = clampFreeCamera(0, -20, 0);
+check("and it never gets under the floor", under[1] === FREE_FLY.floor, `${under[1]}`);
+
+const inside = clampFreeCamera(3, 6, -9);
+check(
+  "a position already inside the box is left alone",
+  inside[0] === 3 && inside[1] === 6 && inside[2] === -9,
+  inside.join(", ")
+);
+
+// The ceiling's entire justification: from up there the whole map is in frame.
+const HALF_FOV = (35 * Math.PI) / 180;
+const span = 2 * FREE_FLY.ceiling * Math.tan(HALF_FOV) * (16 / 9);
+check(
+  "the ceiling is high enough to hold the whole arena in view",
+  span >= ARENA.size,
+  `${span.toFixed(0)}u across at 16:9 vs ${ARENA.size}u of arena`
 );
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall good");
