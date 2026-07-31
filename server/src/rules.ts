@@ -16,7 +16,7 @@ export const POSE_COUNT = 4;
 /** The social hub holds far more people than a match, and never runs a round. */
 export const HUB_CAPACITY = 24;
 
-export const PHASE_SECONDS = { hiding: 30, seeking: 90, results: 10 };
+export const PHASE_SECONDS = { hiding: 30, seeking: 90, results: 30 };
 
 export const SCORE = {
   hiderSurvived: 100,

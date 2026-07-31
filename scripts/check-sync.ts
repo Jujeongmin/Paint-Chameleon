@@ -20,7 +20,13 @@ import {
 } from "../game/src/game/arena";
 import { playerBlockedAt } from "../game/src/game/map";
 import { BODIES } from "../game/src/game/bodies";
-import { POSES, MOVE, PAINT as CLIENT_PAINT, SHOT as CLIENT_SHOT } from "../game/src/game/constants";
+import {
+  POSES,
+  MOVE,
+  PAINT as CLIENT_PAINT,
+  PHASE_SECONDS as CLIENT_PHASES,
+  SHOT as CLIENT_SHOT,
+} from "../game/src/game/constants";
 import { CELL_SPAWN as CLIENT_CELL, HUNT_START as CLIENT_HUNT_START } from "../game/src/game/cell";
 import {
   ARENA as SERVER_ARENA,
@@ -32,6 +38,7 @@ import {
   AVATAR_PRICES,
   SHOT as SERVER_SHOT,
   PAINT_LIMITS as SERVER_PAINT,
+  PHASE_SECONDS as SERVER_PHASES,
 } from "../server/src/rules";
 
 let failures = 0;
@@ -156,6 +163,33 @@ console.log("\nshot rules");
       }
     } else {
       pass(`shot rules match (dot ${CLIENT_SHOT.minFacingDot}, cooldown ${CLIENT_SHOT.cooldownMs}ms)`);
+    }
+  }
+}
+
+console.log("\nphase durations");
+
+// The server runs the clock; the client counts down its own copy on screen and
+// decides what to draw in each phase. A drift shows as a countdown that hits
+// zero while the phase carries on, or a phase that ends with time still on the
+// display — and for the results phase, as the reveal of where the uncaught
+// hiders were vanishing before or after the round actually returns to the hub.
+{
+  const clientKeys = Object.keys(CLIENT_PHASES).filter((k) => k !== "lobby").sort();
+  const serverKeys = Object.keys(SERVER_PHASES).sort();
+
+  if (clientKeys.join(",") !== serverKeys.join(",")) {
+    fail(`phase keys differ: client [${clientKeys.join(", ")}], server [${serverKeys.join(", ")}]`);
+  } else {
+    const client = CLIENT_PHASES as Record<string, number>;
+    const server = SERVER_PHASES as Record<string, number>;
+    const mismatched = clientKeys.filter((k) => client[k] !== server[k]);
+    if (mismatched.length) {
+      for (const k of mismatched) {
+        fail(`phase ${k} lasts ${client[k]}s on the client but ${server[k]}s on the server`);
+      }
+    } else {
+      pass(`phase durations match (${clientKeys.map((k) => `${k} ${client[k]}s`).join(", ")})`);
     }
   }
 }

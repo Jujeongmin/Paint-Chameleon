@@ -7,7 +7,10 @@ export const PHASE_SECONDS: Record<Phase, number> = {
   lobby: 0, // ends when enough players ready
   hiding: 30,
   seeking: 90,
-  results: 10,
+  // Long enough to walk the reveal: the hiders the seeker never found glow
+  // through the walls for this whole phase, and ten seconds was not enough to
+  // look around and see where they had been.
+  results: 30,
 };
 
 export const MIN_PLAYERS = 2;

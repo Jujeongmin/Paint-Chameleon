@@ -17,10 +17,12 @@ function RemotePlayer({
   player,
   boxes,
   showName,
+  revealed,
 }: {
   player: PlayerState;
   boxes: MapBox[];
   showName?: boolean;
+  revealed?: boolean;
 }) {
   const group = useRef<THREE.Group>(null);
   const initialised = useRef(false);
@@ -81,6 +83,7 @@ function RemotePlayer({
         motionRef={motion}
         dimmed={!!player.caught}
         body={player.body}
+        revealed={revealed}
       />
       {showName && <NameTag text={player.nick || "익명"} />}
     </group>
@@ -94,15 +97,34 @@ interface Props {
   boxes?: MapBox[];
   /** Hub shows who everyone is; a match deliberately does not. */
   showNames?: boolean;
+  /**
+   * Show the hiders who were never caught through the walls. True only during
+   * the results phase — the round is over, so nothing is given away.
+   */
+  reveal?: boolean;
 }
 
-export function RemotePlayers({ players, selfAccount, boxes = MAP_BOXES, showNames }: Props) {
+export function RemotePlayers({
+  players,
+  selfAccount,
+  boxes = MAP_BOXES,
+  showNames,
+  reveal,
+}: Props) {
   return (
     <>
       {players
         .filter((p) => p.account !== selfAccount && p.pos)
         .map((p) => (
-          <RemotePlayer key={p.account} player={p} boxes={boxes} showName={showNames} />
+          <RemotePlayer
+            key={p.account}
+            player={p}
+            boxes={boxes}
+            showName={showNames}
+            // Survivors only: the seeker already knows where the people they
+            // caught were, and the question this answers is where the rest hid.
+            revealed={reveal && p.role !== "seeker" && !p.caught}
+          />
         ))}
     </>
   );

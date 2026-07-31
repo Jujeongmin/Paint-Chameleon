@@ -382,7 +382,13 @@ export default function App() {
               onDab={onDab}
               onColorPicked={onColorPicked}
             />
-            {!inCell && <RemotePlayers players={players} selfAccount={account} />}
+            {!inCell && (
+              <RemotePlayers
+                players={players}
+                selfAccount={account}
+                reveal={phase === "results"}
+              />
+            )}
           </Suspense>
         )}
       </Canvas>

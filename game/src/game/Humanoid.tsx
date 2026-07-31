@@ -67,7 +67,16 @@ interface Props {
    * The cost is most of your own shadow, since an invisible mesh casts none.
    */
   hideBody?: boolean;
+  /**
+   * Draw a second, glowing copy of every part that ignores the depth buffer, so
+   * this body reads through walls and crates. Used at the end of a round to
+   * show where the hiders the seeker never found were sitting.
+   */
+  revealed?: boolean;
 }
+
+/** The reveal must not become something a raycast can hit; it is not a surface. */
+const NO_RAYCAST = () => {};
 
 export function Humanoid({
   account,
@@ -79,6 +88,7 @@ export function Humanoid({
   body,
   held,
   hideBody,
+  revealed,
 }: Props) {
   const root = useRef<THREE.Group>(null);
   const torso = useRef<THREE.Mesh>(null);
@@ -110,6 +120,23 @@ export function Humanoid({
     [surface]
   );
 
+  /**
+   * The reveal's own material. depthTest off is what puts it through walls;
+   * depthWrite off keeps it from punching a hole in whatever is drawn after it,
+   * and a high renderOrder makes sure that is everything.
+   */
+  const revealMaterial = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: "#ffdf6b",
+        transparent: true,
+        opacity: 0.5,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    []
+  );
+
   // Split so equipping a new body (which only changes geoms) can't dispose the
   // still-live material — a shared effect keyed on [geoms, material] disposes
   // material every time geoms' cleanup runs, even though material itself is
@@ -118,6 +145,7 @@ export function Humanoid({
   // peer's renderer on every equip.
   useEffect(() => () => Object.values(geoms).forEach((g) => g.dispose()), [geoms]);
   useEffect(() => () => material.dispose(), [material]);
+  useEffect(() => () => revealMaterial.dispose(), [revealMaterial]);
 
   const spec = POSES[THREE.MathUtils.clamp(pose | 0, 0, POSES.length - 1)];
 
@@ -129,6 +157,12 @@ export function Humanoid({
     // Caught players ghost out; the local body also dissolves as the camera is
     // forced in. Transparent surfaces must stop writing depth or they punch
     // holes in whatever is drawn behind them.
+    // Twinkle. A body that has been sitting still for ninety seconds reads as
+    // scenery once it stops moving; the pulse is what makes the eye find it.
+    if (revealed) {
+      revealMaterial.opacity = 0.34 + 0.3 * (0.5 + 0.5 * Math.sin(performance.now() / 190));
+    }
+
     const alpha = (dimmed ? 0.35 : 1) * (fadeRef?.current ?? 1);
     if (Math.abs(material.opacity - alpha) > 0.002) {
       material.opacity = alpha;
@@ -232,6 +266,30 @@ export function Humanoid({
         </>
       )}
 
+      {/* The reveal rides along inside the same groups as the real parts, so it
+          inherits the pose and the walk cycle without a second rig to keep in
+          step. Head and torso follow their meshes' animated positions closely
+          enough at the distance this is read from; the nod and twist those two
+          get per frame are millimetres. */}
+      {revealed && (
+        <>
+          <mesh
+            geometry={geoms.head}
+            material={revealMaterial}
+            position={[0, headY, 0]}
+            renderOrder={999}
+            raycast={NO_RAYCAST}
+          />
+          <mesh
+            geometry={geoms.torso}
+            material={revealMaterial}
+            position={[0, profile.torso.y, 0]}
+            renderOrder={999}
+            raycast={NO_RAYCAST}
+          />
+        </>
+      )}
+
       {/* The gun hangs on the group at -shoulderX, and that is the body's RIGHT
           arm: facing +Z with +Y up, right is forward x up = -X, the same
           convention movement.ts states for its own right vector. The atlas
@@ -239,6 +297,15 @@ export function Humanoid({
           do not match; the gun follows the body, not the label. */}
       <group ref={shoulderL} position={[-profile.shoulderX, profile.shoulderY, 0]}>
         <mesh geometry={geoms.armL} material={material} position={[0, -armHalf, 0]} castShadow />
+        {revealed && (
+          <mesh
+            geometry={geoms.armL}
+            material={revealMaterial}
+            position={[0, -armHalf, 0]}
+            renderOrder={999}
+            raycast={NO_RAYCAST}
+          />
+        )}
         {/* Undo the shoulder's aiming pitch. The gun hangs off that joint, so
             the joint's rotation carries the gun's own axes with it — leaving
             this off points the barrel at the sky rather than down the body's
@@ -251,15 +318,42 @@ export function Humanoid({
       </group>
       <group ref={shoulderR} position={[profile.shoulderX, profile.shoulderY, 0]}>
         <mesh geometry={geoms.armR} material={material} position={[0, -armHalf, 0]} castShadow />
+        {revealed && (
+          <mesh
+            geometry={geoms.armR}
+            material={revealMaterial}
+            position={[0, -armHalf, 0]}
+            renderOrder={999}
+            raycast={NO_RAYCAST}
+          />
+        )}
       </group>
 
       {!hideBody && (
         <>
           <group ref={hipL} position={[-profile.hipX, hipY, 0]}>
             <mesh geometry={geoms.legL} material={material} position={[0, -legHalf, 0]} castShadow />
+            {revealed && (
+              <mesh
+                geometry={geoms.legL}
+                material={revealMaterial}
+                position={[0, -legHalf, 0]}
+                renderOrder={999}
+                raycast={NO_RAYCAST}
+              />
+            )}
           </group>
           <group ref={hipR} position={[profile.hipX, hipY, 0]}>
             <mesh geometry={geoms.legR} material={material} position={[0, -legHalf, 0]} castShadow />
+            {revealed && (
+              <mesh
+                geometry={geoms.legR}
+                material={revealMaterial}
+                position={[0, -legHalf, 0]}
+                renderOrder={999}
+                raycast={NO_RAYCAST}
+              />
+            )}
           </group>
         </>
       )}
