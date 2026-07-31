@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { surfaceFor } from "./paint";
+import { AIM_ARM_PITCH } from "./aim";
 import { buildPartGeometries } from "./bodyGeometry";
 import { MOVE, POSES } from "./constants";
 import { derive, profileFor } from "./bodies";
@@ -53,13 +54,29 @@ interface Props {
   body?: string;
   /**
    * Something carried in the right hand — the seeker's gun. Rendered inside the
-   * shoulder group so it inherits the arm's rotation from the pose and the walk
-   * cycle for free.
+   * shoulder group, which is also what holds that arm at the aiming angle.
    */
   held?: React.ReactNode;
+  /**
+   * Drop the head mesh. First person parks the camera inside it, and looking at
+   * the inside of your own skull is worse than having no head in your own view.
+   * Only ever set on the local body — everyone else still sees the head, and
+   * the shadow loses its head along with the mesh.
+   */
+  hideHead?: boolean;
 }
 
-export function Humanoid({ account, pose, motionRef, dimmed, showOutline, fadeRef, body, held }: Props) {
+export function Humanoid({
+  account,
+  pose,
+  motionRef,
+  dimmed,
+  showOutline,
+  fadeRef,
+  body,
+  held,
+  hideHead,
+}: Props) {
   const root = useRef<THREE.Group>(null);
   const torso = useRef<THREE.Mesh>(null);
   const head = useRef<THREE.Mesh>(null);
@@ -166,7 +183,12 @@ export function Humanoid({ account, pose, motionRef, dimmed, showOutline, fadeRe
     // Arms: pose sets the resting angle, the walk swings around it, and being
     // airborne overrides both.
     const armPitchL = THREE.MathUtils.lerp(spec.armPitch + swing, airArm, air);
-    const armPitchR = THREE.MathUtils.lerp(spec.armPitch - swing, airArm, air);
+    // The gun arm holds one angle: no walk swing, no jump override. The hand
+    // group below negates exactly this angle to bring the barrel back level,
+    // and that negation is only right while the arm is actually at it.
+    const armPitchR = held
+      ? AIM_ARM_PITCH
+      : THREE.MathUtils.lerp(spec.armPitch - swing, airArm, air);
     if (shoulderL.current) {
       shoulderL.current.rotation.x += (armPitchL - shoulderL.current.rotation.x) * k;
       // Mirrored: positive spread pushes each arm away from the body.
@@ -193,7 +215,9 @@ export function Humanoid({ account, pose, motionRef, dimmed, showOutline, fadeRe
 
   return (
     <group ref={root} name="humanoid">
-      <mesh ref={head} geometry={geoms.head} material={material} position={[0, headY, 0]} castShadow />
+      {!hideHead && (
+        <mesh ref={head} geometry={geoms.head} material={material} position={[0, headY, 0]} castShadow />
+      )}
       <mesh
         ref={torso}
         geometry={geoms.torso}
@@ -207,7 +231,15 @@ export function Humanoid({ account, pose, motionRef, dimmed, showOutline, fadeRe
       </group>
       <group ref={shoulderR} position={[profile.shoulderX, profile.shoulderY, 0]}>
         <mesh geometry={geoms.armR} material={material} position={[0, -armHalf, 0]} castShadow />
-        {held && <group position={[0, -armHalf * 2, 0]}>{held}</group>}
+        {/* Undo the shoulder's aiming pitch. The gun hangs off that joint, so
+            the joint's rotation carries the gun's own axes with it — leaving
+            this off points the barrel at the sky rather than down the body's
+            forward axis. Same constant, negated, so the two cannot drift. */}
+        {held && (
+          <group position={[0, -armHalf * 2, 0]} rotation={[-AIM_ARM_PITCH, 0, 0]}>
+            {held}
+          </group>
+        )}
       </group>
 
       <group ref={hipL} position={[-profile.hipX, hipY, 0]}>
