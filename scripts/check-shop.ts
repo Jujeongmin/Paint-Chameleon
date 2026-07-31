@@ -59,8 +59,8 @@ console.log("\nowned round-trip");
   check("an empty string parses to no items", parseOwned("").length === 0);
   check("whitespace-only parses to no items", parseOwned("   ").length === 0);
   check("a single id parses to one item", parseOwned("classic").join() === "classic");
-  check("round-trips a list", serializeOwned(parseOwned("classic,bean")) === "classic,bean");
-  check("drops empty segments", parseOwned("classic,,bean").length === 2);
+  check("round-trips a list", serializeOwned(parseOwned("classic,square")) === "classic,square");
+  check("drops empty segments", parseOwned("classic,,square").length === 2);
 }
 
 console.log("\ndefault wallet");
@@ -83,22 +83,22 @@ console.log("\napplyPurchase");
   check("rejects something already owned", already.ok === false);
   check("...with reason 'owned'", already.ok === false && already.reason === "owned");
 
-  const broke = applyPurchase({ coins: 0, owned: ["classic"], equipped: "classic" }, "bean");
+  const broke = applyPurchase({ coins: 0, owned: ["classic"], equipped: "classic" }, "square");
   check("rejects when the balance is short", broke.ok === false);
   check("...with reason 'broke'", broke.ok === false && broke.reason === "broke");
 
   // Exactly the price, not a coin more or less.
   const before = rich();
-  const bought = applyPurchase(before, "bean");
+  const bought = applyPurchase(before, "square");
   check("accepts an affordable, unowned avatar", bought.ok === true);
   check(
     "deducts exactly the listed price",
-    bought.ok === true && bought.wallet.coins === before.coins - AVATAR_PRICES.bean
+    bought.ok === true && bought.wallet.coins === before.coins - AVATAR_PRICES.square
   );
-  check("adds the avatar to owned", bought.ok === true && bought.wallet.owned.includes("bean"));
+  check("adds the avatar to owned", bought.ok === true && bought.wallet.owned.includes("square"));
   check(
     "adds it exactly once",
-    bought.ok === true && bought.wallet.owned.filter((i) => i === "bean").length === 1
+    bought.ok === true && bought.wallet.owned.filter((i) => i === "square").length === 1
   );
   check(
     "does not auto-equip the purchase",
@@ -107,7 +107,7 @@ console.log("\napplyPurchase");
 
   // A rejected purchase that mutated the input would leak coins on the way out.
   const untouched = rich();
-  applyPurchase(untouched, "bean");
+  applyPurchase(untouched, "square");
   check("leaves the input wallet untouched on success", untouched.coins === 1000 && untouched.owned.length === 1);
   const untouched2 = rich();
   applyPurchase(untouched2, "does-not-exist");
@@ -122,7 +122,7 @@ console.log("\napplyPurchase");
 
 console.log("\napplyEquip");
 {
-  const w: WalletState = { coins: 0, owned: ["classic", "bean"], equipped: "classic" };
+  const w: WalletState = { coins: 0, owned: ["classic", "square"], equipped: "classic" };
 
   const notOwned = applyEquip(w, "tank");
   check("refuses to equip something not owned", notOwned.ok === false);
@@ -130,7 +130,7 @@ console.log("\napplyEquip");
   const unknown = applyEquip(w, "does-not-exist");
   check("refuses to equip an unknown id", unknown.ok === false);
 
-  const equipped = applyEquip(w, "bean");
+  const equipped = applyEquip(w, "square");
   check("equips an owned avatar", equipped.ok === true);
   check("...and changes nothing else", equipped.ok === true && equipped.wallet.coins === w.coins);
   check(
@@ -176,31 +176,31 @@ console.log("\nwhat one [E] press at a stand does");
   // no disabled buttons documenting what's allowed, so this table IS the
   // interaction — and it has to agree with applyPurchase/applyEquip above or
   // the prompt will offer something the server then refuses.
-  const bean = { id: "bean", price: AVATAR_PRICES.bean };
+  const square = { id: "square", price: AVATAR_PRICES.square };
   const classic = { id: "classic", price: 0 };
 
-  check("a wallet that hasn't loaded yet says so", standAction(bean, null) === "loading");
+  check("a wallet that hasn't loaded yet says so", standAction(square, null) === "loading");
   check(
     "the equipped body offers nothing",
     standAction(classic, { coins: 0, owned: ["classic"], equipped: "classic" }) === "equipped"
   );
   check(
     "an owned but unequipped body offers equip",
-    standAction(bean, { coins: 0, owned: ["classic", "bean"], equipped: "classic" }) === "equip"
+    standAction(square, { coins: 0, owned: ["classic", "square"], equipped: "classic" }) === "equip"
   );
   check(
     "an unowned body you can afford offers buy",
-    standAction(bean, { coins: AVATAR_PRICES.bean, owned: ["classic"], equipped: "classic" }) === "buy"
+    standAction(square, { coins: AVATAR_PRICES.square, owned: ["classic"], equipped: "classic" }) === "buy"
   );
   check(
     "one coin short offers nothing",
-    standAction(bean, { coins: AVATAR_PRICES.bean - 1, owned: ["classic"], equipped: "classic" }) === "broke"
+    standAction(square, { coins: AVATAR_PRICES.square - 1, owned: ["classic"], equipped: "classic" }) === "broke"
   );
   check(
     // Owning something you can no longer afford must still be equippable —
     // ordering the ownership test after the balance test would strand it.
     "an owned body is equippable on an empty balance",
-    standAction(bean, { coins: 0, owned: ["classic", "bean"], equipped: "classic" }) === "equip"
+    standAction(square, { coins: 0, owned: ["classic", "square"], equipped: "classic" }) === "equip"
   );
 
   // The free body is the only way back to the default now that the panel is

@@ -179,8 +179,9 @@ console.log("\nfirst person");
    * The gun has to be on screen. The camera is fov 70 vertically (App.tsx), so
    * the view reaches 35 degrees above and below its axis; at 4:3 that is 43
    * degrees to each side (atan(tan 35 * 4/3)). Windows narrower than 4:3 are
-   * deliberately not covered — bean's gun leaves the frame first, and this
-   * check is where that shows up if an arm ever gets shorter still.
+   * deliberately not covered: the shortest arm in the catalogue is the one
+   * whose gun leaves the frame first, and this check is where that shows up if
+   * an arm ever gets shorter still.
    */
   const HALF_FOV_DOWN = 35;
   const HALF_FOV_SIDE = 43;

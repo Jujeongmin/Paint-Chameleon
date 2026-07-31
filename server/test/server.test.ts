@@ -222,7 +222,7 @@ describe("avatar shop", () => {
     server.connect({ account: "user-shop-broke" });
     await server.joinHub("broke");
 
-    const res = await server.buyAvatar("bean");
+    const res = await server.buyAvatar("square");
     expect(res.ok).toBe(false);
     expect(res.reason).toBe("broke");
   });

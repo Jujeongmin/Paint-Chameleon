@@ -224,8 +224,7 @@ export const COINS = { perRound: 5, survived: 5, perCatch: 2 };
  */
 export const AVATAR_PRICES: Record<string, number> = {
   classic: 0,
-  bean: 40,
-  stick: 60,
+  square: 50,
   tank: 90,
 };
 

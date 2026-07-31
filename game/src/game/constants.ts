@@ -126,14 +126,15 @@ export const PAINT_MAX_BATCH = PAINT.maxBatch;
  * the identical dab without needing to know whose body it landed on.
  *
  * Both ends are set by the catalogue's extremes rather than by feel, and
- * check:paint pins them. The coarsest surface is bean's head at 65 texels per
- * world unit, so anything under 0.023 lands beneath the dab's own 1.5-texel
- * floor and the bottom of the slider would stop doing anything. The finest is
- * stick's arm at 349, so anything over 0.34 is clamped by the server on its way
- * to everyone else and the painter would be the only one seeing the real size.
+ * check:paint pins them on every part of every avatar. The coarsest surface is
+ * classic's head at 77 texels per world unit, so anything under 0.0195 lands
+ * beneath the dab's own 1.5-texel floor and the bottom of the slider would
+ * stop doing anything. The finest is classic's arm at 262, so anything over
+ * 0.458 is clamped by the server on its way to everyone else and the painter
+ * would be the only one seeing the size they picked.
  */
 export const BRUSH = {
-  min: 0.025,
+  min: 0.02,
   max: 0.3,
   default: 0.12,
 };

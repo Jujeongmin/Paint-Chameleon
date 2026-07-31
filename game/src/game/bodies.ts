@@ -55,6 +55,15 @@ export interface BodyProfile {
   name: string;
   /** 0 marks the profile everyone starts with. */
   price: number;
+  /**
+   * How the parts are drawn. "round" is spheres and capsules; "box" swaps in
+   * boxes of exactly the same extents — a part of radius r and length l becomes
+   * 2r wide, 2r deep and l + 2r tall, which is the capsule's own bounding box.
+   *
+   * Same extents means every invariant in this file, and poseBounds' silhouette
+   * maths with it, holds without knowing which shape it is looking at.
+   */
+  shape?: "round" | "box";
   head: { r: number };
   torso: { r: number; l: number; y: number };
   arm: { r: number; l: number };
@@ -139,28 +148,17 @@ export const BODIES: BodyProfile[] = [
     hipX: 0.16,
   },
   {
-    id: "bean",
-    name: "콩이",
-    price: 40,
-    head: { r: 0.4 },
-    torso: { r: 0.32, l: 0.3, y: 0.95 },
-    arm: { r: 0.115, l: 0.24 },
-    leg: { r: 0.145, l: 0.2 },
-    shoulderX: 0.335,
-    shoulderY: 1.18,
-    hipX: 0.15,
-  },
-  {
-    id: "stick",
-    name: "막대",
-    price: 60,
-    head: { r: 0.26 },
-    torso: { r: 0.2, l: 0.36, y: 1.06 },
-    arm: { r: 0.075, l: 0.46 },
-    leg: { r: 0.095, l: 0.5 },
-    shoulderX: 0.375,
-    shoulderY: 1.38,
-    hipX: 0.13,
+    id: "square",
+    name: "네모",
+    price: 50,
+    shape: "box",
+    head: { r: 0.3 },
+    torso: { r: 0.28, l: 0.34, y: 0.96 },
+    arm: { r: 0.1, l: 0.34 },
+    leg: { r: 0.13, l: 0.3 },
+    shoulderX: 0.34,
+    shoulderY: 1.3,
+    hipX: 0.16,
   },
   {
     id: "tank",

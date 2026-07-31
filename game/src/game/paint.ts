@@ -102,6 +102,76 @@ function meridian(geometry: THREE.BufferGeometry): Meridian | null {
 }
 
 /**
+ * A box's six faces, unwrapped into a 3x2 grid inside its cell.
+ *
+ * BoxGeometry gives EVERY face the full 0-1 uv square, so straight out of the
+ * box all six share one patch of texture: paint the chest and it appears on the
+ * back, both sides and under the feet. Each face therefore gets its own
+ * sub-cell here.
+ *
+ * One scale for all six, chosen so the largest face fits, rather than each face
+ * stretched to fill its sub-cell — a texel has to be the same size everywhere
+ * on a part or a dab stops being round when it crosses an edge, and the part
+ * would have no single texels-per-world for the brush to convert with.
+ *
+ * Returns false for anything that is not a box, leaving the caller's own path
+ * to handle it.
+ */
+function packBoxUVs(
+  geometry: THREE.BufferGeometry,
+  originU: number,
+  originV: number,
+  cellU: number,
+  cellV: number
+): boolean {
+  const params = (geometry as THREE.BoxGeometry).parameters;
+  const uv = geometry.attributes.uv;
+  if (!params || typeof params.width !== "number" || !uv) return false;
+  // Four vertices per face, six faces, in three.js's order: +X -X +Y -Y +Z -Z.
+  // Anything subdivided would need the index maths below to know its segments.
+  if (uv.count !== 24) return false;
+
+  const { width, height, depth } = params;
+  // Face extents along the face's own u and v, in world units.
+  const faces: Array<[number, number]> = [
+    [depth, height], [depth, height],
+    [width, depth], [width, depth],
+    [width, height], [width, height],
+  ];
+
+  const subU = cellU / 3;
+  const subV = cellV / 2;
+  const padU = Math.min(CELL_PAD, subU * 0.1);
+  const padV = Math.min(CELL_PAD, subV * 0.1);
+
+  let scale = Infinity;
+  for (const [w, h] of faces) {
+    scale = Math.min(scale, (subU - padU * 2) / w, (subV - padV * 2) / h);
+  }
+  if (!(scale > 0) || !Number.isFinite(scale)) return false;
+
+  for (let face = 0; face < 6; face++) {
+    const [w, h] = faces[face];
+    const fitU = w * scale;
+    const fitV = h * scale;
+    const col = face % 3;
+    const row = (face / 3) | 0;
+    const baseU = originU + col * subU + (subU - fitU) / 2;
+    const baseV = originV + row * subV + (subV - fitV) / 2;
+
+    for (let i = face * 4; i < face * 4 + 4; i++) {
+      const u = THREE.MathUtils.clamp(uv.getX(i), 0, 1);
+      const v = THREE.MathUtils.clamp(uv.getY(i), 0, 1);
+      uv.setXY(i, baseU + u * fitU, baseV + v * fitV);
+    }
+  }
+
+  uv.needsUpdate = true;
+  geometry.userData.texelsPerWorld = scale * SURFACE_SIZE;
+  return true;
+}
+
+/**
  * Rewrites a geometry's 0-1 UVs so they occupy one cell of the shared atlas.
  * Geometries are cloned per part before this runs — never share a geometry
  * between two parts or they'll fight over the same region.
@@ -134,6 +204,8 @@ export function packUVs(geometry: THREE.BufferGeometry, part: BodyPart): void {
   const [cx, cy] = PART_CELL[part];
   const cellU = 1 / GRID_COLS;
   const cellV = 1 / GRID_ROWS;
+
+  if (packBoxUVs(geometry, cx * cellU, cy * cellV, cellU, cellV)) return;
 
   const shape = meridian(geometry);
 
