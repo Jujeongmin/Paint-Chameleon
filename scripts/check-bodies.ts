@@ -9,6 +9,7 @@
  */
 
 import { CAMERA, MOVE, STAND_POSE } from "../game/src/game/constants";
+import { aimHandOffset } from "../game/src/game/aim";
 import { poseBounds, poseSize } from "../game/src/game/poseBounds";
 import {
   BODIES,
@@ -168,6 +169,55 @@ console.log("\npose silhouette (poseBounds mirrors Humanoid's rest layout)");
     check(
       `${b.id}: standing half-width is at least maxHalfWidth, within +0.15 (${half.toFixed(3)} vs ${maxHalfWidth(b).toFixed(3)})`,
       half >= maxHalfWidth(b) - 1e-9 && half <= maxHalfWidth(b) + 0.15
+    );
+  }
+}
+
+console.log("\nfirst person");
+{
+  /**
+   * The gun has to be on screen. The camera is fov 70 vertically (App.tsx), so
+   * the view reaches 35 degrees above and below its axis; at 4:3 that is 43
+   * degrees to each side (atan(tan 35 * 4/3)). Windows narrower than 4:3 are
+   * deliberately not covered — bean's gun leaves the frame first, and this
+   * check is where that shows up if an arm ever gets shorter still.
+   */
+  const HALF_FOV_DOWN = 35;
+  const HALF_FOV_SIDE = 43;
+
+  for (const b of BODIES) {
+    const hand = aimHandOffset(b);
+    const down = (Math.atan2(CAMERA.eyeHeight - hand.y, hand.z) * 180) / Math.PI;
+    const side = (Math.atan2(hand.x, hand.z) * 180) / Math.PI;
+
+    check(
+      `${b.id}: the gun sits below the view axis but inside it (${down.toFixed(1)}°)`,
+      down < HALF_FOV_DOWN,
+      `must stay under ${HALF_FOV_DOWN}°`
+    );
+    check(
+      `${b.id}: and inside it sideways at 4:3 (${side.toFixed(1)}°)`,
+      side < HALF_FOV_SIDE,
+      `must stay under ${HALF_FOV_SIDE}°`
+    );
+
+    // In first person the camera sits at eye height inside the head, which is
+    // hidden. If a profile's torso reaches past that height, its top cap
+    // crosses the 0.1 near plane and looking straight down slices your own
+    // chest open. tank has 0.04u of room; this prints the number rather than
+    // letting the fact go unrecorded.
+    const torsoTop = b.torso.y + b.torso.l / 2 + b.torso.r;
+    check(
+      `${b.id}: the eye clears the torso (${(CAMERA.eyeHeight - torsoTop).toFixed(2)}u of room)`,
+      torsoTop < CAMERA.eyeHeight,
+      `torso top ${torsoTop.toFixed(2)} vs eye ${CAMERA.eyeHeight}`
+    );
+
+    // Raising the arm moves the silhouette in Z, never in local X, so the
+    // envelope every other check in this file defends is untouched by aiming.
+    check(
+      `${b.id}: aiming does not widen the body (hand x ${hand.x.toFixed(2)})`,
+      hand.x <= maxHalfWidth(b) + EPS
     );
   }
 }
