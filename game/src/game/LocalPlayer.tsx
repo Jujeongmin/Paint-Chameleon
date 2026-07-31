@@ -3,6 +3,9 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { Humanoid, IDLE_MOTION, type BodyMotion } from "./Humanoid";
 import { Gun, Tracer } from "./Gun";
+import { aimHandOffset } from "./aim";
+import { profileFor } from "./bodies";
+import { cameraModeFor } from "./cameraMode";
 import { useKeyboard, usePointerLook } from "./input";
 import { MAP_BOXES } from "./map";
 import { CELL_BOXES, CELL_FLOOR_Y, CELL_HALF, CELL_SPAWN, HUNT_START } from "./cell";
@@ -116,6 +119,16 @@ export function LocalPlayer({
 
   const look = usePointerLook(!paintMode && !frozen, MOVE.mouseSensitivity, yaw, pitch);
 
+  // Which camera is driving. Read in the render below and in the frame loop —
+  // one value, because R3F re-registers the useFrame callback every render, so
+  // the loop always closes over the latest one.
+  const mode = cameraModeFor({
+    paintMode,
+    charLocked,
+    isSeeker: me.role === "seeker",
+    phase,
+  });
+
   // Start the orbit behind the player so entering paint mode isn't disorienting.
   useEffect(() => {
     if (paintMode) {
@@ -219,9 +232,17 @@ export function LocalPlayer({
     aim: () => ({ pos: motion.current.pos, yaw: bodyYaw.current }),
     onFire: (result) => {
       const [px, py, pz] = motion.current.pos;
-      // From roughly the chest rather than the feet, so the tracer does not
-      // appear to come out of the floor.
-      setTracer({ from: [px, py + CAMERA.shoulderHeight, pz], to: result.point });
+      // From the gun itself. The chest was close enough while the camera sat
+      // 5.2u behind the body; from behind our own eyes it would be a bar
+      // rising out of the bottom of the screen. aimHandOffset is in body
+      // coordinates, so it turns with the body's yaw.
+      const hand = aimHandOffset(profileFor(body));
+      const sin = Math.sin(bodyYaw.current);
+      const cos = Math.cos(bodyYaw.current);
+      setTracer({
+        from: [px + hand.x * cos + hand.z * sin, py + hand.y, pz - hand.x * sin + hand.z * cos],
+        to: result.point,
+      });
       // Our own shot is always at distance 0 — everyone else's arrives over
       // the network and goes through shotGainFor(distance) in useGame.ts.
       playShot(shotGainFor(0));
@@ -287,21 +308,31 @@ export function LocalPlayer({
       group.current.rotation.y = bodyYaw.current;
     }
 
+    const firstPerson = mode === "firstPerson";
+
     bodyFade.current = updateFollowCamera(camera, follow.current, {
       pos: motion.current.pos,
       yaw: paintMode ? orbitYaw.current : yaw.current,
       pitch: paintMode ? orbitPitch.current : pitch.current,
       desired: paintMode
         ? THREE.MathUtils.lerp(CAMERA.paintFar, CAMERA.paintNear, zoom / 100)
-        : CAMERA.playDistance,
-      minDistance: paintMode ? CAMERA.paintMinDistance : CAMERA.minDistance,
+        : firstPerson
+          ? 0
+          : CAMERA.playDistance,
+      minDistance: paintMode ? CAMERA.paintMinDistance : firstPerson ? 0 : CAMERA.minDistance,
       boxes: inCell ? CELL_BOXES : MAP_BOXES,
       dt: step,
-      shoulderHeight: paintMode ? 0.95 : CAMERA.shoulderHeight,
+      // First person pivots at the eyes at both ends of the rig's shoulder-to-
+      // eye lerp, so there is nowhere for the view to travel to and it cannot
+      // sink to the chest while the distance settles.
+      shoulderHeight: paintMode ? 0.95 : firstPerson ? CAMERA.eyeHeight : CAMERA.shoulderHeight,
       eyeHeight: paintMode ? 0.95 : CAMERA.eyeHeight,
       fadeEnd: CAMERA.fadeEnd,
       fadeStart: CAMERA.fadeStart,
-      allowFade: !paintMode,
+      // Fading is the third-person rig's answer to a wall shoving the camera
+      // into the body. At a distance of zero chosen on purpose it would simply
+      // delete the body — and the gun in its hand with it.
+      allowFade: !paintMode && !firstPerson,
       floorY: inCell ? CELL_FLOOR_Y : 0,
     });
 
@@ -341,7 +372,10 @@ export function LocalPlayer({
             pose={pose}
             body={body}
             motionRef={bodyMotion}
-            showOutline={!paintMode}
+            // The outline is a wireframe sphere around the whole body, so in
+            // first person it wraps the camera and draws a cage over the view.
+            showOutline={!paintMode && mode !== "firstPerson"}
+            hideHead={mode === "firstPerson"}
             dimmed={me.caught}
             fadeRef={bodyFade}
             held={
