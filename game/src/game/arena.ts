@@ -32,6 +32,14 @@ export interface MapBox {
   /** Which model to draw here. Absent means the partition panel. */
   family?: string;
   /**
+   * Drawn as a plain textured box rather than a fitted model — the platform
+   * decks. A model is placed at its own scale inside its collider, and no
+   * model in the kit is deck-shaped: fitting one would either stretch it past
+   * recognition or leave it rattling around inside the box it must exactly
+   * fill, and a deck you stand on has to LOOK like the box you stand on.
+   */
+  slab?: true;
+  /**
    * Yaw for the model only — the collider stays axis-aligned.
    *
    * Safe because everything that gets turned has a square footprint, so the
@@ -227,6 +235,142 @@ const BUILDINGS: { model: ModelId; at: [number, number]; rotY?: number }[] = [
 ];
 
 /**
+ * Watchtower platforms — the arena's only second storey.
+ *
+ * One per quadrant. A deck on pillar legs, reached by a stair of crate stacks
+ * rising a crate's height (0.65) per step: under the 1.24 a jump reaches, so
+ * every step is jumpable, and the last rise onto the deck is under the 0.45
+ * STEP_HEIGHT, so it is simply walked. Nothing here invents a new movement
+ * rule — the stair is made of the same boxes the rest of the arena teaches.
+ *
+ * Everything is sized for the giant: each step is two crates side by side
+ * (about 2.6u across) and the deck is DECK_SIZE square, so the 0.9-radius
+ * seeker climbs the same stair a hider does. That is the design's one hard
+ * rule — a perch the seeker cannot follow to is a place the game cannot end —
+ * and check:map drives the real integrator up every climb route at BOTH radii
+ * to hold it.
+ */
+export interface Platform {
+  id: string;
+  /** Deck centre. */
+  at: [number, number];
+  /** Which side the stair descends toward: the sign and axis of approach. */
+  from: "+x" | "-x" | "+z" | "-z";
+}
+
+/**
+ * Deck top surface height. Above every prop family (tallest is 2.0), and the
+ * last rise from the third tread (3 crates, 1.95) is 0.40 — strictly under
+ * STEP_HEIGHT 0.45 rather than exactly on it, because a boundary value walks
+ * or doesn't depending on which side of a <= someone wrote.
+ */
+export const DECK_TOP = 2.35;
+export const DECK_SIZE = 4.6;
+const DECK_THICKNESS = 0.4;
+
+export const PLATFORMS: Platform[] = [
+  // Positions dodge the cluster slots — a stair tread parked on a designed
+  // hiding slot fails check:map's "the slot is empty", which is how the first
+  // placement of these was caught.
+  { id: "nw", at: [-24, -24], from: "-x" },
+  { id: "ne", at: [30, -30], from: "-x" },
+  { id: "sw", at: [-28, 28], from: "+z" },
+  { id: "se", at: [26, 24], from: "+z" },
+];
+
+/** Unit vector of a Platform's `from` side. */
+function sideOf(from: Platform["from"]): [number, number] {
+  switch (from) {
+    case "+x": return [1, 0];
+    case "-x": return [-1, 0];
+    case "+z": return [0, 1];
+    default: return [0, -1];
+  }
+}
+
+/**
+ * The stair's tread positions, lowest first, plus the deck centre last — which
+ * is also the climb route check:map replays with the physics integrator, for
+ * a hider's radius and the seeker's. The y of each entry is the surface you
+ * stand on when you get there; the check only asserts the last one.
+ */
+export function climbRoute(p: Platform): { x: number; z: number; top: number }[] {
+  const crate = colliderFor("crate");
+  const [dx, dz] = sideOf(p.from);
+  const edge = DECK_SIZE / 2;
+  const out: { x: number; z: number; top: number }[] = [];
+
+  // Three tread levels: 1, 2 and 3 crates tall — the lowest is the farthest
+  // out, so pushing in level order lists the route ground-first. (An earlier
+  // unshift here listed the tallest tread first, and the climb check walked
+  // the stair backwards.)
+  for (let level = 1; level <= 3; level++) {
+    const distance = edge + crate[2] / 2 + (3 - level) * crate[2];
+    out.push({
+      x: p.at[0] + dx * distance,
+      z: p.at[1] + dz * distance,
+      top: crate[1] * level,
+    });
+  }
+  out.push({ x: p.at[0], z: p.at[1], top: DECK_TOP });
+  return out;
+}
+
+function platformBoxes(p: Platform): MapBox[] {
+  const crate = colliderFor("crate");
+  const pillar = colliderFor("pillar");
+  const [dx, dz] = sideOf(p.from);
+  // Treads run across the approach: x-approach spreads them in z and back.
+  const [ax, az] = [Math.abs(dz), Math.abs(dx)];
+  const boxes: MapBox[] = [];
+
+  // Deck. Its top lands on DECK_TOP exactly; the legs stop underneath it.
+  boxes.push({
+    p: [p.at[0], DECK_TOP - DECK_THICKNESS / 2, p.at[1]],
+    s: [DECK_SIZE, DECK_THICKNESS, DECK_SIZE],
+    c: WALL_COLOR,
+    wall: true,
+    slab: true,
+  });
+
+  // Four pillar legs, inset a leg's width from the corners.
+  const inset = DECK_SIZE / 2 - pillar[0] / 2 - 0.1;
+  for (const cx of [-inset, inset]) {
+    for (const cz of [-inset, inset]) {
+      boxes.push({
+        p: [p.at[0] + cx, pillar[1] / 2, p.at[1] + cz],
+        s: [...pillar] as [number, number, number],
+        c: WALL_COLOR,
+        family: "pillar",
+      });
+    }
+  }
+
+  // The stair: at each level, a stack of crates two abreast.
+  for (let level = 1; level <= 3; level++) {
+    const distance = DECK_SIZE / 2 + crate[2] / 2 + (3 - level) * crate[2];
+    const cx = p.at[0] + dx * distance;
+    const cz = p.at[1] + dz * distance;
+    for (const side of [-0.5, 0.5]) {
+      for (let stacked = 0; stacked < level; stacked++) {
+        boxes.push({
+          p: [
+            cx + ax * side * crate[0],
+            crate[1] * stacked + crate[1] / 2,
+            cz + az * side * crate[0],
+          ],
+          s: [...crate] as [number, number, number],
+          c: familyOf("crate").colors[(level + stacked) % 2],
+          family: "crate",
+        });
+      }
+    }
+  }
+
+  return boxes;
+}
+
+/**
  * Loose clutter, on top of the designed rows.
  *
  * The rows give a seeker somewhere to look; the clutter is what makes looking
@@ -242,7 +386,12 @@ const CLUTTER_SEED = 20260729;
  * starts closing routes, which check:map catches.
  */
 const CLUTTER_ATTEMPTS = 40000;
-const CLUTTER_TARGET = 440;
+/**
+ * 440 -> 640 with the instancing pass: repeated models now cost one draw per
+ * (geometry, material) pair rather than per prop, so density is bounded by
+ * routes staying open (check:map) rather than by draw calls again.
+ */
+const CLUTTER_TARGET = 640;
 
 /** mulberry32 — small and deterministic. */
 function rng(seed: number) {
@@ -337,6 +486,10 @@ export function buildArena(): MapBox[] {
     });
   }
 
+  // Platforms before clutter, so the sampler treats a stair tread like any
+  // other thing it must not fuse against.
+  for (const p of PLATFORMS) boxes.push(...platformBoxes(p));
+
   // Clutter goes last so it can be rejected against everything already placed.
   const random = rng(CLUTTER_SEED);
   const kinds: ModelId[] = ["drum", "crate", "pallet", "tank", "chimney"];
@@ -355,13 +508,20 @@ export function buildArena(): MapBox[] {
     if (SPAWN_POINTS.some(([sx, sz]) => Math.hypot(x - sx, z - sz) < 2.5)) continue;
     // The designed slots are the one thing clutter must not fill in.
     if (CLUSTERS.some((c) => { const [sx, sz] = slotOf(c); return Math.hypot(x - sx, z - sz) < 2.5; })) continue;
+    // Nor the climb routes: the stair only counts as a stair if the giant can
+    // walk up to its first tread, and the clear-gap test below keeps clutter a
+    // body's width from the treads themselves, not from the approach to them.
+    if (PLATFORMS.some((p) => climbRoute(p).some((w) => Math.hypot(x - w.x, z - w.z) < 2.8))) continue;
 
-    // Leave a body's width between this and anything already down, or the
-    // clutter fuses into walls and starts closing routes off.
+    // Leave the GIANT's width between this and anything already down — the
+    // seeker is 0.9 in radius, so a 1.0 gap that lets a hider slip through is
+    // a wall to the seeker, and at 640 pieces those walls joined up into a
+    // ring that sealed the arena centre off entirely (caught by check:map's
+    // seeker-reachability sweep, which is exactly the failure it exists for).
     const clear = boxes.every((b) => {
       const gapX = Math.abs(x - b.p[0]) - (size[0] + b.s[0]) / 2;
       const gapZ = Math.abs(z - b.p[2]) - (size[2] + b.s[2]) / 2;
-      return Math.max(gapX, gapZ) > 1.0;
+      return Math.max(gapX, gapZ) > 1.9;
     });
     if (!clear) continue;
 

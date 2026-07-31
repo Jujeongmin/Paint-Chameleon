@@ -15,7 +15,7 @@ import {
   stepMotion,
   wishDirection,
 } from "../game/src/game/movement";
-import { groundHeightAt, moveXZ, MAP_BOXES, ARENA, STEP_HEIGHT } from "../game/src/game/map";
+import { groundHeightAt, moveXZ, MAP_BOXES, ARENA, STEP_HEIGHT, type MapBox } from "../game/src/game/map";
 import { bodyFadeFor, cameraInsideSolid, clearCameraDistance } from "../game/src/game/camera";
 import { CAMERA, MOVE } from "../game/src/game/constants";
 import { BODIES, derive } from "../game/src/game/bodies";
@@ -249,19 +249,38 @@ console.log("\nground and jumping");
 console.log("\ncorner escape");
 
 {
-  // A known concave pinch point: a player holding pure forward (no steering)
-  // toward this exact spot used to stall for 3.75s once moveXZ's per-axis
-  // checks both failed at once. The push-out fix in moveXZ should let them
-  // work free in well under a second instead of freezing solid.
-  const state = createMotionState([5.0, 0, 12.3]);
-  const heading = 3.69;
+  // What this pins is moveXZ's push-out: before it, a player holding pure
+  // forward into a concave corner froze for 3.75 seconds once both per-axis
+  // checks failed at once. It used to test that against a pinch that happened
+  // to exist in the live map at [5.0, 12.3] — which broke the day the clutter
+  // was rebuilt, because a check aimed at movement code was really pinned to
+  // a layout. So the corner is now synthetic: two boxes forming an L, walked
+  // into diagonally, the exact shape the original bug needed. The live map's
+  // own worst pockets are the walkability checks' business in check:map.
+  // Two prop-sized boxes forming a genuine dead-end inside corner. Any
+  // heading between the two face normals has no free tangent, so pure forward
+  // cannot slide out — every frame both axes are blocked at once, which is
+  // precisely the state that used to freeze the player solid (3.75s at the
+  // pinch that existed in the old layout; unbounded in a corner like this).
+  // The push-out's guarantee is that its accumulated displacement still works
+  // the body loose in a couple of seconds even here, where sliding cannot.
+  const corner: MapBox[] = [
+    { p: [1.0, 1, 0], s: [1.3, 2, 1.3], c: 0 },
+    { p: [0, 1, 1.0], s: [1.3, 2, 1.3], c: 0 },
+  ];
+  const state = createMotionState([1.8, 0, 1.8]);
+  // Into the corner, a shade off the exact diagonal. The perfect diagonal is
+  // a knife-edge this engine has never promised anything about — the push-out
+  // direction flips sides every frame and freeing takes ~1.5s. Any real
+  // approach is askew, and askew is what the original 3.75s freeze was too.
+  const heading = Math.atan2(-1, -1) + 0.12;
   const dt = 1 / 60;
   let stuckFrames = 0;
   let maxStuck = 0;
   for (let i = 0; i < 300; i++) {
     const before: [number, number] = [state.pos[0], state.pos[2]];
     stepMotion(state, { forward: 1, strafe: 0, jump: false }, heading, {
-      boxes: MAP_BOXES,
+      boxes: corner,
       dt,
       now: i * dt * 1000,
       speed: MOVE.hiderSpeed,
@@ -276,9 +295,16 @@ console.log("\ncorner escape");
     }
   }
   const stallSeconds = maxStuck / 60;
+  // The walker ENDS parked against the corner, and that is correct — pure
+  // forward into a dead end has nowhere to go, and a real player unsticks by
+  // steering. What must not happen is the dead freeze: with the push-out
+  // disabled this same run spends 4.77 of its 5 seconds in a sub-3mm-per-frame
+  // stall, because both per-axis checks fail at once and all motion stops.
+  // With it, the longest such stall stays under 2s and the body visibly keeps
+  // responding.
   check(
-    `pure-forward into a concave pinch frees up in under 1s (got ${stallSeconds.toFixed(2)}s)`,
-    stallSeconds < 1
+    `pure-forward into a dead-end corner never freezes for 2s (worst stall ${stallSeconds.toFixed(2)}s)`,
+    stallSeconds < 2
   );
 }
 

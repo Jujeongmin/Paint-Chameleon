@@ -10,7 +10,17 @@
  * Run: npm run check:map
  */
 
-import { MAP_BOXES, SPAWN_POINTS, ARENA, CLUSTERS, slotOf } from "../game/src/game/arena";
+import {
+  MAP_BOXES,
+  SPAWN_POINTS,
+  ARENA,
+  CLUSTERS,
+  DECK_TOP,
+  PLATFORMS,
+  climbRoute,
+  slotOf,
+} from "../game/src/game/arena";
+import { INSTANCE_MIN, instancingPlan, modelDrawn } from "../game/src/game/instancing";
 import { groundHeightAt, playerBlockedAt, STEP_HEIGHT } from "../game/src/game/map";
 import { createMotionState, stepMotion } from "../game/src/game/movement";
 import { MOVE, SEEKER_SCALE } from "../game/src/game/constants";
@@ -267,6 +277,88 @@ console.log("\nthe giant seeker can reach every hiding zone");
     }
     check(`the seeker (radius ${R}) can get within 2u of spawn [${sx}, ${sz}]`, ok);
   }
+}
+
+console.log("\nevery platform can be climbed, by both body sizes");
+{
+  // The stairs' whole contract: drive the real integrator along each climb
+  // route with jump held, at the hider's radius AND the giant seeker's. A
+  // perch the seeker cannot follow a hider to is a place the game cannot end,
+  // so a red here is a layout bug, not a balance choice. The route is data in
+  // arena.ts — move a platform without moving its route and this fails.
+  const dt = 1 / 60;
+  for (const platform of PLATFORMS) {
+    const route = climbRoute(platform);
+    const deck = route[route.length - 1];
+
+    for (const radius of [MOVE.playerRadius, MOVE.playerRadius * SEEKER_SCALE]) {
+      // Start two units out from the first tread, on the approach line.
+      const first = route[0];
+      const away = Math.atan2(first.x - deck.x, first.z - deck.z);
+      const state = createMotionState([
+        first.x + Math.sin(away) * 2,
+        0,
+        first.z + Math.cos(away) * 2,
+      ]);
+
+      // One clock across the whole climb. Restarting `now` at each waypoint
+      // made now - lastGroundedAt negative, which reads as inside the coyote
+      // window forever — the walker jumped in mid-air every pulse and flew to
+      // the deck at y 7.8. The game itself feeds performance.now(), which is
+      // monotonic; the bug was this driver's alone.
+      let frame = 0;
+      for (const waypoint of route) {
+        for (let i = 0; i < 240; i++, frame++) {
+          const dx = waypoint.x - state.pos[0];
+          const dz = waypoint.z - state.pos[2];
+          if (Math.hypot(dx, dz) < 0.35) break;
+          // Pulsed, not held: stepMotion launches on jump's RISING edge, so a
+          // held true fires exactly one jump per climb and the walker parks on
+          // the first tread forever — which is how this check first failed.
+          stepMotion(state, { forward: 1, strafe: 0, jump: (i / 12) % 2 < 1 }, Math.atan2(dx, dz), {
+            boxes: MAP_BOXES,
+            dt,
+            now: frame * dt * 1000,
+            speed: MOVE.seekerSpeed,
+            radius,
+          });
+        }
+      }
+
+      check(
+        `${platform.id}: radius ${radius} reaches the deck (y ${state.pos[1].toFixed(2)} on top ${deck.top})`,
+        state.pos[1] >= deck.top - 1e-6 &&
+          Math.hypot(state.pos[0] - deck.x, state.pos[2] - deck.z) < 1.2
+      );
+    }
+  }
+
+  // And the deck itself is above every prop nearby, or the "second storey"
+  // is just another crate.
+  check(`the deck (${DECK_TOP}) clears the tallest prop family`, DECK_TOP > 2.0);
+}
+
+console.log("\nrepeated models are instanced");
+{
+  // The renderer splits models by repetition (instancing.ts). If a model with
+  // hundreds of copies falls out of the instanced set, every copy goes back
+  // to being its own cloned scene graph — the exact cost the pass removed.
+  const plan = instancingPlan(modelDrawn(MAP_BOXES, ARENA.wallHeight));
+  const counts = new Map<string, number>();
+  for (const b of modelDrawn(MAP_BOXES, ARENA.wallHeight)) {
+    const id = b.family ?? "partition";
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  for (const [id, n] of counts) {
+    if (n >= INSTANCE_MIN) {
+      check(`${id} (${n} copies) takes the instanced path`, plan.instanced.has(id));
+    }
+  }
+  const instancedBoxes = [...plan.instanced.values()].reduce((sum, l) => sum + l.length, 0);
+  check(
+    `instancing covers most of the arena (${instancedBoxes} instanced vs ${plan.singles.length} singles)`,
+    instancedBoxes > plan.singles.length * 10
+  );
 }
 
 console.log("\nsightlines from the centre");

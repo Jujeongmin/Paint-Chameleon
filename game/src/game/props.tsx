@@ -59,6 +59,44 @@ export function useProps(): Loaded {
  * colour, and these materials are one shared texture atlas — without it,
  * picking any prop returns whatever the atlas material happens to say.
  */
+/**
+ * The (geometry, material, local transform) parts of one model, at its kit
+ * scale and centred like placeModel leaves it — the flattened form
+ * InstancedMesh needs, since an instance is one geometry drawn many times and
+ * a GLB scene is a tree.
+ *
+ * The world matrices are baked while the model sits in a temporary holder
+ * whose transform matches what placeModel would apply, so an instanced prop
+ * and a placed one land pixel-identically.
+ */
+export function meshParts(
+  id: ModelId,
+  source: THREE.Object3D
+): { geometry: THREE.BufferGeometry; material: THREE.Material; matrix: THREE.Matrix4 }[] {
+  const model = source.clone(true);
+  const { scale } = MODELS[id];
+
+  const box = new THREE.Box3().setFromObject(model);
+  const centre = new THREE.Vector3();
+  box.getCenter(centre);
+
+  const holder = new THREE.Group();
+  model.position.set(-centre.x, -centre.y, -centre.z);
+  holder.add(model);
+  holder.scale.setScalar(scale);
+  holder.updateMatrixWorld(true);
+
+  const parts: { geometry: THREE.BufferGeometry; material: THREE.Material; matrix: THREE.Matrix4 }[] = [];
+  holder.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (mesh.isMesh) {
+      const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+      parts.push({ geometry: mesh.geometry, material, matrix: mesh.matrixWorld.clone() });
+    }
+  });
+  return parts;
+}
+
 export function placeModel(id: ModelId, pickColor: number, source: THREE.Object3D): THREE.Object3D {
   const model = source.clone(true);
   const { scale } = MODELS[id];

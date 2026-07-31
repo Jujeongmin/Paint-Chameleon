@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import { ThreeEvent, useLoader, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { ARENA, FLOOR_COLOR, MAP_BOXES, WALL_COLOR } from "./map";
-import { placeModel, useProps, type ModelId } from "./props";
+import { instancingPlan, modelDrawn } from "./instancing";
+import { meshParts, placeModel, useProps, type ModelId } from "./props";
 
 /**
  * The arena, drawn.
@@ -91,16 +92,47 @@ export function Arena({ onPickColor }: Props) {
   // recognition, and the corrugated steel texture reads fine at that size.
   const perimeter = useMemo(() => MAP_BOXES.filter((b) => b.wall && b.s[1] === ARENA.wallHeight), []);
 
-  // Everything else is a model at its own scale, standing in its collider —
-  // partitions included. Building them once matters: each clones a scene graph.
+  // Platform decks: structure you stand on, drawn as the textured box that IS
+  // the collider — no model in the kit is deck-shaped.
+  const slabs = useMemo(() => MAP_BOXES.filter((b) => b.slab), []);
+
+  // Everything model-drawn splits by repetition (instancing.ts): repeated
+  // models become one InstancedMesh per (geometry, material) part, one-offs
+  // keep the cloned-scene path. Rebuilding these once matters either way.
+  const plan = useMemo(() => instancingPlan(modelDrawn(MAP_BOXES, ARENA.wallHeight)), []);
+
   const fitted = useMemo(
     () =>
-      MAP_BOXES.filter((b) => !(b.wall && b.s[1] === ARENA.wallHeight)).map((b) => {
+      plan.singles.map((b) => {
         const id = (b.family ?? "partition") as ModelId;
         return { box: b, object: placeModel(id, b.c, models[id]) };
       }),
-    [models]
+    [plan, models]
   );
+
+  const instanced = useMemo(() => {
+    const scratch = new THREE.Matrix4();
+    const rotation = new THREE.Matrix4();
+    const meshes: { mesh: THREE.InstancedMesh; colors: number[] }[] = [];
+
+    for (const [id, boxes] of plan.instanced) {
+      for (const part of meshParts(id as ModelId, models[id as ModelId])) {
+        const mesh = new THREE.InstancedMesh(part.geometry, part.material, boxes.length);
+        boxes.forEach((b, i) => {
+          // Box transform first, then the part's own place inside the model.
+          scratch.makeTranslation(b.p[0], b.p[1], b.p[2]);
+          if (b.rotY) scratch.multiply(rotation.makeRotationY(b.rotY));
+          scratch.multiply(part.matrix);
+          mesh.setMatrixAt(i, scratch);
+        });
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        meshes.push({ mesh, colors: boxes.map((b) => b.c) });
+      }
+    }
+    return meshes;
+  }, [plan, models]);
 
   // One material per wall: a box's faces are metres apart in size, so a shared
   // repeat would stretch the texture differently on each of them.
@@ -150,6 +182,23 @@ export function Arena({ onPickColor }: Props) {
         </mesh>
       ))}
 
+      {slabs.map((b, i) => (
+        <mesh
+          key={`slab-${i}`}
+          position={b.p}
+          castShadow
+          receiveShadow
+          userData={{ pickColor: WALL_COLOR }}
+          onClick={pick(WALL_COLOR)}
+        >
+          <boxGeometry args={b.s} />
+          <meshStandardMaterial
+            {...tiled(wallSource, Math.max(b.s[0], b.s[2]) / TILE, Math.max(b.s[0], b.s[2]) / TILE, anisotropy)}
+            roughness={1}
+          />
+        </mesh>
+      ))}
+
       {fitted.map(({ box, object }, i) => (
         <primitive
           key={`prop-${i}`}
@@ -157,6 +206,20 @@ export function Arena({ onPickColor }: Props) {
           position={box.p}
           rotation-y={box.rotY ?? 0}
           onClick={pick(box.c)}
+        />
+      ))}
+
+      {instanced.map(({ mesh, colors }, i) => (
+        <primitive
+          key={`inst-${i}`}
+          object={mesh}
+          onClick={(e: ThreeEvent<MouseEvent>) => {
+            // Instances share one mesh, so the colour has to come from which
+            // instance the ray hit rather than from the object.
+            if (!onPickColor || e.instanceId === undefined) return;
+            e.stopPropagation();
+            onPickColor(colors[e.instanceId] ?? WALL_COLOR);
+          }}
         />
       ))}
     </group>
