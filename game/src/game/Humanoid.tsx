@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { packUVs, surfaceFor, type BodyPart } from "./paint";
+import { surfaceFor } from "./paint";
+import { buildPartGeometries } from "./bodyGeometry";
 import { MOVE, POSES } from "./constants";
 import { derive, profileFor } from "./bodies";
 
@@ -14,8 +15,8 @@ import { derive, profileFor } from "./bodies";
  * about its own middle, which is invisible on a small walk swing but obviously
  * wrong the moment a pose throws the arms overhead.
  *
- * Every part clones its own geometry — packUVs rewrites UVs in place, so two
- * parts sharing a geometry would fight over the same texture cell.
+ * The meshes themselves come from bodyGeometry.ts, which is also what
+ * check:paint measures — this file only poses them.
  */
 
 /** Live locomotion state, read once per frame. */
@@ -77,20 +78,7 @@ export function Humanoid({ account, pose, motionRef, dimmed, showOutline, fadeRe
   const profile = profileFor(body);
   const { headY, hipY, armHalf, legHalf } = useMemo(() => derive(profile), [profile]);
 
-  const geoms = useMemo(() => {
-    const make = (geometry: THREE.BufferGeometry, part: BodyPart) => {
-      packUVs(geometry, part);
-      return geometry;
-    };
-    return {
-      head: make(new THREE.SphereGeometry(profile.head.r, 24, 18), "head"),
-      torso: make(new THREE.CapsuleGeometry(profile.torso.r, profile.torso.l, 6, 18), "torso"),
-      armL: make(new THREE.CapsuleGeometry(profile.arm.r, profile.arm.l, 4, 12), "armL"),
-      armR: make(new THREE.CapsuleGeometry(profile.arm.r, profile.arm.l, 4, 12), "armR"),
-      legL: make(new THREE.CapsuleGeometry(profile.leg.r, profile.leg.l, 4, 12), "legL"),
-      legR: make(new THREE.CapsuleGeometry(profile.leg.r, profile.leg.l, 4, 12), "legR"),
-    };
-  }, [profile]);
+  const geoms = useMemo(() => buildPartGeometries(profile), [profile]);
 
   const material = useMemo(
     () =>
