@@ -188,6 +188,15 @@ export function usePointerLook(
     if (!canvas) return;
 
     if (!enabled) {
+      // Clearing the flag by hand is not belt-and-braces, it is the whole
+      // thing: exitPointerLock fires pointerlockchange, but the listener that
+      // would clear this ref was torn down with the previous run of this
+      // effect, so nothing else ever sets it back to false. Left true, every
+      // later tryLock returns on its first line as "already locked" while the
+      // document holds no lock at all — which is why the mouse could not be
+      // recaptured after the pose menu, the paint panel, being caught, or the
+      // results screen had each turned looking off once.
+      locked.current = false;
       if (document.pointerLockElement === canvas) document.exitPointerLock();
       return;
     }
@@ -241,7 +250,10 @@ export function usePointerLook(
      * failing, which costs nothing — and reportLockRefused only ever logs once.
      */
     const tryLock = (fromGesture: boolean) => {
-      if (locked.current || document.pointerLockElement === canvas) return;
+      // The document is the authority on whether we hold the lock; locked.current
+      // is a mirror of it kept for the render loop, and a mirror can be stale.
+      // Asking the document costs nothing here and cannot go out of date.
+      if (document.pointerLockElement === canvas) return;
       auto = !fromGesture;
       const result = canvas.requestPointerLock?.() as unknown as Promise<void> | undefined;
       if (result && typeof result.catch === "function") result.catch(refuse);
