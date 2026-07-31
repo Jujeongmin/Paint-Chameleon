@@ -43,16 +43,19 @@ export function cameraModeFor({
  * point of flying — so this box is the only thing keeping the camera out of the
  * void under the map and off past the walls.
  *
- * The ceiling is not a matter of taste. At ARENA.size / 2 the 16:9 view spans
- * 2 * 44 * tan(35 deg) * 16/9 = 110u across, which already contains the whole
- * 88u arena; higher shows nothing new, only smaller. check:camera pins that.
+ * The ceiling is one wall height above the tallest thing on the map, which is
+ * the perimeter wall itself at ARENA.wallHeight. That is the height the job
+ * needs: enough to cross a wall and look down the far side of it, and low
+ * enough that hiding places still read as places rather than as texture. Going
+ * high enough to frame the whole 88u arena at once (about 44u) put the camera
+ * so far up that it was no longer looking at anything in particular.
  */
 export const FREE_FLY = {
   /** World units per second. Roughly three times a hider's walk. */
   speed: 18,
   half: ARENA.size / 2,
   floor: CAMERA_FLOOR,
-  ceiling: ARENA.size / 2,
+  ceiling: ARENA.wallHeight * 2,
 };
 
 export function clampFreeCamera(x: number, y: number, z: number): [number, number, number] {

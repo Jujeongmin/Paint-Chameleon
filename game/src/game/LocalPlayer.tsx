@@ -329,7 +329,9 @@ export function LocalPlayer({
         -Math.sin(pitch.current),
         Math.cos(yaw.current) * Math.cos(pitch.current)
       );
-      const right = flyScratch.current.right.set(Math.cos(yaw.current), 0, -Math.sin(yaw.current));
+      // Right is forward crossed with up, which movement.ts writes as
+      // (-cos yaw, sin yaw) — negating that is what had D strafing left.
+      const right = flyScratch.current.right.set(-Math.cos(yaw.current), 0, Math.sin(yaw.current));
       const reach = FREE_FLY.speed * step;
 
       const [fx, fy, fz] = clampFreeCamera(

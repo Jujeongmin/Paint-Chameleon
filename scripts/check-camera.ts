@@ -9,6 +9,7 @@ import {
   type CameraModeInput,
 } from "../game/src/game/cameraMode";
 import { ARENA } from "../game/src/game/arena";
+import { MAP_BOXES } from "../game/src/game/map";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = ""): void {
@@ -75,13 +76,15 @@ check(
   inside.join(", ")
 );
 
-// The ceiling's entire justification: from up there the whole map is in frame.
-const HALF_FOV = (35 * Math.PI) / 180;
-const span = 2 * FREE_FLY.ceiling * Math.tan(HALF_FOV) * (16 / 9);
+// The ceiling's justification: it clears everything standing on the map with
+// a wall's worth of room to spare, so you can cross a wall and look down the
+// far side of it. Measured against the map itself, not against the constant it
+// was derived from — a taller structure added later fails here.
+const tallest = MAP_BOXES.reduce((most, b) => Math.max(most, b.p[1] + b.s[1] / 2), 0);
 check(
-  "the ceiling is high enough to hold the whole arena in view",
-  span >= ARENA.size,
-  `${span.toFixed(0)}u across at 16:9 vs ${ARENA.size}u of arena`
+  "the ceiling clears the tallest thing on the map by a wall height",
+  FREE_FLY.ceiling >= tallest + ARENA.wallHeight,
+  `ceiling ${FREE_FLY.ceiling} vs tallest ${tallest.toFixed(1)} + ${ARENA.wallHeight}`
 );
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall good");
