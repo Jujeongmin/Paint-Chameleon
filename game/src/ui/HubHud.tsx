@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PortalProgress } from "../hub/HubPlayer";
 import type { Stand } from "../hub/hubMap";
 import type { PlayerState } from "../net/types";
+import { KeyHints, type KeyHint } from "./KeyHints";
 import { ShopPrompt } from "./ShopPrompt";
 import type { Wallet } from "./useWallet";
 
@@ -77,21 +78,26 @@ export function HubHud({
       {/* The cursor is hidden out here too, so the aim point has to be visible. */}
       <div className="crosshair" />
 
-      <div className="hint">
-        {/* Basic controls are a tutorial — drop it once they've been used. */}
-        {showControls && (
-          <>
-            <div>
-              <kbd>W</kbd>
-              <kbd>A</kbd>
-              <kbd>S</kbd>
-              <kbd>D</kbd> 이동 · <kbd>Space</kbd> 점프
-            </div>
-            <div>마우스로 시점</div>
-          </>
-        )}
-        <div>포털 안에 잠시 서 있으면 게임이 시작됩니다</div>
-      </div>
+      {/* Same rail as the match, so walking through the portal does not change
+          what the controls look like.
+
+          Entering a match is NOT a chip. Every cap on the rail is a key you can
+          find on the keyboard, and starting a match is a matter of standing
+          still — a chip with "서 있기" printed where W and F go would teach the
+          wrong thing about what the row is. It gets a plain line instead. */}
+      <div className="rail-note">포털 안에 잠시 서 있으면 게임이 시작됩니다</div>
+      <KeyHints
+        hints={[
+          ...(showControls
+            ? ([
+                { cap: "WASD", icon: "move", label: "이동", tone: "move" },
+                { cap: "SPACE", icon: "jump", label: "점프", tone: "move" },
+                { cap: "MOUSE", icon: "look", label: "시점", tone: "move" },
+              ] as KeyHint[])
+            : []),
+          { cap: "E", icon: "shop", label: "상점", tone: "pose" },
+        ]}
+      />
 
       {joining && (
         <div className="banner">

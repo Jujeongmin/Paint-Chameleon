@@ -125,6 +125,9 @@ body.hide-cursor canvas {
 /* -------------------------------------------------------------------- HUD */
 
 .hud-top {
+  /* The phase's colour, set once here and used by the timer and the drain, so
+     the bar and the number can never disagree about what phase it is. */
+  --phase: var(--muted);
   position: absolute;
   top: 16px;
   left: 50%;
@@ -132,11 +135,44 @@ body.hide-cursor canvas {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 10px 18px;
+  padding: 10px 18px 12px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 999px;
   backdrop-filter: blur(8px);
+  overflow: hidden;
+}
+
+.hud-top.phase-hiding { --phase: var(--hider); }
+.hud-top.phase-seeking { --phase: var(--seeker); }
+.hud-top.phase-results { --phase: var(--accent); }
+
+/*
+ * The clock as a length. It drains left and right from the middle rather than
+ * emptying one way, because the pill is centred on the crosshair's axis and a
+ * one-sided bar made the whole bar look off-centre as it shrank.
+ */
+.phase-drain {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.phase-drain-fill {
+  display: block;
+  height: 100%;
+  background: var(--phase);
+  transform-origin: center;
+  transition: transform 0.9s linear;
+}
+
+/* The number of people still out there is the seeker's whole job. */
+.tally {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 .phase-label {
@@ -147,15 +183,41 @@ body.hide-cursor canvas {
 }
 
 .timer {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
   min-width: 46px;
   text-align: center;
+  color: var(--phase);
 }
 
+/* The last ten seconds. The pulse is on the whole number rather than a colour
+   swap alone, so it still reads during the seeking phase where the phase
+   colour is already the danger colour. */
 .timer.urgent {
   color: var(--danger);
+  animation: timer-pulse 1s steps(1, end) infinite;
+}
+
+@keyframes timer-pulse {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  61%,
+  100% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timer.urgent {
+    animation: none;
+  }
+  .phase-drain-fill {
+    transition: none;
+  }
 }
 
 .role-chip {
@@ -232,47 +294,169 @@ body.hide-cursor canvas {
   flex: 0 0 auto;
 }
 
-.camo-wrap {
+/* --------------------------------------------------------- the control rail
+ *
+ * A row of squares under the crosshair, one per thing you can do. Sized and
+ * shaped to match the paint panel's tool buttons (64x72, 12px radius, hard
+ * offset shadow) so the game and its paint mode read as one interface.
+ *
+ * pointer-events is off for the whole rail and never turned back on. The
+ * .overlay rule hands every direct child `auto`, and this one sits low and
+ * centred — right where a seeker aims. A chip that swallowed a click would eat
+ * a shot, and there is nothing here to click: the rail only reports.
+ */
+
+.keyrail {
   position: absolute;
-  bottom: 22px;
   left: 50%;
+  bottom: 20px;
   transform: translateX(-50%);
-  width: 260px;
-  text-align: center;
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+  max-width: calc(100vw - 32px);
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
-.camo-bar {
-  height: 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+.keychip {
+  --tone: var(--muted);
+  position: relative;
+  min-width: 64px;
+  padding: 8px 10px 9px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(14, 17, 23, 0.8);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.28);
   overflow: hidden;
-  margin-top: 6px;
+  transition: opacity 0.18s ease, border-color 0.18s ease;
 }
 
-.camo-fill {
-  height: 100%;
-  border-radius: 999px;
-  transition: width 0.2s ease, background-color 0.3s ease;
+/* The paint stripe. Full width when the control is live, and it is the only
+   colour on the chip — the icon and cap stay white so they read at speed. */
+.keychip::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--tone);
+  transform-origin: center;
+  transition: transform 0.18s ease;
 }
 
-.camo-label {
+.keychip-icon {
+  color: #fff;
+  line-height: 0;
+}
+
+.keychip-icon svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.keychip-cap {
   font-size: 11px;
-  letter-spacing: 0.08em;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  color: var(--tone);
+  font-variant-numeric: tabular-nums;
+}
+
+.keychip-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.keychip.tone-move { --tone: #9fb0c6; }
+.keychip.tone-hider { --tone: var(--hider); }
+.keychip.tone-seeker { --tone: var(--seeker); }
+.keychip.tone-paint { --tone: #e8a13f; }
+.keychip.tone-pose { --tone: var(--accent); }
+.keychip.tone-pin { --tone: var(--warn); }
+
+/* Not this phase. The chip stays on the rail so the control does not appear to
+   have been taken away; the stripe drains to nothing to say why. */
+.keychip.is-off {
+  opacity: 0.38;
+}
+
+.keychip.is-off::after {
+  transform: scaleX(0.12);
+}
+
+.keychip.is-on {
+  border-color: var(--tone);
+  background: rgba(232, 161, 63, 0.14);
+}
+
+.keychip.is-on .keychip-label {
+  color: var(--tone);
+}
+
+/*
+ * Current pose, sat just above the rail. It is a readout, not a control, so it
+ * is deliberately NOT a chip — a square in the row with no key on it would
+ * read as something you can press.
+ */
+.pose-readout {
+  position: absolute;
+  left: 50%;
+  bottom: 102px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: rgba(14, 17, 23, 0.72);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+
+/* One sentence directly above the rail, for the things that are not keypresses.
+   Sits at the same left/bottom rhythm as the pose readout so the bottom of the
+   screen has one column, not two. */
+.rail-note {
+  position: absolute;
+  left: 50%;
+  bottom: 102px;
+  transform: translateX(-50%);
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: rgba(14, 17, 23, 0.72);
+  border: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--text);
+  white-space: nowrap;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+
+.pose-readout-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
-.hint {
-  position: absolute;
-  bottom: 22px;
-  right: 16px;
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.9;
-  text-align: right;
-}
-
-.hint kbd,
+/* The [E] on the shop prompt, which is a keycap inside a sentence rather than
+   a chip on the rail — you are standing at one specific stand, so the prompt
+   belongs to the stand and not to the row of things you can always do. */
 .stand-action kbd {
   display: inline-block;
   min-width: 20px;
@@ -363,7 +547,8 @@ body.hide-cursor canvas {
 .cell-note {
   position: absolute;
   left: 50%;
-  bottom: 92px;
+  /* Clears the control rail, which is 20px up and about 72px tall. */
+  bottom: 108px;
   transform: translateX(-50%);
   padding: 10px 18px;
   border-radius: 999px;
@@ -707,7 +892,8 @@ body.hide-cursor canvas {
 
 .portal-prompt {
   position: absolute;
-  bottom: 84px;
+  /* Clears the control rail, which is 20px up and about 72px tall. */
+  bottom: 108px;
   left: 50%;
   transform: translateX(-50%);
   width: 300px;
@@ -846,7 +1032,8 @@ body.hide-cursor canvas {
    mannequin it's describing. */
 .stand-prompt {
   position: absolute;
-  bottom: 84px;
+  /* Clears the control rail, which is 20px up and about 72px tall. */
+  bottom: 108px;
   left: 50%;
   transform: translateX(-50%);
   min-width: 220px;

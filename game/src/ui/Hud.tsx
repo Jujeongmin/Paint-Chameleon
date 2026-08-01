@@ -1,4 +1,5 @@
-import { POSES, type Phase } from "../game/constants";
+import { PHASE_SECONDS, POSES, type Phase } from "../game/constants";
+import { KeyHints, type KeyHint } from "./KeyHints";
 import type { PlayerState, RoomInfo } from "../net/types";
 
 const PHASE_LABEL: Record<Phase, string> = {
@@ -45,11 +46,53 @@ export function Hud({
   const hiders = players.filter((p) => p.role === "hider");
   const remaining = hiders.filter((p) => !p.caught).length;
 
+  // How much of this phase is left, as a bar under the timer. The lobby has no
+  // clock — it ends when everyone is ready — so it gets no bar rather than a
+  // full one, which would read as "you have all the time in the world".
+  const total = PHASE_SECONDS[room.phase];
+  const drain = total > 0 ? Math.max(0, Math.min(1, secondsLeft / total)) : 0;
+
+  // The rail below the crosshair. Order is how often you reach for the thing,
+  // not how important it is: movement is muscle memory and goes first so the
+  // things you actually have to read sit nearest the middle of the screen.
+  const hints: KeyHint[] = [];
+  if (showControls) {
+    hints.push({ cap: "WASD", icon: "move", label: "이동", tone: "move" });
+    hints.push({ cap: "SPACE", icon: "jump", label: "점프", tone: "move" });
+    hints.push({ cap: "MOUSE", icon: "look", label: "시점", tone: "move" });
+  }
+  // Posing and painting belong to the hider's half of the round. The seeker can
+  // paint too, but only down in the cell, so the chip is theirs as well.
+  if (!isSeeker) {
+    hints.push({ cap: "G", icon: "pose", label: "자세", tone: "pose", off: !canPose });
+  }
+  if (!isSeeker || room.phase === "hiding") {
+    hints.push({ cap: "F", icon: "paint", label: "페인트", tone: "paint", off: !canPaint });
+  }
+  if (!isSeeker) {
+    hints.push({
+      cap: "R",
+      icon: "pin",
+      label: charLocked ? "고정 해제" : "캐릭터 고정",
+      tone: "pin",
+      on: charLocked,
+    });
+  }
+  if (isSeeker) {
+    hints.push({
+      cap: "CLICK",
+      icon: "shoot",
+      label: "사격",
+      tone: "seeker",
+      off: room.phase !== "seeking",
+    });
+  }
+
   return (
     <div className="overlay">
       {!paintMode && (
         <>
-          <div className="hud-top">
+          <div className={"hud-top phase-" + room.phase}>
             <span className="phase-label">{PHASE_LABEL[room.phase]}</span>
             {room.phase !== "lobby" && (
               <span className={"timer" + (secondsLeft <= 10 ? " urgent" : "")}>{secondsLeft}</span>
@@ -61,10 +104,17 @@ export function Hud({
             )}
             {room.phase === "seeking" && (
               <span className="phase-label">
-                남은 사람 {remaining}/{hiders.length}
+                남은 사람 <b className="tally">{remaining}</b>/{hiders.length}
               </span>
             )}
-            {charLocked && <span className="role-chip locked">🔒 고정됨</span>}
+            {charLocked && <span className="role-chip locked">고정됨</span>}
+            {/* The clock again, as a length rather than a number: a glance at
+                the bar answers "am I nearly out of time" without reading. */}
+            {total > 0 && (
+              <span className="phase-drain">
+                <span className="phase-drain-fill" style={{ transform: `scaleX(${drain})` }} />
+              </span>
+            )}
           </div>
 
           <div className="hud-left">
@@ -100,41 +150,14 @@ export function Hud({
 
           <div className={"crosshair" + (isSeeker && room.phase === "seeking" ? " locked" : "")} />
 
-          <div className="hint">
-            {/* Basic controls are a tutorial — drop it once they've been used. */}
-            {showControls && (
-              <>
-                <div>
-                  <kbd>W</kbd>
-                  <kbd>A</kbd>
-                  <kbd>S</kbd>
-                  <kbd>D</kbd> 이동 · <kbd>Space</kbd> 점프
-                </div>
-                <div>마우스로 시점</div>
-              </>
-            )}
-            {!isSeeker && (
-              <div>
-                <kbd>R</kbd> 캐릭터 고정 {charLocked ? "— 켜짐" : ""}
-              </div>
-            )}
-            <div>
-              현재 자세 — {POSES[pose]?.label ?? "서기"}
-              {canPose && (
-                <>
-                  {" · "}
-                  <kbd>G</kbd> 자세 고르기
-                </>
-              )}
-              {canPaint && (
-                <>
-                  {" · "}
-                  <kbd>F</kbd> 페인트
-                </>
-              )}
+          {!isSeeker && (
+            <div className="pose-readout">
+              <span className="pose-readout-label">자세</span>
+              {POSES[pose]?.label ?? "서기"}
             </div>
-            {isSeeker && room.phase === "seeking" && <div>클릭으로 사격</div>}
-          </div>
+          )}
+
+          <KeyHints hints={hints} />
 
           {isSeeker && room.phase === "hiding" && (
             <div className="cell-note">
