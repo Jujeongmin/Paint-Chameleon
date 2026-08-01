@@ -30,7 +30,7 @@ const TILE = 4;
  * server, and the hooks in it don't see this canvas's store — it fails with
  * "Invalid hook call", which reads like a mistake in this file and isn't.
  */
-const TEXTURE_URLS = [
+export const ARENA_TEXTURE_URLS = [
   "/textures/floor_color.jpg",
   "/textures/floor_normal.jpg",
   "/textures/floor_rough.jpg",
@@ -71,7 +71,7 @@ export function Arena({ onPickColor }: Props) {
   const maxAnisotropy = useThree((s) => s.gl.capabilities.getMaxAnisotropy());
   const anisotropy = Math.min(8, maxAnisotropy);
 
-  const loaded = useLoader(THREE.TextureLoader, TEXTURE_URLS as unknown as string[]);
+  const loaded = useLoader(THREE.TextureLoader, ARENA_TEXTURE_URLS as unknown as string[]);
   const [floorSource, wallSource] = useMemo(() => {
     const group = (i: number): Maps => ({
       map: loaded[i],

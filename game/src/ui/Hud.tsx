@@ -149,8 +149,11 @@ export function Hud({
               </div>
             ))}
             {room.phase === "lobby" && (
-              <button className="btn" style={{ marginTop: 10 }} onClick={onToggleReady}>
-                {ready ? "준비 취소" : "준비 완료"}
+              // The key is on the button rather than in a hint somewhere else:
+              // the button is where you look when you are deciding to press it.
+              <button className="btn ready-btn" style={{ marginTop: 10 }} onClick={onToggleReady}>
+                <span>{ready ? "준비 취소" : "준비 완료"}</span>
+                <kbd>Enter</kbd>
               </button>
             )}
           </div>

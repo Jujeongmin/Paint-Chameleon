@@ -39,6 +39,111 @@ function overlapsXZ(b: MapBox, x: number, z: number, r: number): boolean {
   );
 }
 
+// ------------------------------------------------------------ spatial index
+//
+// Every collision question here used to walk the whole box list. That was fine
+// at ninety boxes and is not at 715: the local player alone asks about six of
+// these a frame, and each of the four bots asks the same again.
+//
+// Worse, the bots' pathfinder asks ~31,000 times in a row — once per grid cell
+// — every time one of them re-plans a route, which is every time the seeker
+// walks within thirteen metres. Measured at 138ms for a single route: eight
+// frames of the game simply stopping, four of them at once if four bots bolt
+// together. That is the stall, and it is what this index exists for.
+//
+// A uniform bucket grid rather than anything cleverer. The arena is flat, the
+// boxes are axis-aligned and none of them move, so the whole structure is built
+// once and never updated — which is also why a box that spans everything (the
+// roof) simply lands in every bucket and costs one extra test per query rather
+// than needing a special case.
+
+/** World units per bucket. About three crates across. */
+const INDEX_CELL = 4;
+
+interface BoxIndex {
+  cells: Map<number, MapBox[]>;
+  /** Reused between queries so a lookup allocates nothing. */
+  seen: Map<MapBox, number>;
+  stamp: number;
+  out: MapBox[];
+}
+
+/**
+ * Keyed on the array itself, so the arena, the hub and the holding cell each
+ * get their own index and a caller passing a one-off list (a check script's
+ * synthetic boxes) still works — it just builds a small index for it.
+ *
+ * WeakMap so a temporary list is collectable.
+ */
+const indexes = new WeakMap<MapBox[], BoxIndex>();
+
+function bucketKey(ix: number, iz: number): number {
+  return (ix + 2048) * 4096 + (iz + 2048);
+}
+
+function indexFor(boxes: MapBox[]): BoxIndex {
+  const existing = indexes.get(boxes);
+  if (existing) return existing;
+
+  const cells = new Map<number, MapBox[]>();
+  for (const b of boxes) {
+    // The widest query padding any caller uses is a body radius; expanding the
+    // footprint by one bucket here means a query never has to look further
+    // than the buckets its own point-plus-radius touches.
+    const x0 = Math.floor((b.p[0] - b.s[0] / 2) / INDEX_CELL);
+    const x1 = Math.floor((b.p[0] + b.s[0] / 2) / INDEX_CELL);
+    const z0 = Math.floor((b.p[2] - b.s[2] / 2) / INDEX_CELL);
+    const z1 = Math.floor((b.p[2] + b.s[2] / 2) / INDEX_CELL);
+    for (let ix = x0; ix <= x1; ix++) {
+      for (let iz = z0; iz <= z1; iz++) {
+        const k = bucketKey(ix, iz);
+        const list = cells.get(k);
+        if (list) list.push(b);
+        else cells.set(k, [b]);
+      }
+    }
+  }
+
+  const index: BoxIndex = { cells, seen: new Map(), stamp: 0, out: [] };
+  indexes.set(boxes, index);
+  return index;
+}
+
+/**
+ * Boxes whose footprint could reach within `r` of (x, z).
+ *
+ * The returned array is REUSED between calls — read it before calling again,
+ * and never hold onto it. That is the whole reason this is fast: the hot paths
+ * below run several times per body per frame and an allocation each would just
+ * move the cost into the garbage collector.
+ */
+function near(x: number, z: number, r: number, boxes: MapBox[]): MapBox[] {
+  const index = indexFor(boxes);
+  const stamp = ++index.stamp;
+  const out = index.out;
+  out.length = 0;
+
+  const x0 = Math.floor((x - r) / INDEX_CELL);
+  const x1 = Math.floor((x + r) / INDEX_CELL);
+  const z0 = Math.floor((z - r) / INDEX_CELL);
+  const z1 = Math.floor((z + r) / INDEX_CELL);
+
+  for (let ix = x0; ix <= x1; ix++) {
+    for (let iz = z0; iz <= z1; iz++) {
+      const list = index.cells.get(bucketKey(ix, iz));
+      if (!list) continue;
+      for (const b of list) {
+        // A box spanning several buckets appears in each of them; the stamp is
+        // what keeps it out of the result twice without allocating a Set.
+        if (index.seen.get(b) === stamp) continue;
+        index.seen.set(b, stamp);
+        out.push(b);
+      }
+    }
+  }
+  return out;
+}
+
 /** True if a box is a wall at this standing height — steppable tops and overhead-clear boxes don't count. */
 function isWallAt(b: MapBox, feetY: number): boolean {
   const top = b.p[1] + b.s[1] / 2;
@@ -64,7 +169,9 @@ export function groundHeightAt(
   floorY = 0
 ): number {
   let best = floorY;
-  for (const b of boxes) {
+  // Only boxes whose footprint reaches this point can hold it up. The epsilon
+  // below is the widest reach any of them needs.
+  for (const b of near(x, z, 1e-6, boxes)) {
     // The epsilon is what closes the crack between two boxes that abut exactly.
     // overlapsXZ is a strict <, so a point on the shared face of two crates is
     // inside NEITHER of them and this returns the floor — you fall through a
@@ -92,7 +199,7 @@ export function playerBlockedAt(
   r: number,
   boxes: MapBox[] = MAP_BOXES
 ): boolean {
-  for (const b of boxes) {
+  for (const b of near(x, z, r, boxes)) {
     if (!overlapsXZ(b, x, z, r)) continue;
     if (!isWallAt(b, feetY)) continue;
     return true;
@@ -161,7 +268,7 @@ export function pushOutOfWalls(
     let pushZ = 0;
     let deepest = 0;
 
-    for (const b of boxes) {
+    for (const b of near(sx, sz, radius, boxes)) {
       if (!isWallAt(b, feetY)) continue;
       // Box against box, exactly as overlapsXZ states it: the body is a square
       // of half-size `radius`, not a circle. An earlier version measured this
@@ -261,7 +368,7 @@ export function moveXZ(
     const tz = z + dz;
     let pushX = 0;
     let pushZ = 0;
-    for (const b of boxes) {
+    for (const b of near(tx, tz, radius, boxes)) {
       if (!isWallAt(b, y)) continue;
       const halfX = b.s[0] / 2;
       const halfZ = b.s[2] / 2;

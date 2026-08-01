@@ -206,7 +206,7 @@ console.log("\nthe giant seeker can reach every hiding zone");
     const reach = Math.ceil(2 / GRID);
     for (let dx = -reach; dx <= reach && !ok; dx++) {
       for (let dz = -reach; dz <= reach && !ok; dz++) {
-        if (reached(parent, [sx + dx * GRID, sz + dz * GRID], GRID)) ok = true;
+        if (reached(parent, [sx + dx * GRID, sz + dz * GRID])) ok = true;
       }
     }
     check(`the seeker (radius ${R}) can get within 2u of spawn [${sx}, ${sz}]`, ok);

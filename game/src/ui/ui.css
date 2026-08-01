@@ -1066,6 +1066,48 @@ body.hide-cursor canvas {
   pointer-events: none;
 }
 
+/* The ready button carries its own shortcut. The keycap borrows the button's
+   own ink rather than the HUD's, because it sits on a filled green field where
+   the usual dark keycap would read as a hole. */
+.ready-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.ready-btn kbd {
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  color: inherit;
+}
+
+.load-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.load-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6fbf5c, #49b3ad);
+  transition: width 0.25s ease;
+}
+
+.load-count {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------------------------------------------------------------- results
  *
  * A column down the right-hand side rather than a card in the middle.

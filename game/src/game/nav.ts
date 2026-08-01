@@ -8,7 +8,7 @@
  * so a walker steering straight at its target pins itself against the first
  * one it meets and never recovers — check:map learned that the hard way and
  * has flood-filled a route first ever since. The bots need exactly the same
- * thing, so it lives here now and check:map imports it rather than keeping a
+ * thing, so it lives here and check:map imports it rather than keeping a
  * second copy that can drift.
  *
  * What this gives you is a route through cells a body of a given radius fits
@@ -16,6 +16,19 @@
  * route passes through can still be too tight for the integrator to steer.
  * check:map drives the real integrator along these routes for that reason, and
  * the bots simply walk them and let collision sort out the rest.
+ *
+ * ON SPEED. This is the only thing in the game that asks a collision question
+ * tens of thousands of times in a row, and it does it mid-round: a bot re-plans
+ * every time the seeker comes within thirteen metres. Measured cost of one
+ * route, in the order the fixes landed:
+ *
+ *   138ms  asking collision per cell, scanning all 715 boxes each time
+ *    17ms  ...with the spatial index in map.ts
+ *   4.3ms  ...with the walkability grid below precomputed
+ *          ...with the flood on typed arrays and stopping at the goal
+ *
+ * The first number is eight frames of the game simply stopping, four times over
+ * when four bots bolt together — which is what it looked like on screen.
  */
 
 import { playerBlockedAt, type MapBox } from "./map";
@@ -34,96 +47,190 @@ export interface NavOptions {
   grid?: number;
 }
 
-/**
- * Cells are keyed as one integer so the visited set can be a plain Map. The
- * arena is 88u across at half-metre cells, so indices stay well inside ±500 and
- * this stays collision-free.
- */
-function cellKey(ix: number, iz: number): number {
-  return (ix + 500) * 1000 + (iz + 500);
-}
-
-function keyToCell(k: number, grid: number): [number, number] {
-  return [(Math.floor(k / 1000) - 500) * grid, ((k % 1000) - 500) * grid];
-}
-
-function walkable(ix: number, iz: number, o: Required<NavOptions>): boolean {
-  const limit = Math.floor((o.halfSize - o.radius) / o.grid);
-  if (Math.abs(ix) > limit || Math.abs(iz) > limit) return false;
-  return !playerBlockedAt(ix * o.grid, iz * o.grid, o.feetY, o.radius, o.boxes);
-}
-
 function fill(o: NavOptions): Required<NavOptions> {
   return { feetY: 0, grid: NAV_GRID, ...o };
 }
 
+// ------------------------------------------------------- walkability, cached
+
 /**
- * Every cell reachable on foot from `start`, with a parent link back toward it.
- * Empty if `start` itself is inside geometry.
+ * "Can a body of radius R stand in this cell", one byte per cell.
+ *
+ * The map never changes, so this answer never changes — computing it once turns
+ * every later route into array lookups. The build costs ~11ms, which is why it
+ * is not left to happen lazily in the middle of a chase: `prewarmNav` runs
+ * while the loading screen is up, and doing it there is most of why that screen
+ * exists.
  */
-export function floodFrom(start: [number, number], options: NavOptions): Map<number, number> {
-  const o = fill(options);
-  const sx = Math.round(start[0] / o.grid);
-  const sz = Math.round(start[1] / o.grid);
-  const parent = new Map<number, number>();
-  if (!walkable(sx, sz, o)) return parent;
+interface WalkGrid {
+  cells: Uint8Array;
+  limit: number;
+  side: number;
+  grid: number;
+}
 
-  const queue: [number, number][] = [[sx, sz]];
-  parent.set(cellKey(sx, sz), -1);
+const walkGrids = new WeakMap<MapBox[], Map<string, WalkGrid>>();
 
-  for (let head = 0; head < queue.length; head++) {
-    const [x, z] = queue[head];
-    for (const [dx, dz] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ] as const) {
-      const nx = x + dx;
-      const nz = z + dz;
-      const k = cellKey(nx, nz);
-      if (parent.has(k) || !walkable(nx, nz, o)) continue;
-      parent.set(k, cellKey(x, z));
-      queue.push([nx, nz]);
+function cellIndex(ix: number, iz: number, g: { limit: number; side: number }): number {
+  return (ix + g.limit) * g.side + (iz + g.limit);
+}
+
+function walkGridFor(o: Required<NavOptions>): WalkGrid {
+  let byKey = walkGrids.get(o.boxes);
+  if (!byKey) {
+    byKey = new Map();
+    walkGrids.set(o.boxes, byKey);
+  }
+  const key = `${o.radius}|${o.feetY}|${o.grid}|${o.halfSize}`;
+  const cached = byKey.get(key);
+  if (cached) return cached;
+
+  const limit = Math.floor((o.halfSize - o.radius) / o.grid);
+  const side = limit * 2 + 1;
+  const built: WalkGrid = { cells: new Uint8Array(side * side), limit, side, grid: o.grid };
+  for (let ix = -limit; ix <= limit; ix++) {
+    for (let iz = -limit; iz <= limit; iz++) {
+      if (!playerBlockedAt(ix * o.grid, iz * o.grid, o.feetY, o.radius, o.boxes)) {
+        built.cells[cellIndex(ix, iz, built)] = 1;
+      }
     }
   }
-  return parent;
+
+  byKey.set(key, built);
+  return built;
+}
+
+/**
+ * Build the walk grid ahead of time. Idempotent and cached, so calling it twice
+ * is free; never calling it is what causes the stall it exists to prevent.
+ */
+export function prewarmNav(options: NavOptions): void {
+  walkGridFor(fill(options));
+}
+
+function walkable(ix: number, iz: number, g: WalkGrid): boolean {
+  if (Math.abs(ix) > g.limit || Math.abs(iz) > g.limit) return false;
+  return g.cells[cellIndex(ix, iz, g)] === 1;
+}
+
+// -------------------------------------------------------------------- flood
+
+/**
+ * A completed flood, as flat arrays rather than a Map.
+ *
+ * The Map version cost 4.3ms per route once everything else was fast, and all
+ * of it was hashing: a flood touches tens of thousands of cells and every one
+ * meant a boxed number key going in and coming back out. Cell indices are
+ * already dense integers, so an Int32Array indexed by cell IS the map.
+ */
+export interface Flood {
+  /** Per cell: UNVISITED, ROOT, or the index of the cell it was reached from. */
+  parent: Int32Array;
+  limit: number;
+  side: number;
+  grid: number;
+}
+
+const UNVISITED = -2;
+const ROOT = -1;
+
+/**
+ * Flood outward from `start`, stopping the moment `goal` is reached if one is
+ * given.
+ *
+ * The early exit is not a micro-optimisation. A route to somewhere nearby stops
+ * after a few hundred cells instead of filling all 88x88 metres of arena, and
+ * "somewhere nearby" is what a fleeing bot asks for every single time.
+ */
+function flood(start: [number, number], o: Required<NavOptions>, goal?: [number, number]): Flood {
+  const g = walkGridFor(o);
+  const out: Flood = {
+    parent: new Int32Array(g.side * g.side).fill(UNVISITED),
+    limit: g.limit,
+    side: g.side,
+    grid: o.grid,
+  };
+
+  const sx = Math.round(start[0] / o.grid);
+  const sz = Math.round(start[1] / o.grid);
+  if (!walkable(sx, sz, g)) return out;
+
+  let goalIndex = -1;
+  if (goal) {
+    const gx = Math.round(goal[0] / o.grid);
+    const gz = Math.round(goal[1] / o.grid);
+    if (Math.abs(gx) <= g.limit && Math.abs(gz) <= g.limit) goalIndex = cellIndex(gx, gz, g);
+  }
+
+  // Bounded by the cell count, so the queue is allocated once at full size
+  // rather than grown.
+  const queue = new Int32Array(g.side * g.side);
+  let head = 0;
+  let tail = 0;
+  const first = cellIndex(sx, sz, g);
+  queue[tail++] = first;
+  out.parent[first] = ROOT;
+
+  while (head < tail) {
+    const current = queue[head++];
+    if (current === goalIndex) break;
+    const ix = ((current / g.side) | 0) - g.limit;
+    const iz = (current % g.side) - g.limit;
+
+    for (let d = 0; d < 4; d++) {
+      const nx = ix + (d === 0 ? 1 : d === 1 ? -1 : 0);
+      const nz = iz + (d === 2 ? 1 : d === 3 ? -1 : 0);
+      if (Math.abs(nx) > g.limit || Math.abs(nz) > g.limit) continue;
+      const k = cellIndex(nx, nz, g);
+      if (out.parent[k] !== UNVISITED || g.cells[k] !== 1) continue;
+      out.parent[k] = current;
+      queue[tail++] = k;
+    }
+  }
+  return out;
+}
+
+/**
+ * Every cell reachable on foot from `start`, with a parent link back toward it.
+ * Nothing is reached if `start` itself is inside geometry.
+ */
+export function floodFrom(start: [number, number], options: NavOptions): Flood {
+  return flood(start, fill(options));
 }
 
 /** Whether a flood reached this world position's cell. */
-export function reached(
-  parent: Map<number, number>,
-  at: [number, number],
-  grid = NAV_GRID
-): boolean {
-  return parent.has(cellKey(Math.round(at[0] / grid), Math.round(at[1] / grid)));
+export function reached(f: Flood, at: [number, number]): boolean {
+  const ix = Math.round(at[0] / f.grid);
+  const iz = Math.round(at[1] / f.grid);
+  if (Math.abs(ix) > f.limit || Math.abs(iz) > f.limit) return false;
+  return f.parent[cellIndex(ix, iz, f)] !== UNVISITED;
 }
 
 /** Waypoints from the flood's origin to `goal`, or null if it never got there. */
-export function routeTo(
-  parent: Map<number, number>,
-  goal: [number, number],
-  grid = NAV_GRID
-): [number, number][] | null {
-  let k = cellKey(Math.round(goal[0] / grid), Math.round(goal[1] / grid));
-  if (!parent.has(k)) return null;
+export function routeTo(f: Flood, goal: [number, number]): [number, number][] | null {
+  const gx = Math.round(goal[0] / f.grid);
+  const gz = Math.round(goal[1] / f.grid);
+  if (Math.abs(gx) > f.limit || Math.abs(gz) > f.limit) return null;
+
+  let k = cellIndex(gx, gz, f);
+  if (f.parent[k] === UNVISITED) return null;
 
   const out: [number, number][] = [];
-  while (k !== -1) {
-    out.push(keyToCell(k, grid));
-    k = parent.get(k)!;
+  while (k !== ROOT) {
+    out.push([(((k / f.side) | 0) - f.limit) * f.grid, ((k % f.side) - f.limit) * f.grid]);
+    k = f.parent[k];
   }
   return out.reverse();
 }
 
-/** Flood and extract in one call, for callers that only want the one route. */
+/** Flood and extract in one call, stopping as soon as the goal is in hand. */
 export function findRoute(
   from: [number, number],
   to: [number, number],
   options: NavOptions
 ): [number, number][] | null {
   const o = fill(options);
-  return routeTo(floodFrom(from, o), to, o.grid);
+  return routeTo(flood(from, o, to), to);
 }
 
 /**

@@ -30,7 +30,7 @@ export type { ModelId };
  */
 
 const MODEL_IDS = Object.keys(MODELS) as ModelId[];
-const MODEL_URLS = MODEL_IDS.map((id) => MODELS[id].url);
+export const MODEL_URLS = MODEL_IDS.map((id) => MODELS[id].url);
 
 type Loaded = Record<ModelId, THREE.Object3D>;
 

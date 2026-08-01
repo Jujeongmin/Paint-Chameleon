@@ -58,6 +58,32 @@ export function NickScreen({
   );
 }
 
+/**
+ * Shown once, after joining, while everything expensive is got ready.
+ *
+ * It is not decoration for a wait that would have happened anyway — the wait
+ * used to happen DURING play, as the arena popping in, the gun arriving late
+ * into a round, and a hard stall the first time a bot needed a route. Moving
+ * all of it in front of the game is the point; see game/src/game/warmup.ts.
+ */
+export function LoadingScreen({ done, total, label }: { done: number; total: number; label: string }) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  return (
+    <div className="screen">
+      <div className="card" style={{ textAlign: "center" }}>
+        <h1 className="title">Paint Chameleon</h1>
+        <p className="subtitle" style={{ margin: "0 0 18px" }}>{label}</p>
+        <div className="load-bar">
+          <div className="load-fill" style={{ width: `${pct}%` }} />
+        </div>
+        <div className="load-count">
+          {done} / {total}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ResultsOverlay({
   room,
   players,

@@ -16,7 +16,8 @@ import { PaintTools } from "./ui/PaintTools";
 import { MuteToggle } from "./ui/MuteToggle";
 import { PoseMenu } from "./ui/PoseMenu";
 import { hsvToRgb, rgbToHsv } from "./ui/ColorWheel";
-import { ConnectingScreen, NickScreen, ResultsOverlay, WaitingBanner } from "./ui/Screens";
+import { ConnectingScreen, LoadingScreen, NickScreen, ResultsOverlay, WaitingBanner } from "./ui/Screens";
+import { runWarmup, type WarmupProgress } from "./game/warmup";
 import {
   BRUSH,
   NET_THROTTLE_MS,
@@ -47,6 +48,8 @@ export default function App() {
   const [charLocked, setCharLocked] = useState(false);
   const [ready, setReady] = useState(false);
   const [pointerLocked, setPointerLocked] = useState(false);
+  /** null once everything is ready; a progress report until then. */
+  const [warmup, setWarmup] = useState<WarmupProgress | null>({ done: 0, total: 1, label: "준비하는 중" });
 
   const wallet = useWallet(game);
 
@@ -97,6 +100,13 @@ export default function App() {
   const prevPhase = useRef<string | null>(null);
   /** Sound: last known caught flag per account, so a catch sound fires once per catch. */
   const prevCaught = useRef<Map<string, boolean>>(new Map());
+  /**
+   * The ready toggle, reachable from the key handler above where it is defined.
+   * A ref rather than a dependency: `toggleReady` is rebuilt whenever `ready`
+   * changes, and listing it would tear down and rebuild the keydown listener
+   * every time somebody readies up.
+   */
+  const toggleReadyRef = useRef<() => void>(() => {});
 
   const inHub = room?.kind === "hub";
   const phase = room?.phase ?? "lobby";
@@ -214,6 +224,14 @@ export default function App() {
         e.preventDefault();
         setPaintMode((v) => !v);
       }
+      // Ready has been a mouse-only button since the lobby existed, which
+      // means letting go of the controls to press it. Enter rather than Space:
+      // Space is jump, and a key that both readies you and launches you is the
+      // sort of thing that gets pressed by accident at exactly the wrong time.
+      if (e.code === "Enter" && !inHub && phase === "lobby" && !poseMenuOpen) {
+        e.preventDefault();
+        toggleReadyRef.current();
+      }
       if (e.code === "KeyG" && canPose && !charLocked && !paintMode) {
         e.preventDefault();
         setPoseMenuOpen((v) => !v);
@@ -225,7 +243,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [canPaint, canPose, charLocked, paintMode, poseMenuOpen]);
+  }, [canPaint, canPose, charLocked, paintMode, poseMenuOpen, inHub, phase]);
 
   // Batch dabs rather than sending one message per brush movement.
   //
@@ -313,6 +331,24 @@ export default function App() {
     game.setReady(next);
   }, [ready, game]);
 
+  toggleReadyRef.current = toggleReady;
+
+  // Kick off once the player has committed to playing. Before the nick screen
+  // is submitted there is nothing to be ready FOR, and downloading several
+  // megabytes at somebody who may just be looking is rude.
+  useEffect(() => {
+    if (!joined) return;
+    let live = true;
+    runWarmup((p) => {
+      if (live) setWarmup(p);
+    }).then(() => {
+      if (live) setWarmup(null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [joined]);
+
   const handleJoin = useCallback(
     (name: string) => {
       setNick(name);
@@ -323,6 +359,9 @@ export default function App() {
 
   if (!connected) return <ConnectingScreen />;
   if (!joined) return <NickScreen onJoin={handleJoin} joining={joining} error={error} />;
+  // Before the room, so the wait for assets and the wait for a room are one
+  // wait rather than two screens in a row.
+  if (warmup) return <LoadingScreen {...warmup} />;
   if (!room || !me) return <ConnectingScreen message="로비에 들어가는 중…" />;
 
   const frozen = paintMode || poseMenuOpen || !!me.caught || phase === "results";

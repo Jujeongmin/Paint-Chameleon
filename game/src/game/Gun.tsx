@@ -12,7 +12,7 @@ import * as THREE from "three";
  * points at this file and is really about module resolution.
  */
 
-const GUN_URL = "/models/blaster/blaster-j.glb";
+export const GUN_URL = "/models/blaster/blaster-j.glb";
 
 // Starts the fetch as soon as this module is evaluated (app start), rather
 // than waiting for the hiding→seeking transition that first mounts <Gun/>.
