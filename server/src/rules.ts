@@ -16,7 +16,14 @@ export const POSE_COUNT = 4;
 /** The social hub holds far more people than a match, and never runs a round. */
 export const HUB_CAPACITY = 24;
 
-export const PHASE_SECONDS = { hiding: 30, seeking: 90, results: 30 };
+/**
+ * KEEP IN SYNC WITH game/src/game/constants.ts — check:sync compares these, and
+ * the reasoning behind each number lives there. In short: hiding is a painting
+ * budget (the walk to cover is under 4s), and seeking was cut from 90 to 75
+ * because a perfect sweep of every hiding slot takes 73s, so at 90 the clock
+ * never bound the seeker at all.
+ */
+export const PHASE_SECONDS = { hiding: 30, seeking: 75, results: 30 };
 
 export const SCORE = {
   hiderSurvived: 100,

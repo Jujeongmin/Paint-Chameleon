@@ -5,8 +5,37 @@ export type Phase = "lobby" | "hiding" | "seeking" | "results";
 /** Phase durations in seconds. */
 export const PHASE_SECONDS: Record<Phase, number> = {
   lobby: 0, // ends when enough players ready
+  /**
+   * Not a travel budget — a painting budget.
+   *
+   * check:balance walks the real integrator from every spawn to the nearest
+   * designed slot and the worst case is 3.8 seconds. So this was never the
+   * "can you get there in time" number it was written down as, even after the
+   * arena quadrupled; twenty-six of these thirty seconds are for choosing a
+   * colour and covering yourself in it. How long THAT actually takes has never
+   * been measured, and is the reason this stays at 30 rather than being cut to
+   * fit the walk.
+   */
   hiding: 30,
-  seeking: 90,
+  /**
+   * Retuned from 90 against a measurement, not a hunch.
+   *
+   * check:balance drives a nearest-first tour of all twenty-four hiding slots
+   * at the seeker's speed, which is the CHEAPEST possible sweep and therefore
+   * an upper bound on what any player can cover. It takes 73 seconds. At 90 the
+   * seeker could walk past every hiding place on the map and still have seventeen
+   * seconds spare, which means the clock was not a constraint on them at all —
+   * and a hunt whose time limit never binds is not a hunt.
+   *
+   * 75 puts the phase a whisker over that perfect sweep: an optimal seeker
+   * finishes with nothing to spare, and a real one — who has to stop, look at
+   * things and decide whether a barrel is a person — covers a good deal less.
+   *
+   * This is an inference from a bound, not a playtest. It is one constant,
+   * mirrored in server/src/rules.ts and held there by check:sync, so it is a
+   * one-line revert if playing says otherwise.
+   */
+  seeking: 75,
   // Long enough to walk the reveal: the hiders the seeker never found glow
   // through the walls for this whole phase, and ten seconds was not enough to
   // look around and see where they had been.

@@ -21,9 +21,10 @@
     "check:shot": "tsx scripts/check-shot.ts",
     "check:paint": "tsx scripts/check-paint.ts",
     "check:camera": "tsx scripts/check-camera.ts",
-    "check": "tsc --noEmit && npm run check:sync && npm run check:bodies && npm run check:shop && npm run check:shot && npm run check:paint && npm run check:camera && npm run check:bot && npm run check:movement && npm run check:hub && npm run check:map && npm run check:cell && npm run check:audio && npm run check:leaderboard && npm run server:test",
+    "check": "tsc --noEmit && npm run check:sync && npm run check:bodies && npm run check:shop && npm run check:shot && npm run check:paint && npm run check:camera && npm run check:bot && npm run check:movement && npm run check:hub && npm run check:map && npm run check:balance && npm run check:cell && npm run check:audio && npm run check:leaderboard && npm run server:test",
     "deploy": "npx -y @agent8/deploy",
-    "check:bot": "tsx scripts/check-bot.ts"
+    "check:bot": "tsx scripts/check-bot.ts",
+    "check:balance": "tsx scripts/check-balance.ts"
   },
   "dependencies": {
     "@agent8/gameserver": "^1.0.0",
