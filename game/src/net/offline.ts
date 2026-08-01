@@ -6,19 +6,26 @@
  * machine and scoring rules as server/src/server.ts, solo.
  *
  * This is a rehearsal rig, not a game mode — nothing here ships to players.
- * It used to also drive a couple of AI bots so a hider/seeker round could be
- * rehearsed either way. That's gone: an AI can never be the seeker, and a bot
- * that sometimes got picked as seeker would break that rule in the one place
- * it could actually happen — online rooms only ever hold real players, so
- * this offline rig was it. See startRound below.
+ *
+ * It drives AI HIDERS, and only hiders. The seventh session deleted the bots
+ * entirely because an AI may never be the seeker and a bot in the draw could be
+ * picked as one — this rig being the only place in the project where that could
+ * happen, since online rooms hold real people. They are back on the one footing
+ * that keeps the rule true by construction: `startRound` assigns the seeker to
+ * you unconditionally, and a BotState has no role field to be assigned. What
+ * that buys back is the thing the deletion cost — somebody to hunt, so the gun,
+ * cover, catching, the results reveal and coin payout can all be rehearsed
+ * solo. See game/src/game/bot.ts, and check:bot for what is actually pinned.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PHASE_SECONDS, type Phase } from "../game/constants";
-import { randomSpawn } from "../game/map";
+import { MAP_BOXES, randomSpawn } from "../game/map";
 import { CELL_SPAWN, HUNT_START } from "../game/cell";
 import { surfaceFor } from "../game/paint";
 import { BODIES, DEFAULT_BODY_ID } from "../game/bodies";
+import { createBots, resetBots, stepBots, type BotState } from "../game/bot";
+import { coinsFor } from "../game/coins";
 import type { BuyResult, LeaderboardResult, PlayerState, RoomInfo, WalletView, WireDab } from "./types";
 
 const ME = "local-player";
@@ -53,6 +60,15 @@ export function useOfflineGame() {
     equipped: DEFAULT_BODY_ID,
   });
 
+  /**
+   * The bots. A ref, not state: they move every frame and re-rendering React
+   * sixty times a second to say so would cost more than the whole rig. The
+   * phase machine's tick is what publishes them into `players`.
+   */
+  const bots = useRef<BotState[]>(createBots());
+  /** Paint already applied, so a fill only runs when a bot changes its mind. */
+  const botPaint = useRef<Map<string, number>>(new Map());
+
   const myPos = useRef<[number, number, number]>([0, 0, 0]);
   const myRot = useRef(0);
   const myPose = useRef(0);
@@ -72,6 +88,10 @@ export function useOfflineGame() {
 
     caught.current = false;
     caughtAt.current = null;
+    // Fresh hiders every round, back at their spawns with nothing painted on.
+    resetBots(bots.current);
+    for (const bot of bots.current) surfaceFor(bot.account).clear();
+    botPaint.current.clear();
     // Mirrors startRound in server/src/server.ts: the seeker (always you,
     // here) starts in the holding cell, not an arena spawn.
     myPos.current = [...CELL_SPAWN] as [number, number, number];
@@ -81,13 +101,25 @@ export function useOfflineGame() {
   const endRound = useCallback(() => {
     const now = Date.now();
 
-    // Solo rehearsal: you're always the seeker, and with nobody else in the
-    // room there's never anyone to catch. The result row still comes out in
-    // the same shape the server uses, just with nothing to score.
-    const gained = 0;
+    // You are always the seeker here, so your payout is the catch payout. The
+    // bots are scored as hiders on the same function the server uses, which is
+    // what makes this rig able to rehearse the results screen and the coin
+    // grant at all — before the bots existed there was never anything to score.
+    const caughtBots = bots.current.filter((b) => b.caught).length;
+    const gained = coinsFor({ seeker: true, caught: false, catches: caughtBots });
     const next = { ...scores, [ME]: (scores[ME] ?? 0) + gained };
-    const results = [{ account: ME, nick, caught: false, gained, seeker: true }];
+    const results = [
+      { account: ME, nick, caught: false, gained, seeker: true },
+      ...bots.current.map((b) => ({
+        account: b.account,
+        nick: b.nick,
+        caught: b.caught,
+        gained: coinsFor({ seeker: false, caught: b.caught, catches: 0 }),
+        seeker: false,
+      })),
+    ];
 
+    setWallet((w) => ({ ...w, coins: w.coins + gained }));
     setScores(next);
     setLastResults(results);
     setPhase("results");
@@ -113,9 +145,9 @@ export function useOfflineGame() {
         setPhase("seeking");
         setPhaseEndsAt(now + PHASE_SECONDS.seeking * 1000);
       } else if (phase === "seeking") {
-        // Nobody else is ever in the room, so seeking can only end on the
-        // clock — there's no hider left to catch early.
-        if (now >= phaseEndsAt) endRound();
+        // Ends on the clock, or the moment the last hider is caught — the same
+        // two ways the server ends it.
+        if (now >= phaseEndsAt || bots.current.every((b) => b.caught)) endRound();
       } else if (phase === "results" && now >= phaseEndsAt) {
         setPhase("lobby");
         setPhaseEndsAt(0);
@@ -140,6 +172,58 @@ export function useOfflineGame() {
     return () => clearInterval(id);
   }, [joined, scene, phase, phaseEndsAt, ready, seeker, startRound, endRound]);
 
+  /**
+   * The bots' own clock, at animation rate.
+   *
+   * Deliberately NOT the 200ms phase tick below. That tick exists to imitate
+   * the server's ~10Hz state broadcast, and a physics step of 0.2s would make
+   * the bots lurch a whole metre at a time through collision that was written
+   * for sixteen-millisecond steps. So they think at frame rate and are
+   * PUBLISHED at tick rate, which is exactly the split a real player has —
+   * RemotePlayers interpolates them the same way it interpolates a person.
+   */
+  useEffect(() => {
+    if (!joined || scene !== "game") return;
+    if (phase !== "hiding" && phase !== "seeking") return;
+
+    let raf = 0;
+    let last = performance.now();
+
+    const frame = (t: number) => {
+      const dt = Math.min(0.05, Math.max(1 / 240, (t - last) / 1000));
+      last = t;
+
+      stepBots(
+        bots.current,
+        {
+          boxes: MAP_BOXES,
+          // The seeker is underground during the hiding phase, so nobody can
+          // be spooked by them yet. Passing their cell position instead would
+          // have every bot fleeing a threat 8 metres below the floor.
+          seeker: phase === "seeking" ? myPos.current : null,
+          phase,
+          now: t,
+        },
+        dt
+      );
+
+      // Paint is the one thing the brain cannot do itself — it decides on a
+      // colour, and the canvas work happens here. Only on a change, or this
+      // would repaint four textures every frame.
+      for (const bot of bots.current) {
+        if (bot.paint === null) continue;
+        if (botPaint.current.get(bot.account) === bot.paint) continue;
+        botPaint.current.set(bot.account, bot.paint);
+        surfaceFor(bot.account).fill(bot.paint);
+      }
+
+      raf = requestAnimationFrame(frame);
+    };
+
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [joined, scene, phase]);
+
   const players: PlayerState[] = useMemo(() => {
     if (scene === "hub") {
       return [{ account: ME, nick, pos: myPos.current, rotY: myRot.current, pose: 0, moving: false }];
@@ -157,7 +241,29 @@ export function useOfflineGame() {
       pose: myPose.current,
       moving: false,
     };
-    return [mine];
+
+    // Bots only exist inside a round. In the lobby they are still standing at
+    // last round's spots, and showing them there would say the round had
+    // already started.
+    if (phase === "lobby") return [mine];
+
+    return [
+      mine,
+      ...bots.current.map(
+        (b): PlayerState => ({
+          account: b.account,
+          nick: b.nick,
+          role: "hider",
+          caught: b.caught,
+          caughtAt: b.caughtAt,
+          pos: [...b.motion.pos] as [number, number, number],
+          rotY: b.rotY,
+          pose: b.pose,
+          moving: b.motion.moving,
+          body: b.body,
+        })
+      ),
+    ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nick, ready, seeker, phase, round, tick, scene]);
 
@@ -242,10 +348,18 @@ export function useOfflineGame() {
     // notify, these are no-ops offline.
     paintDabs: (_dabs: WireDab[]) => Promise.resolve(),
     paintFill: (_color: number) => Promise.resolve(),
-    requestShot: async (_target: string) => {
-      // Solo rehearsal: nobody else is ever in the room, so there is never
-      // anything to shoot.
-      return { ok: false };
+    requestShot: async (target: string) => {
+      // The client already decided the shot connected — it owns hit detection,
+      // because it is the only side with a map (see README's known limits). All
+      // this has to do is what the server does with that claim: check it is a
+      // hider who is still in play, during the hunt, and mark them.
+      if (phase !== "seeking") return { ok: false };
+      const bot = bots.current.find((b) => b.account === target);
+      if (!bot || bot.caught) return { ok: false };
+      bot.caught = true;
+      bot.caughtAt = Date.now();
+      forceTick((n) => n + 1);
+      return { ok: true };
     },
     fetchLeaderboard: async (): Promise<LeaderboardResult> => {
       const ranked = Object.entries(scores)

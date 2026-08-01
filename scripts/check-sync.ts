@@ -28,6 +28,7 @@ import {
   SHOT as CLIENT_SHOT,
 } from "../game/src/game/constants";
 import { CELL_SPAWN as CLIENT_CELL, HUNT_START as CLIENT_HUNT_START } from "../game/src/game/cell";
+import { COINS as CLIENT_COINS, coinsFor as clientCoinsFor } from "../game/src/game/coins";
 import {
   ARENA as SERVER_ARENA,
   SPAWN_POINTS as SERVER_SPAWNS,
@@ -39,6 +40,8 @@ import {
   SHOT as SERVER_SHOT,
   PAINT_LIMITS as SERVER_PAINT,
   PHASE_SECONDS as SERVER_PHASES,
+  COINS as SERVER_COINS,
+  coinsFor as serverCoinsFor,
 } from "../server/src/rules";
 
 let failures = 0;
@@ -244,6 +247,40 @@ console.log("\navatar catalogue");
     }
   }
 }
+
+console.log("\ncoins");
+
+// The offline rehearsal rig pays itself for catching bots, and it cannot import
+// the server's copy — server/src/rules.ts sits outside Vite's root. So the
+// client mirrors it, and this comparison is what makes the mirror safe.
+{
+  const same =
+    CLIENT_COINS.perRound === SERVER_COINS.perRound &&
+    CLIENT_COINS.survived === SERVER_COINS.survived &&
+    CLIENT_COINS.perCatch === SERVER_COINS.perCatch;
+  if (same) pass(`coin values match (${JSON.stringify(CLIENT_COINS)})`);
+  else fail(`coin values differ: ${JSON.stringify(CLIENT_COINS)} vs ${JSON.stringify(SERVER_COINS)}`);
+
+  // Equal constants are not the same as equal answers — two functions can
+  // combine the same numbers differently. Compare the payouts across the table.
+  let drift = 0;
+  for (const seeker of [true, false]) {
+    for (const caught of [true, false]) {
+      for (const catches of [0, 1, 3, 7, -2]) {
+        const a = clientCoinsFor({ seeker, caught, catches });
+        const b = serverCoinsFor({ seeker, caught, catches });
+        if (a !== b) {
+          drift++;
+          if (drift === 1) {
+            fail(`coinsFor disagrees at seeker=${seeker} caught=${caught} catches=${catches}: ${a} vs ${b}`);
+          }
+        }
+      }
+    }
+  }
+  if (drift === 0) pass("coinsFor agrees on both sides across the whole table");
+}
+
 
 console.log("\nspawn safety");
 

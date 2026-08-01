@@ -22,6 +22,7 @@ import {
   slotOf,
 } from "../game/src/game/arena";
 import { INSTANCE_MIN, instancingPlan, modelDrawn } from "../game/src/game/instancing";
+import { NAV_GRID, findRoute, floodFrom, reached } from "../game/src/game/nav";
 import { groundHeightAt, playerBlockedAt, STEP_HEIGHT } from "../game/src/game/map";
 import { createMotionState, stepMotion } from "../game/src/game/movement";
 import { MOVE, SEEKER_SCALE } from "../game/src/game/constants";
@@ -57,65 +58,15 @@ const MOUNTABLE = (MOVE.jumpSpeed * MOVE.jumpSpeed) / (2 * MOVE.gravity) + STEP_
  * through standable cells, and the actual movement code must be able to follow
  * it (a corridor a route can pass through but a 0.45-radius body cannot is
  * caught in the second stage).
+ *
+ * The flood fill itself moved to game/src/game/nav.ts when the hider bots
+ * needed it — they hit the same wall for the same reason. One implementation,
+ * two callers; this file keeping its own copy would mean the bots could walk a
+ * route the check had never agreed was walkable.
  */
-const GRID = 0.5;
-const GRID_LIMIT = Math.floor((ARENA.size / 2 - MOVE.playerRadius) / GRID);
+const GRID = NAV_GRID;
 
-function cellKey(ix: number, iz: number): number {
-  // 2*GRID_LIMIT+1 fits well inside 1000, so this stays collision-free.
-  return (ix + 500) * 1000 + (iz + 500);
-}
-
-function standable(ix: number, iz: number): boolean {
-  return !occupied(ix * GRID, iz * GRID);
-}
-
-/** Flood-fill of everywhere you can walk from `start`, with parent links. */
-function reachableFrom(start: [number, number]): Map<number, number> {
-  const sx = Math.round(start[0] / GRID);
-  const sz = Math.round(start[1] / GRID);
-  const parent = new Map<number, number>();
-  if (!standable(sx, sz)) return parent;
-
-  const queue: [number, number][] = [[sx, sz]];
-  parent.set(cellKey(sx, sz), -1);
-
-  for (let head = 0; head < queue.length; head++) {
-    const [x, z] = queue[head];
-    for (const [dx, dz] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ]) {
-      const nx = x + dx;
-      const nz = z + dz;
-      if (Math.abs(nx) > GRID_LIMIT || Math.abs(nz) > GRID_LIMIT) continue;
-      const k = cellKey(nx, nz);
-      if (parent.has(k) || !standable(nx, nz)) continue;
-      parent.set(k, cellKey(x, z));
-      queue.push([nx, nz]);
-    }
-  }
-  return parent;
-}
-
-/** Waypoints from `start` to `goal`, or null if the flood-fill never got there. */
-function routeTo(parent: Map<number, number>, goal: [number, number]): [number, number][] | null {
-  const gx = Math.round(goal[0] / GRID);
-  const gz = Math.round(goal[1] / GRID);
-  let k = cellKey(gx, gz);
-  if (!parent.has(k)) return null;
-
-  const out: [number, number][] = [];
-  while (k !== -1) {
-    const ix = Math.floor(k / 1000) - 500;
-    const iz = (k % 1000) - 500;
-    out.push([ix * GRID, iz * GRID]);
-    k = parent.get(k)!;
-  }
-  return out.reverse();
-}
+const NAV = { boxes: MAP_BOXES, radius: MOVE.playerRadius, halfSize: ARENA.size / 2, grid: GRID };
 
 /** Drive the real integrator along a route; returns the closest it ever got. */
 function followRoute(
@@ -158,7 +109,7 @@ function followRoute(
 
 /** Infinity means no route exists at all, as opposed to one we couldn't walk. */
 function walkFrom(start: [number, number], target: [number, number]): number {
-  const route = routeTo(reachableFrom(start), target);
+  const route = findRoute(start, target, NAV);
   if (!route) return Infinity;
   return followRoute(start, route, target);
 }
@@ -242,38 +193,20 @@ console.log("\nthe giant seeker can reach every hiding zone");
   // the bigger radius; the route-walking stage is skipped because stepMotion
   // is already exercised above and only the radius differs here.
   const R = MOVE.playerRadius * SEEKER_SCALE;
-  const seekerLimit = Math.floor((ARENA.size / 2 - R) / GRID);
-  const blocked = (ix: number, iz: number) =>
-    Math.abs(ix) > seekerLimit ||
-    Math.abs(iz) > seekerLimit ||
-    playerBlockedAt(ix * GRID, iz * GRID, 0, R, MAP_BOXES);
-
-  const parent = new Map<number, boolean>();
-  const queue: [number, number][] = [[0, 0]];
-  parent.set(cellKey(0, 0), true);
-  for (let head = 0; head < queue.length; head++) {
-    const [x, z] = queue[head];
-    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-      const nx = x + dx;
-      const nz = z + dz;
-      const k = cellKey(nx, nz);
-      if (parent.has(k) || blocked(nx, nz)) continue;
-      parent.set(k, true);
-      queue.push([nx, nz]);
-    }
-  }
+  // Same flood fill as the slot checks, at the bigger radius. The route-walking
+  // stage is skipped because stepMotion is already exercised above and only the
+  // radius differs here.
+  const parent = floodFrom([0, 0], { ...NAV, radius: R });
 
   for (const [sx, sz] of SPAWN_POINTS) {
     // The spawn itself only needs a hider to fit; the seeker needs to get NEAR
     // it. Within 2u is close enough that nothing there is out of the gun's
     // reach around a corner.
     let ok = false;
-    const cx = Math.round(sx / GRID);
-    const cz = Math.round(sz / GRID);
     const reach = Math.ceil(2 / GRID);
     for (let dx = -reach; dx <= reach && !ok; dx++) {
       for (let dz = -reach; dz <= reach && !ok; dz++) {
-        if (parent.has(cellKey(cx + dx, cz + dz))) ok = true;
+        if (reached(parent, [sx + dx * GRID, sz + dz * GRID], GRID)) ok = true;
       }
     }
     check(`the seeker (radius ${R}) can get within 2u of spawn [${sx}, ${sz}]`, ok);
