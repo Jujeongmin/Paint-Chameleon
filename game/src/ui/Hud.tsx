@@ -1,4 +1,5 @@
 import { PHASE_SECONDS, POSES, type Phase } from "../game/constants";
+import { Icon } from "./icons";
 import { KeyHints, type KeyHint } from "./KeyHints";
 import type { PlayerState, RoomInfo } from "../net/types";
 
@@ -52,40 +53,46 @@ export function Hud({
   const total = PHASE_SECONDS[room.phase];
   const drain = total > 0 ? Math.max(0, Math.min(1, secondsLeft / total)) : 0;
 
+  // Nothing along the bottom while waiting to start. The lobby is a room you
+  // stand around in, not a round you are playing, and a rail of controls that
+  // mostly do not work yet is clutter over the one thing that matters there —
+  // whether everyone has pressed ready.
+  const inRound = room.phase !== "lobby";
+
+  // Paint is not on the rail. It gets its own panel at the right edge, level
+  // with the middle of the screen, because pressing F replaces the right edge
+  // with the paint tools — the control and what it opens are in the same place,
+  // and it is far enough from the crosshair to be read without covering it.
+  const showPaint = inRound && (!isSeeker || room.phase === "hiding");
+
   // The rail below the crosshair. Order is how often you reach for the thing,
   // not how important it is: movement is muscle memory and goes first so the
   // things you actually have to read sit nearest the middle of the screen.
   const hints: KeyHint[] = [];
-  if (showControls) {
-    hints.push({ cap: "WASD", icon: "move", label: "이동", tone: "move" });
-    hints.push({ cap: "SPACE", icon: "jump", label: "점프", tone: "move" });
-    hints.push({ cap: "MOUSE", icon: "look", label: "시점", tone: "move" });
-  }
-  // Posing and painting belong to the hider's half of the round. The seeker can
-  // paint too, but only down in the cell, so the chip is theirs as well.
-  if (!isSeeker) {
-    hints.push({ cap: "G", icon: "pose", label: "자세", tone: "pose", off: !canPose });
-  }
-  if (!isSeeker || room.phase === "hiding") {
-    hints.push({ cap: "F", icon: "paint", label: "페인트", tone: "paint", off: !canPaint });
-  }
-  if (!isSeeker) {
-    hints.push({
-      cap: "R",
-      icon: "pin",
-      label: charLocked ? "고정 해제" : "캐릭터 고정",
-      tone: "pin",
-      on: charLocked,
-    });
-  }
-  if (isSeeker) {
-    hints.push({
-      cap: "CLICK",
-      icon: "shoot",
-      label: "사격",
-      tone: "seeker",
-      off: room.phase !== "seeking",
-    });
+  if (inRound) {
+    if (showControls) {
+      hints.push({ cap: "WASD", icon: "move", label: "이동", tone: "move" });
+      hints.push({ cap: "SPACE", icon: "jump", label: "점프", tone: "move" });
+      hints.push({ cap: "MOUSE", icon: "look", label: "시점", tone: "move" });
+    }
+    if (!isSeeker) {
+      hints.push({ cap: "G", icon: "pose", label: "자세", tone: "pose", off: !canPose });
+      hints.push({
+        cap: "R",
+        icon: "pin",
+        label: charLocked ? "고정 해제" : "캐릭터 고정",
+        tone: "pin",
+        on: charLocked,
+      });
+    } else {
+      hints.push({
+        cap: "CLICK",
+        icon: "shoot",
+        label: "사격",
+        tone: "seeker",
+        off: room.phase !== "seeking",
+      });
+    }
   }
 
   return (
@@ -150,7 +157,21 @@ export function Hud({
 
           <div className={"crosshair" + (isSeeker && room.phase === "seeking" ? " locked" : "")} />
 
-          {!isSeeker && (
+          {showPaint && (
+            <div className={"paint-call" + (canPaint ? "" : " is-off")}>
+              <span className="paint-call-icon">
+                <Icon name="paint" />
+              </span>
+              <span className="paint-call-cap">F</span>
+              <span className="paint-call-label">페인트</span>
+              {/* Says why it is greyed rather than leaving you to work it out.
+                  Painting closes when the hunt starts, and that is a rule of
+                  the round, not a thing that went wrong. */}
+              {!canPaint && <span className="paint-call-why">숨는 시간에만</span>}
+            </div>
+          )}
+
+          {!isSeeker && inRound && (
             <div className="pose-readout">
               <span className="pose-readout-label">자세</span>
               {POSES[pose]?.label ?? "서기"}

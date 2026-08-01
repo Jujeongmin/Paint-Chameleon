@@ -403,7 +403,6 @@ export default function App() {
           players={players}
           account={account}
           joining={joining}
-          showControls={!controlsLearned}
           wallet={wallet}
         />
       ) : (

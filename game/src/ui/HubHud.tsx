@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import type { PortalProgress } from "../hub/HubPlayer";
 import type { Stand } from "../hub/hubMap";
 import type { PlayerState } from "../net/types";
-import { KeyHints, type KeyHint } from "./KeyHints";
 import { ShopPrompt } from "./ShopPrompt";
 import type { Wallet } from "./useWallet";
 
@@ -13,8 +12,6 @@ interface Props {
   players: PlayerState[];
   account: string;
   joining: boolean;
-  /** False once the player has used the controls; hides the basic tutorial. */
-  showControls: boolean;
   wallet: Wallet;
 }
 
@@ -24,7 +21,6 @@ export function HubHud({
   players,
   account,
   joining,
-  showControls,
   wallet,
 }: Props) {
   // The dwell timer lives in a ref so the render loop doesn't re-render React;
@@ -78,26 +74,14 @@ export function HubHud({
       {/* The cursor is hidden out here too, so the aim point has to be visible. */}
       <div className="crosshair" />
 
-      {/* Same rail as the match, so walking through the portal does not change
-          what the controls look like.
-
-          Entering a match is NOT a chip. Every cap on the rail is a key you can
-          find on the keyboard, and starting a match is a matter of standing
-          still — a chip with "서 있기" printed where W and F go would teach the
-          wrong thing about what the row is. It gets a plain line instead. */}
-      <div className="rail-note">포털 안에 잠시 서 있으면 게임이 시작됩니다</div>
-      <KeyHints
-        hints={[
-          ...(showControls
-            ? ([
-                { cap: "WASD", icon: "move", label: "이동", tone: "move" },
-                { cap: "SPACE", icon: "jump", label: "점프", tone: "move" },
-                { cap: "MOUSE", icon: "look", label: "시점", tone: "move" },
-              ] as KeyHint[])
-            : []),
-          { cap: "E", icon: "shop", label: "상점", tone: "pose" },
-        ]}
-      />
+      {/* No control rail down here.
+       *
+       * The lobby is a room you stand around in rather than a round you are
+       * playing, and everything it offers already announces itself where it
+       * happens: the stand prompt appears when you step onto a pad, the portal
+       * names itself and fills a bar when you walk into it. A permanent strip
+       * of chips would be repeating, at the bottom of the screen, what the
+       * world is already saying in the place it applies. */}
 
       {joining && (
         <div className="banner">

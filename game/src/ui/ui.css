@@ -427,6 +427,93 @@ body.hide-cursor canvas {
   backdrop-filter: blur(6px);
 }
 
+/* ------------------------------------------------------------ paint, called
+ *
+ * Painting is the game's verb, so it is the one control that does not live on
+ * the rail with everything else. It sits at the right edge, level with the
+ * middle of the screen, for two reasons: pressing F replaces that exact edge
+ * with the paint tools, so the control and what it opens occupy the same place;
+ * and the middle of the right edge is as far from the crosshair as the screen
+ * gets while still being somewhere the eye rests.
+ *
+ * Wider and taller than a rail chip on purpose. It is not one of six equal
+ * options — it is the thing you came here to do.
+ */
+
+.paint-call {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 92px;
+  padding: 14px 10px 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  border-radius: 14px;
+  border: 1px solid rgba(232, 161, 63, 0.45);
+  background: rgba(14, 17, 23, 0.82);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  overflow: hidden;
+  transition: opacity 0.18s ease, border-color 0.18s ease;
+}
+
+/* Same paint stripe as the rail chips, so "this is live" is one visual idea
+   across the whole HUD rather than two. */
+.paint-call::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--warn);
+  transform-origin: center;
+  transition: transform 0.18s ease;
+}
+
+.paint-call.is-off {
+  opacity: 0.4;
+  border-color: var(--line);
+}
+
+.paint-call.is-off::after {
+  transform: scaleX(0.12);
+}
+
+.paint-call-icon {
+  color: var(--warn);
+  line-height: 0;
+}
+
+.paint-call-icon svg {
+  width: 34px;
+  height: 34px;
+  display: block;
+}
+
+.paint-call-cap {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--warn);
+}
+
+.paint-call-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.paint-call-why {
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 /* One sentence directly above the rail, for the things that are not keypresses.
    Sits at the same left/bottom rhythm as the pose readout so the bottom of the
    screen has one column, not two. */
