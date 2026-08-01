@@ -101,7 +101,14 @@ const OPEN: [number, number] = (() => {
   for (let x = -limit; x <= limit; x += 1) {
     for (let z = -limit; z <= limit; z += 1) {
       const clear = MAP_BOXES.every(
-        (b) => Math.abs(x - b.p[0]) > b.s[0] / 2 + 1 || Math.abs(z - b.p[2]) > b.s[2] / 2 + 1
+        (b) =>
+          // Overhead geometry is not underfoot. Without this the roof — one box
+          // covering all 88x88 — makes every square metre of the arena read as
+          // occupied and this search throws. 1.8 is isWallAt's own overhead
+          // clearance, so "not in the way" means the same here as in map.ts.
+          b.p[1] - b.s[1] / 2 > 1.8 ||
+          Math.abs(x - b.p[0]) > b.s[0] / 2 + 1 ||
+          Math.abs(z - b.p[2]) > b.s[2] / 2 + 1
       );
       if (clear) return [x, z];
     }

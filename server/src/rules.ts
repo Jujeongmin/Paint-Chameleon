@@ -6,7 +6,7 @@
  * so anything shared is duplicated here and check:sync compares the two.
  */
 
-export const ARENA = { size: 88, wallHeight: 7, wallThickness: 1 };
+export const ARENA = { size: 88, wallHeight: 10, wallThickness: 1 };
 
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 8;

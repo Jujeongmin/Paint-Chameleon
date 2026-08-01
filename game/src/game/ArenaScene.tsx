@@ -96,6 +96,13 @@ export function Arena({ onPickColor }: Props) {
   // the collider — no model in the kit is deck-shaped.
   const slabs = useMemo(() => MAP_BOXES.filter((b) => b.slab), []);
 
+  // The lid. One box, and the only one drawn with castShadow off: it sits
+  // between the directional light and every square metre of floor, so casting
+  // from it would put the whole arena in its own shade and leave the map lit by
+  // ambient alone. Receiving is off for the same reason it would never show —
+  // the face anyone sees is the underside, which faces away from the light.
+  const roof = useMemo(() => MAP_BOXES.find((b) => b.roof), []);
+
   // Everything model-drawn splits by repetition (instancing.ts): repeated
   // models become one InstancedMesh per (geometry, material) part, one-offs
   // keep the cloned-scene path. Rebuilding these once matters either way.
@@ -181,6 +188,20 @@ export function Arena({ onPickColor }: Props) {
           <boxGeometry args={b.s} />
         </mesh>
       ))}
+
+      {roof && (
+        <mesh
+          position={roof.p}
+          userData={{ pickColor: WALL_COLOR }}
+          onClick={pick(WALL_COLOR)}
+        >
+          <boxGeometry args={roof.s} />
+          <meshStandardMaterial
+            {...tiled(wallSource, ARENA.size / TILE, ARENA.size / TILE, anisotropy)}
+            roughness={1}
+          />
+        </mesh>
+      )}
 
       {slabs.map((b, i) => (
         <mesh

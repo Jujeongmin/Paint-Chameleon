@@ -15,9 +15,10 @@ import {
   SPAWN_POINTS,
   ARENA,
   CLUSTERS,
-  DECK_TOP,
+  CLUTTER_TARGET,
   PLATFORMS,
   climbRoute,
+  deckTopFor,
   slotOf,
 } from "../game/src/game/arena";
 import { INSTANCE_MIN, instancingPlan, modelDrawn } from "../game/src/game/instancing";
@@ -333,9 +334,73 @@ console.log("\nevery platform can be climbed, by both body sizes");
     }
   }
 
-  // And the deck itself is above every prop nearby, or the "second storey"
-  // is just another crate.
-  check(`the deck (${DECK_TOP}) clears the tallest prop family`, DECK_TOP > 2.0);
+  // And each deck is above every prop family, or the "second storey" is just
+  // another crate.
+  for (const p of PLATFORMS) {
+    check(`${p.id}: the deck (${deckTopFor(p).toFixed(2)}) clears the tallest prop family`, deckTopFor(p) > 2.0);
+  }
+
+  // Two tiers, not one. The high decks exist so that being on a low deck is
+  // not automatically safe — somewhere has to look down on them.
+  const tiers = new Set(PLATFORMS.map((p) => deckTopFor(p).toFixed(2)));
+  check(`the towers come in more than one height (${[...tiers].join(", ")})`, tiers.size >= 2);
+}
+
+console.log("\nhand-placed structures do not overlap each other");
+{
+  // Platforms, buildings and partitions are all written down by hand, and
+  // nothing in buildArena rejects one against another — only the clutter
+  // sampler checks what is already there. So a tower typed in on top of a
+  // landmark would build, render as two models inside each other, and pass
+  // every check above. This is the one that says no.
+  //
+  // Clutter is excluded because it was placed by rejection against everything
+  // here, and stacks are excluded from each other because a pile is meant to
+  // share its footprint. The perimeter is excluded because the four walls are
+  // each a full arena longer than the arena and deliberately cross at the
+  // corners, and the roof because it lies over all of it by design.
+  const perimeter = (b: (typeof MAP_BOXES)[number]) => b.wall && b.s[1] === ARENA.wallHeight;
+  const hand = MAP_BOXES.filter((b) => !b.loose && !b.roof && !perimeter(b));
+  // Touching is not intersecting, and this arena touches on purpose: crates
+  // stack face to face, a stair tread abuts its neighbour, legs meet their
+  // deck, and a partition arm is a whole number of panels spread over a span
+  // that is not a whole number of panels wide (11 panels over 12u overlap by
+  // 19mm each). A quarter of a metre is the smallest overlap that means
+  // someone typed one structure on top of another rather than next to it.
+  const TOLERANCE = 0.25;
+  let overlaps = 0;
+  let example = "";
+  for (let i = 0; i < hand.length; i++) {
+    for (let j = i + 1; j < hand.length; j++) {
+      const a = hand[i];
+      const b = hand[j];
+      const hit = [0, 1, 2].every(
+        (axis) => (a.s[axis] + b.s[axis]) / 2 - Math.abs(a.p[axis] - b.p[axis]) > TOLERANCE
+      );
+      if (hit) {
+        overlaps++;
+        if (!example) {
+          example = `${a.family ?? "slab"} at [${a.p.map((n) => n.toFixed(1))}] inside ${
+            b.family ?? "slab"
+          } at [${b.p.map((n) => n.toFixed(1))}]`;
+        }
+      }
+    }
+  }
+  check(`no two hand-placed boxes intersect (${overlaps})`, overlaps === 0, example);
+}
+
+console.log("\nthe clutter target is actually reached");
+{
+  // The sampler stops at the target OR at the attempt budget, whichever comes
+  // first, and for a long time it was the budget: the file said 640 and the
+  // arena had about 230. A stack pushes its whole pile at once, so landing a
+  // little over the target is expected and landing under it is the bug.
+  const loose = MAP_BOXES.filter((b) => b.loose).length;
+  check(
+    `${loose} pieces of clutter placed, target ${CLUTTER_TARGET}`,
+    loose >= CLUTTER_TARGET && loose < CLUTTER_TARGET + 3
+  );
 }
 
 console.log("\nrepeated models are instanced");

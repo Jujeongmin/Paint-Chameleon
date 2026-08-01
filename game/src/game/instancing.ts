@@ -29,7 +29,7 @@ export interface InstancingPlan {
  * stretch or rattle around inside it).
  */
 export function modelDrawn(boxes: MapBox[], wallHeight: number): MapBox[] {
-  return boxes.filter((b) => !(b.wall && b.s[1] === wallHeight) && !b.slab);
+  return boxes.filter((b) => !(b.wall && b.s[1] === wallHeight) && !b.slab && !b.roof);
 }
 
 export function instancingPlan(drawn: MapBox[]): InstancingPlan {

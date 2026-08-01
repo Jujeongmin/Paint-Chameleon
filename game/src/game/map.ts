@@ -65,7 +65,15 @@ export function groundHeightAt(
 ): number {
   let best = floorY;
   for (const b of boxes) {
-    if (!overlapsXZ(b, x, z, 0)) continue;
+    // The epsilon is what closes the crack between two boxes that abut exactly.
+    // overlapsXZ is a strict <, so a point on the shared face of two crates is
+    // inside NEITHER of them and this returns the floor — you fall through a
+    // seam of zero width. It bit the platform stairs, whose treads are two
+    // crates laid side by side: walk up the exact centre line, which is what
+    // aiming at the tread's centre makes you do, and the fourth step drops you
+    // to the ground. Blocking is left strict on purpose — this is about what
+    // holds you up, and a surface you are exactly touching should.
+    if (!overlapsXZ(b, x, z, 1e-6)) continue;
     const top = b.p[1] + b.s[1] / 2;
     if (top <= feetY + STEP_HEIGHT && top > best) best = top;
   }

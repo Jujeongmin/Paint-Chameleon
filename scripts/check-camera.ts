@@ -8,7 +8,7 @@ import {
   clampFreeCamera,
   type CameraModeInput,
 } from "../game/src/game/cameraMode";
-import { ARENA } from "../game/src/game/arena";
+import { CAMERA_RADIUS } from "../game/src/game/camera";
 import { MAP_BOXES } from "../game/src/game/map";
 
 let failures = 0;
@@ -76,15 +76,44 @@ check(
   inside.join(", ")
 );
 
-// The ceiling's justification: it clears everything standing on the map with
-// a wall's worth of room to spare, so you can cross a wall and look down the
-// far side of it. Measured against the map itself, not against the constant it
-// was derived from — a taller structure added later fails here.
-const tallest = MAP_BOXES.reduce((most, b) => Math.max(most, b.p[1] + b.s[1] / 2), 0);
+// The ceiling has two jobs and they pull against each other, so both are
+// measured against the map itself rather than against the constants they were
+// derived from — whichever a later change breaks, it fails here.
+//
+// One: stay indoors. The arena has a lid, and a camera parked in or above it
+// sees the roof or the void, which is the failure the roof was added to fix.
+const roof = MAP_BOXES.find((b) => b.roof);
+check("the arena has a roof to stay under", !!roof);
+const roofUnderside = roof ? roof.p[1] - roof.s[1] / 2 : Infinity;
 check(
-  "the ceiling clears the tallest thing on the map by a wall height",
-  FREE_FLY.ceiling >= tallest + ARENA.wallHeight,
-  `ceiling ${FREE_FLY.ceiling} vs tallest ${tallest.toFixed(1)} + ${ARENA.wallHeight}`
+  "the free camera stays under the roof, with its own padding to spare",
+  FREE_FLY.ceiling + CAMERA_RADIUS <= roofUnderside,
+  `ceiling ${FREE_FLY.ceiling} + ${CAMERA_RADIUS} vs underside ${roofUnderside}`
+);
+
+// Two: still be high enough to be worth flying to. Every deck is somewhere a
+// player can stand, so the camera has to clear the highest of them by more
+// than a body — otherwise you fly up and are level with the thing you meant to
+// look down on.
+const decks = MAP_BOXES.filter((b) => b.slab);
+check("there are decks to look down on", decks.length > 0);
+const highestDeck = decks.reduce((most, b) => Math.max(most, b.p[1] + b.s[1] / 2), 0);
+check(
+  "and clears the highest deck by more than a standing body",
+  FREE_FLY.ceiling >= highestDeck + 2,
+  `ceiling ${FREE_FLY.ceiling} vs deck ${highestDeck.toFixed(2)} + 2`
+);
+
+// Nothing on the map may poke through the lid. A structure taller than the
+// roof would be visible from outside it and unreachable from inside.
+const tallestUnderRoof = MAP_BOXES.reduce(
+  (most, b) => (b.roof ? most : Math.max(most, b.p[1] + b.s[1] / 2)),
+  0
+);
+check(
+  "nothing standing on the floor reaches the roof",
+  tallestUnderRoof <= roofUnderside,
+  `tallest ${tallestUnderRoof.toFixed(1)} vs underside ${roofUnderside}`
 );
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall good");

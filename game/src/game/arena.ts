@@ -40,6 +40,22 @@ export interface MapBox {
    */
   slab?: true;
   /**
+   * The lid over the whole arena. Called out separately from `wall` because it
+   * is the one box drawn without casting a shadow: a solid roof between the
+   * directional light and the floor would put all 88x88 metres in shade, and
+   * an arena lit only by ambient is unreadable. The light is a lie the roof
+   * tells; the alternative is a dark box.
+   */
+  roof?: true;
+  /**
+   * Scattered clutter rather than a designed row, a landmark or a tower part.
+   * Marked so check:map can count what actually got placed: the sampler stops
+   * at whichever comes first, the target or the attempt budget, and a target
+   * the floor no longer has room for would otherwise shrink the clutter
+   * silently while still reading as "640" in this file.
+   */
+  loose?: true;
+  /**
    * Yaw for the model only — the collider stays axis-aligned.
    *
    * Safe because everything that gets turned has a square footprint, so the
@@ -55,9 +71,16 @@ export interface MapBox {
  * seeker's 90 seconds buys far fewer sweeps than it used to. That is a balance
  * question this file can't answer; PHASE_SECONDS is where it would be settled.
  *
+ * `wallHeight` is now also the interior headroom, because the arena has a lid
+ * (see buildArena). It went 7 -> 10 when the roof went on, and the number that
+ * forced it was the camera, not the eye: a hider standing on the highest deck
+ * (3.65) pivots at 5.00 and the follow rig swings 5.2u back at up to 1.1rad of
+ * pitch, which puts the camera at 9.63. A roof at 7 would have jammed that
+ * camera into the player's own head every time they looked up from a platform.
+ *
  * KEEP IN SYNC WITH server/src/rules.ts — check:sync compares it.
  */
-export const ARENA = { size: 88, wallHeight: 7, wallThickness: 1 };
+export const ARENA = { size: 88, wallHeight: 10, wallThickness: 1 };
 
 /**
  * What the floor and walls read as to the eyedropper.
@@ -232,6 +255,17 @@ const BUILDINGS: { model: ModelId; at: [number, number]; rotY?: number }[] = [
   { model: "building-m", at: [30, 8], rotY: Math.PI },
   { model: "building-l", at: [8, -30] },
   { model: "building-c", at: [-8, 30] },
+  // A second ring, between each quadrant's rows and the perimeter. These four
+  // sit on the diagonals the first eight leave bare: from the middle of a
+  // quadrant the old set was all behind you, so there was nothing to steer by
+  // while working along the outer clusters.
+  // Two of these started on the x = +-12 partition lines, which run z -38..-26
+  // and z 26..38 — the arms perpendicular to the ones at z = +-12 that the
+  // first pass looked at. check:map's overlap test is what said so.
+  { model: "building-a", at: [-12, -32] },
+  { model: "building-r", at: [6, -34], rotY: Math.PI },
+  { model: "building-m", at: [12, 32], rotY: Math.PI / 2 },
+  { model: "building-c", at: [-16, 35], rotY: -Math.PI / 2 },
 ];
 
 /**
@@ -256,26 +290,65 @@ export interface Platform {
   at: [number, number];
   /** Which side the stair descends toward: the sign and axis of approach. */
   from: "+x" | "-x" | "+z" | "-z";
+  /**
+   * How many crate treads the stair has, and so how high the deck is. Every
+   * tread is one crate taller than the last, so this is the only dial: the
+   * deck height follows from it rather than being chosen next to it, and a
+   * deck height nobody's stair actually reaches cannot be written down.
+   */
+  levels: number;
 }
 
+const CRATE_RISE = colliderFor("crate")[1];
 /**
- * Deck top surface height. Above every prop family (tallest is 2.0), and the
- * last rise from the third tread (3 crates, 1.95) is 0.40 — strictly under
- * STEP_HEIGHT 0.45 rather than exactly on it, because a boundary value walks
- * or doesn't depending on which side of a <= someone wrote.
+ * The last step, from the top tread onto the deck. Strictly under STEP_HEIGHT
+ * 0.45 rather than exactly on it, because a boundary value walks or doesn't
+ * depending on which side of a <= someone wrote.
  */
-export const DECK_TOP = 2.35;
+const FINAL_RISE = 0.4;
+
+/** Deck top surface height, derived from the stair that has to reach it. */
+export function deckTopFor(p: Platform): number {
+  return CRATE_RISE * p.levels + FINAL_RISE;
+}
+
 export const DECK_SIZE = 4.6;
 const DECK_THICKNESS = 0.4;
 
+/**
+ * Eight towers in two tiers.
+ *
+ * The four corner towers are the low tier (3 treads, deck 2.35): just over the
+ * tallest prop, so standing on one shows you the tops of the rows around it.
+ * The four mid-edge towers are the high tier (5 treads, deck 3.65) and look
+ * over the partitions as well, which is the only place in the arena a hider can
+ * see a whole quadrant at once — and the only place the seeker can too.
+ *
+ * A tier is worth having because the low decks are cover from above and the
+ * high decks are not: from 3.65 you can see down onto a 2.35 deck, so the good
+ * perch is also the exposed one. Height you can't be shot from would just be a
+ * better hiding spot than the ground.
+ *
+ * Positions dodge the cluster slots — a stair tread parked on a designed hiding
+ * slot fails check:map's "the slot is empty", which is how the first placement
+ * of these was caught. check:map also asserts no platform box lands inside a
+ * building or a partition, which is what keeps this table honest by hand.
+ */
 export const PLATFORMS: Platform[] = [
-  // Positions dodge the cluster slots — a stair tread parked on a designed
-  // hiding slot fails check:map's "the slot is empty", which is how the first
-  // placement of these was caught.
-  { id: "nw", at: [-24, -24], from: "-x" },
-  { id: "ne", at: [30, -30], from: "-x" },
-  { id: "sw", at: [-28, 28], from: "+z" },
-  { id: "se", at: [26, 24], from: "+z" },
+  { id: "nw", at: [-24, -24], from: "-x", levels: 3 },
+  { id: "ne", at: [30, -30], from: "-x", levels: 3 },
+  { id: "sw", at: [-28, 28], from: "+z", levels: 3 },
+  { id: "se", at: [26, 24], from: "+z", levels: 3 },
+  // The high tier's stairs face OUTWARD, toward the perimeter. Pointed inward
+  // they ran 8.8u toward the crossroads and squeezed the corridor between the
+  // stair and the partition line down to about 1.3u — passable, but check:map
+  // could no longer walk a hider from the north spawns to the south-west crate
+  // slot through it. Facing out also reads better: you climb from the quiet
+  // edge of the map and arrive looking in at it.
+  { id: "n", at: [0, -20], from: "-z", levels: 5 },
+  { id: "s", at: [0, 20], from: "+z", levels: 5 },
+  { id: "w", at: [-20, 0], from: "-x", levels: 5 },
+  { id: "e", at: [20, 0], from: "+x", levels: 5 },
 ];
 
 /** Unit vector of a Platform's `from` side. */
@@ -300,19 +373,40 @@ export function climbRoute(p: Platform): { x: number; z: number; top: number }[]
   const edge = DECK_SIZE / 2;
   const out: { x: number; z: number; top: number }[] = [];
 
-  // Three tread levels: 1, 2 and 3 crates tall — the lowest is the farthest
+  // One tread per level, 1..levels crates tall — the lowest is the farthest
   // out, so pushing in level order lists the route ground-first. (An earlier
   // unshift here listed the tallest tread first, and the climb check walked
   // the stair backwards.)
-  for (let level = 1; level <= 3; level++) {
-    const distance = edge + crate[2] / 2 + (3 - level) * crate[2];
+  for (let level = 1; level <= p.levels; level++) {
+    const distance = edge + crate[2] / 2 + (p.levels - level) * crate[2];
     out.push({
       x: p.at[0] + dx * distance,
       z: p.at[1] + dz * distance,
       top: crate[1] * level,
     });
   }
-  out.push({ x: p.at[0], z: p.at[1], top: DECK_TOP });
+  out.push({ x: p.at[0], z: p.at[1], top: deckTopFor(p) });
+  return out;
+}
+
+/**
+ * The floor in front of a stair's bottom step, which has to stay clear.
+ *
+ * climbRoute covers the treads themselves; this covers walking UP to them. The
+ * giant seeker is 1.8 across, so one barrel dropped a metre in front of the
+ * first tread is a stair only a hider can use — and check:map catches it as
+ * "radius 0.9 never left the ground", which is exactly how the outward-facing
+ * stairs first failed. Sampled rather than one point because the apron is a
+ * corridor, not a spot.
+ */
+export function climbApron(p: Platform): { x: number; z: number }[] {
+  const crate = colliderFor("crate");
+  const [dx, dz] = sideOf(p.from);
+  const base = DECK_SIZE / 2 + crate[2] / 2 + (p.levels - 1) * crate[2];
+  const out: { x: number; z: number }[] = [];
+  for (const extra of [1.5, 3, 4.5]) {
+    out.push({ x: p.at[0] + dx * (base + extra), z: p.at[1] + dz * (base + extra) });
+  }
   return out;
 }
 
@@ -323,32 +417,42 @@ function platformBoxes(p: Platform): MapBox[] {
   // Treads run across the approach: x-approach spreads them in z and back.
   const [ax, az] = [Math.abs(dz), Math.abs(dx)];
   const boxes: MapBox[] = [];
+  const deckTop = deckTopFor(p);
 
-  // Deck. Its top lands on DECK_TOP exactly; the legs stop underneath it.
+  // Deck. Its top lands on the derived deck height exactly.
   boxes.push({
-    p: [p.at[0], DECK_TOP - DECK_THICKNESS / 2, p.at[1]],
+    p: [p.at[0], deckTop - DECK_THICKNESS / 2, p.at[1]],
     s: [DECK_SIZE, DECK_THICKNESS, DECK_SIZE],
     c: WALL_COLOR,
     wall: true,
     slab: true,
   });
 
-  // Four pillar legs, inset a leg's width from the corners.
+  // Legs, drawn as textured columns rather than fitted pillar models.
+  //
+  // They used to be one pillar model each, which only worked while every deck
+  // was 2.35: a pillar is exactly 2.0 tall, so it already overlapped the deck
+  // it was holding up by 5cm, and at the high tier a stack of two stood 0.35
+  // PROUD of the deck — four posts sticking up through the floor you walk on.
+  // A leg has to be exactly as long as the gap it fills, and no model in the
+  // kit is, so this is the same trade the deck itself already makes.
   const inset = DECK_SIZE / 2 - pillar[0] / 2 - 0.1;
+  const legUnder = deckTop - DECK_THICKNESS;
   for (const cx of [-inset, inset]) {
     for (const cz of [-inset, inset]) {
       boxes.push({
-        p: [p.at[0] + cx, pillar[1] / 2, p.at[1] + cz],
-        s: [...pillar] as [number, number, number],
+        p: [p.at[0] + cx, legUnder / 2, p.at[1] + cz],
+        s: [pillar[0], legUnder, pillar[0]],
         c: WALL_COLOR,
-        family: "pillar",
+        wall: true,
+        slab: true,
       });
     }
   }
 
   // The stair: at each level, a stack of crates two abreast.
-  for (let level = 1; level <= 3; level++) {
-    const distance = DECK_SIZE / 2 + crate[2] / 2 + (3 - level) * crate[2];
+  for (let level = 1; level <= p.levels; level++) {
+    const distance = DECK_SIZE / 2 + crate[2] / 2 + (p.levels - level) * crate[2];
     const cx = p.at[0] + dx * distance;
     const cz = p.at[1] + dz * distance;
     for (const side of [-0.5, 0.5]) {
@@ -382,16 +486,29 @@ function platformBoxes(p: Platform): MapBox[] {
 const CLUTTER_SEED = 20260729;
 /**
  * Rejection sampling gets slow as the floor fills, so most attempts fail by the
- * end. 6000 is what it takes to reach the target; raising the target further
- * starts closing routes, which check:map catches.
+ * end. This runs at module load, on the page's critical path, which is what
+ * caps it: 40000 reaches the target with room to spare, and the plateau past
+ * it is worth about 20 more pieces for several extra seconds of startup.
  */
 const CLUTTER_ATTEMPTS = 40000;
 /**
- * 440 -> 640 with the instancing pass: repeated models now cost one draw per
- * (geometry, material) pair rather than per prop, so density is bounded by
- * routes staying open (check:map) rather than by draw calls again.
+ * Pieces of clutter, counting each crate in a pile separately.
+ *
+ * This number used to read 640 and the sampler never came close — it placed
+ * about 230 and stopped, because the loop exits on whichever comes first, the
+ * target or the attempt budget, and nothing was watching. `loose` and
+ * check:map's count of it exist so that cannot happen again: 340 is met, not
+ * hoped for, and a target the floor cannot hold now fails a check instead of
+ * quietly shrinking the arena.
+ *
+ * What bounds it is the 1.9u clear gap in buildArena, not draw calls — the
+ * instancing pass took those away. 1.9 is a hair over the giant seeker's 1.8
+ * diameter, so it is the rule that guarantees any two pieces can be walked
+ * between, and the plateau under it is about 359. More scatter than that would
+ * mean going under 1.8 and trusting check:map's flood fill in place of a
+ * guarantee. Stacking is the way around it that costs no floor at all.
  */
-const CLUTTER_TARGET = 640;
+export const CLUTTER_TARGET = 320;
 
 /** mulberry32 — small and deterministic. */
 function rng(seed: number) {
@@ -431,6 +548,22 @@ export function buildArena(): MapBox[] {
   boxes.push({ p: [0, wy, half], s: [ARENA.size + t * 2, ARENA.wallHeight, t], c: WALL_COLOR, wall: true });
   boxes.push({ p: [-half, wy, 0], s: [t, ARENA.wallHeight, ARENA.size + t * 2], c: WALL_COLOR, wall: true });
   boxes.push({ p: [half, wy, 0], s: [t, ARENA.wallHeight, ARENA.size + t * 2], c: WALL_COLOR, wall: true });
+
+  // The lid. It sits ON the walls rather than inside them, so the underside is
+  // exactly ARENA.wallHeight and the seam between wall and roof has no gap for
+  // the void outside to show through — which was the whole point of adding it.
+  //
+  // It is a collider as well as a surface: the follow camera solves against
+  // MAP_BOXES, so without a box here the camera would rise straight through
+  // the roof on a look-up and show the arena from outside, which is the same
+  // failure the roof exists to fix, one layer up.
+  boxes.push({
+    p: [0, ARENA.wallHeight + t / 2, 0],
+    s: [ARENA.size + t * 2, t, ARENA.size + t * 2],
+    c: WALL_COLOR,
+    wall: true,
+    roof: true,
+  });
 
   // Each arm is a run of panels rather than one long box, so the model can be
   // repeated at its own size instead of stretched down the whole span.
@@ -512,6 +645,8 @@ export function buildArena(): MapBox[] {
     // walk up to its first tread, and the clear-gap test below keeps clutter a
     // body's width from the treads themselves, not from the approach to them.
     if (PLATFORMS.some((p) => climbRoute(p).some((w) => Math.hypot(x - w.x, z - w.z) < 2.8))) continue;
+    // ...nor the floor leading up to the bottom step.
+    if (PLATFORMS.some((p) => climbApron(p).some((w) => Math.hypot(x - w.x, z - w.z) < 2.8))) continue;
 
     // Leave the GIANT's width between this and anything already down — the
     // seeker is 0.9 in radius, so a 1.0 gap that lets a hider slip through is
@@ -519,20 +654,46 @@ export function buildArena(): MapBox[] {
     // ring that sealed the arena centre off entirely (caught by check:map's
     // seeker-reachability sweep, which is exactly the failure it exists for).
     const clear = boxes.every((b) => {
+      // Overhead geometry is not in the way of anything standing on the floor.
+      // The test below is purely 2D, so without this the roof — one box the
+      // full size of the arena — reads as overlapping every candidate and
+      // NOTHING gets placed (it was placing 0 the moment the lid went on). The
+      // 1.8 is isWallAt's own overhead clearance, so "not in the way" means
+      // the same thing here as it does to the collision code. Platform decks
+      // clear it too, which is deliberate: clutter under a tower is cover.
+      if (b.p[1] - b.s[1] / 2 > 1.8) return true;
       const gapX = Math.abs(x - b.p[0]) - (size[0] + b.s[0]) / 2;
       const gapZ = Math.abs(z - b.p[2]) - (size[2] + b.s[2]) / 2;
       return Math.max(gapX, gapZ) > 1.9;
     });
     if (!clear) continue;
 
-    boxes.push({
-      p: [x, size[1] / 2, z],
-      s: size,
-      c: pickColorFor(model, placed),
-      family: model,
-      rotY: random() * Math.PI * 2,
-    });
-    placed++;
+    // Crates go down in piles of one to three.
+    //
+    // This is how the clutter gets denser without getting harder to walk
+    // through: a stack claims exactly the floor one crate does, so the gap
+    // rule above is untouched, and every extra crate is a box that was not
+    // there before. It is also the arena's only climbable feature outside the
+    // eight towers — two crates top out at 1.30, under the 1.69 a jump from
+    // the floor reaches, so a double stack is somewhere you can get up onto
+    // and a triple (1.95) is somewhere you can only reach from a neighbour.
+    // Drums pair up too, but only ever two: at 1.35 each a pair tops out at
+    // 2.70, over the 1.69 a jump reaches and well over eye height, so a double
+    // drum is cover you cannot climb — the opposite of what a crate pile is
+    // for, from the same trick.
+    const stack =
+      model === "crate" ? 1 + Math.floor(random() * 3) : model === "drum" ? 1 + Math.floor(random() * 2) : 1;
+    for (let level = 0; level < stack; level++) {
+      boxes.push({
+        p: [x, size[1] / 2 + level * size[1], z],
+        s: [...size] as [number, number, number],
+        c: pickColorFor(model, placed + level),
+        family: model,
+        rotY: random() * Math.PI * 2,
+        loose: true,
+      });
+    }
+    placed += stack;
   }
 
   return boxes;

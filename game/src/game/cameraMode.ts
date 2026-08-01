@@ -1,6 +1,6 @@
 import type { Phase } from "./constants";
 import { ARENA } from "./arena";
-import { CAMERA_FLOOR } from "./camera";
+import { CAMERA_FLOOR, CAMERA_RADIUS } from "./camera";
 
 /**
  * Which camera is driving, decided once per frame.
@@ -43,19 +43,23 @@ export function cameraModeFor({
  * point of flying — so this box is the only thing keeping the camera out of the
  * void under the map and off past the walls.
  *
- * The ceiling is one wall height above the tallest thing on the map, which is
- * the perimeter wall itself at ARENA.wallHeight. That is the height the job
- * needs: enough to cross a wall and look down the far side of it, and low
- * enough that hiding places still read as places rather than as texture. Going
- * high enough to frame the whole 88u arena at once (about 44u) put the camera
- * so far up that it was no longer looking at anything in particular.
+ * The ceiling used to be a wall height above the tallest thing on the map,
+ * which put it outdoors at 14u. The arena has a lid now, so that height is no
+ * longer somewhere you can be: it is inside the roof slab. The ceiling is the
+ * roof's underside less the camera's own padding, which is the highest point
+ * that still has the whole arena in front of it rather than a metre of
+ * corrugated steel.
+ *
+ * Note this is the only wall of the box that describes real geometry. The
+ * other five are still arbitrary — the free camera does not collide, so the
+ * sides and floor are just the edge of where looking is useful.
  */
 export const FREE_FLY = {
   /** World units per second. Roughly three times a hider's walk. */
   speed: 18,
   half: ARENA.size / 2,
   floor: CAMERA_FLOOR,
-  ceiling: ARENA.wallHeight * 2,
+  ceiling: ARENA.wallHeight - CAMERA_RADIUS,
 };
 
 export function clampFreeCamera(x: number, y: number, z: number): [number, number, number] {
