@@ -15,9 +15,17 @@ import {
   stepMotion,
   wishDirection,
 } from "../game/src/game/movement";
-import { groundHeightAt, moveXZ, MAP_BOXES, ARENA, STEP_HEIGHT, type MapBox } from "../game/src/game/map";
+import {
+  groundHeightAt,
+  moveXZ,
+  playerBlockedAt,
+  MAP_BOXES,
+  ARENA,
+  STEP_HEIGHT,
+  type MapBox,
+} from "../game/src/game/map";
 import { bodyFadeFor, cameraInsideSolid, clearCameraDistance } from "../game/src/game/camera";
-import { CAMERA, MOVE } from "../game/src/game/constants";
+import { CAMERA, MOVE, SEEKER_SCALE } from "../game/src/game/constants";
 import { BODIES, derive } from "../game/src/game/bodies";
 
 let failures = 0;
@@ -115,6 +123,65 @@ const OPEN: [number, number] = (() => {
   }
   throw new Error("no open floor anywhere in the arena — the clutter has filled it");
 })();
+
+console.log("\nnothing can stay wedged inside the arena");
+{
+  /*
+   * The giant seeker used to get stuck in the scenery, and the reason was not
+   * that it could get inside something — that follows from step-up being
+   * height-aware, since airborne your feet are above a crate's top and a whole
+   * prop row stops counting as wall. The reason was that there was no way back
+   * out: a sweep found 654 of 3861 inside-a-wall positions the seeker could not
+   * walk out of in ANY of sixteen directions.
+   *
+   * So the guarantee this pins is deliberately stronger than "you can walk out
+   * if you pick the right way". It is: a body that finds itself inside the
+   * scenery gets put back outside it WITHOUT PRESSING ANYTHING. The drive below
+   * feeds moveXZ zero input, which makes the slide a no-op and leaves
+   * pushOutOfWalls as the only thing that can move it.
+   *
+   * Only positions the giant could actually reach are counted. Being unable to
+   * escape the middle of a building is not a bug; nobody can be there.
+   */
+  const R = MOVE.playerRadius * SEEKER_SCALE;
+  const AIR = 1.6; // about jump apex — the height a prop row stops blocking at
+  const limit = ARENA.size / 2 - R;
+  const FRAMES = 60; // one second at 60Hz
+
+  let reachable = 0;
+  let stuck = 0;
+  let worstFrames = 0;
+  let example = "";
+
+  for (let x = -limit; x <= limit; x += 1) {
+    for (let z = -limit; z <= limit; z += 1) {
+      if (!playerBlockedAt(x, z, 0, R, MAP_BOXES)) continue;
+      // Solid interiors are not places a player can be; skip them.
+      if (playerBlockedAt(x, z, AIR, R, MAP_BOXES)) continue;
+      reachable++;
+
+      let p: [number, number, number] = [x, 0, z];
+      let f = 0;
+      for (; f < FRAMES; f++) {
+        p = moveXZ(p, 0, 0, R, MAP_BOXES);
+        if (!playerBlockedAt(p[0], p[2], 0, R, MAP_BOXES)) break;
+      }
+      if (f >= FRAMES) {
+        stuck++;
+        if (!example) example = `stuck at (${x}, ${z})`;
+      } else if (f > worstFrames) {
+        worstFrames = f;
+      }
+    }
+  }
+
+  check(
+    `every wedge the giant can reach frees itself with no input ` +
+      `(${reachable} positions, worst ${worstFrames} frames)`,
+    stuck === 0,
+    example
+  );
+}
 
 console.log("\nground and jumping");
 
