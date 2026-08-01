@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Paint Chameleon — HUD 미리보기</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0d0f14;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: #fff;
+      }
+
+      /*
+       * Each state gets a full viewport of its own, because the HUD positions
+       * everything against the viewport — a half-height box would put the rail
+       * somewhere it never actually sits. Scroll snapping makes the page behave
+       * like flicking between screenshots.
+       */
+      #root {
+        scroll-snap-type: y mandatory;
+        overflow-y: auto;
+        height: 100vh;
+      }
+
+      .preview-frame {
+        position: relative;
+        height: 100vh;
+        scroll-snap-align: start;
+        overflow: hidden;
+        /* The arena's own fog colour, with a wash of the floor's tone across the
+           bottom. A translucent dark panel judged against a flat backdrop looks
+           fine and then vanishes over the real thing; this is the nearest
+           honest stand-in without running the renderer. */
+        background:
+          radial-gradient(120% 80% at 50% 120%, rgba(144, 135, 115, 0.35), transparent 60%),
+          linear-gradient(180deg, #232a35 0%, #1a1f28 55%, #12151c 100%);
+      }
+
+      /* The HUD is position: fixed, so each frame has to become the containing
+         block or every state would stack on top of the first one. */
+      .preview-frame .overlay {
+        position: absolute;
+      }
+
+      .preview-label {
+        position: absolute;
+        left: 50%;
+        bottom: 4px;
+        transform: translateX(-50%);
+        z-index: 50;
+        display: flex;
+        gap: 10px;
+        align-items: baseline;
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.4);
+        pointer-events: none;
+      }
+
+      .preview-label b {
+        color: rgba(255, 255, 255, 0.75);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/ui/hudPreview.tsx"></script>
+  </body>
+</html>

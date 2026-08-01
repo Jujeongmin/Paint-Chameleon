@@ -254,6 +254,22 @@ body.hide-cursor canvas {
   backdrop-filter: blur(8px);
 }
 
+/*
+ * The scoreboard is 210px pinned to the left, and the phase pill is centred and
+ * grows with its contents — below about 760px they run into each other. This
+ * predates the rail; measuring the HUD at 560px on /hud-preview.html is what
+ * turned it up.
+ *
+ * The scoreboard is what gives way. Everything it carries is either repeated in
+ * the top bar (how many hiders are left) or not needed second to second (who is
+ * on what score), while the pill holds the phase, the clock and your role.
+ */
+@media (max-width: 760px) {
+  .hud-left {
+    display: none;
+  }
+}
+
 .hud-heading {
   font-size: 11px;
   letter-spacing: 0.08em;
@@ -306,15 +322,32 @@ body.hide-cursor canvas {
  * a shot, and there is nothing here to click: the rail only reports.
  */
 
-.keyrail {
+/*
+ * Everything that lives along the bottom, in one column.
+ *
+ * These used to be three separately pinned elements — the rail at bottom 20,
+ * the pose readout at 114, the cell note at 118 — and the numbers were only
+ * right for one window width. The rail wraps to a second row when the window
+ * is narrow, and both notes then landed INSIDE it. Stacking them means the
+ * gaps hold at any width and any number of chips.
+ */
+.hud-bottom {
   position: absolute;
   left: 50%;
   bottom: 20px;
   transform: translateX(-50%);
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  max-width: calc(100vw - 32px);
+  pointer-events: none;
+}
+
+.keyrail {
+  display: flex;
   gap: 8px;
   pointer-events: none;
-  max-width: calc(100vw - 32px);
   flex-wrap: wrap;
   justify-content: center;
 }
@@ -322,8 +355,8 @@ body.hide-cursor canvas {
 .keychip {
   --tone: var(--muted);
   position: relative;
-  min-width: 64px;
-  padding: 8px 10px 9px;
+  min-width: 74px;
+  padding: 9px 11px 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -357,13 +390,17 @@ body.hide-cursor canvas {
 }
 
 .keychip-icon svg {
-  width: 22px;
-  height: 22px;
+  width: 25px;
+  height: 25px;
   display: block;
 }
 
+/* Sizes are set from a measurement, not by eye: at 11px the caps and labels
+   were smaller than the game's own body text and the rail failed the one job
+   it has, which is being readable without looking away from the middle of the
+   screen. /hud-preview.html is where that was measured. */
 .keychip-cap {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.09em;
   color: var(--tone);
@@ -371,7 +408,7 @@ body.hide-cursor canvas {
 }
 
 .keychip-label {
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
@@ -409,10 +446,6 @@ body.hide-cursor canvas {
  * read as something you can press.
  */
 .pose-readout {
-  position: absolute;
-  left: 50%;
-  bottom: 102px;
-  transform: translateX(-50%);
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -445,8 +478,8 @@ body.hide-cursor canvas {
   right: 16px;
   top: 50%;
   transform: translateY(-50%);
-  width: 92px;
-  padding: 14px 10px 15px;
+  width: 104px;
+  padding: 15px 10px 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -490,47 +523,28 @@ body.hide-cursor canvas {
 }
 
 .paint-call-icon svg {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   display: block;
 }
 
 .paint-call-cap {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: var(--warn);
 }
 
 .paint-call-label {
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 700;
   color: var(--text);
 }
 
 .paint-call-why {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--muted);
   white-space: nowrap;
-}
-
-/* One sentence directly above the rail, for the things that are not keypresses.
-   Sits at the same left/bottom rhythm as the pose readout so the bottom of the
-   screen has one column, not two. */
-.rail-note {
-  position: absolute;
-  left: 50%;
-  bottom: 102px;
-  transform: translateX(-50%);
-  padding: 5px 14px;
-  border-radius: 999px;
-  background: rgba(14, 17, 23, 0.72);
-  border: 1px solid var(--line);
-  font-size: 12.5px;
-  color: var(--text);
-  white-space: nowrap;
-  pointer-events: none;
-  backdrop-filter: blur(6px);
 }
 
 .pose-readout-label {
@@ -632,11 +646,6 @@ body.hide-cursor canvas {
 }
 
 .cell-note {
-  position: absolute;
-  left: 50%;
-  /* Clears the control rail, which is 20px up and about 72px tall. */
-  bottom: 108px;
-  transform: translateX(-50%);
   padding: 10px 18px;
   border-radius: 999px;
   background: rgba(5, 7, 10, 0.72);
@@ -979,8 +988,7 @@ body.hide-cursor canvas {
 
 .portal-prompt {
   position: absolute;
-  /* Clears the control rail, which is 20px up and about 72px tall. */
-  bottom: 108px;
+  bottom: 84px;
   left: 50%;
   transform: translateX(-50%);
   width: 300px;
@@ -1119,8 +1127,7 @@ body.hide-cursor canvas {
    mannequin it's describing. */
 .stand-prompt {
   position: absolute;
-  /* Clears the control rail, which is 20px up and about 72px tall. */
-  bottom: 108px;
+  bottom: 84px;
   left: 50%;
   transform: translateX(-50%);
   min-width: 220px;

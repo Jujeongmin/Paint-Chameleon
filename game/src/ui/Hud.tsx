@@ -171,20 +171,27 @@ export function Hud({
             </div>
           )}
 
-          {!isSeeker && inRound && (
-            <div className="pose-readout">
-              <span className="pose-readout-label">자세</span>
-              {POSES[pose]?.label ?? "서기"}
-            </div>
-          )}
+          {/* One column, not three things each pinned to their own offset. The
+              rail wraps to a second row on a narrow window, and anything
+              positioned above it by a fixed number of pixels lands inside it
+              when it does — which is exactly what happened at 560px wide. */}
+          <div className="hud-bottom">
+            {isSeeker && room.phase === "hiding" && (
+              <div className="cell-note">
+                <strong>{secondsLeft}초</strong> 후 추적이 시작됩니다 · 숨는 사람 {remaining}명
+              </div>
+            )}
 
-          <KeyHints hints={hints} />
+            {!isSeeker && inRound && (
+              <div className="pose-readout">
+                <span className="pose-readout-label">자세</span>
+                {POSES[pose]?.label ?? "서기"}
+              </div>
+            )}
 
-          {isSeeker && room.phase === "hiding" && (
-            <div className="cell-note">
-              <strong>{secondsLeft}초</strong> 후 추적이 시작됩니다 · 숨는 사람 {remaining}명
-            </div>
-          )}
+            <KeyHints hints={hints} />
+          </div>
+
         </>
       )}
 
