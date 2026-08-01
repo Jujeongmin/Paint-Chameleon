@@ -24,8 +24,8 @@ import { MAP_BOXES, randomSpawn } from "../game/map";
 import { CELL_SPAWN, HUNT_START } from "../game/cell";
 import { surfaceFor } from "../game/paint";
 import { BODIES, DEFAULT_BODY_ID } from "../game/bodies";
-import { createBots, resetBots, stepBots, type BotState } from "../game/bot";
-import { DEFAULT_MODE, caughtIsOut, type GameMode } from "../game/modes";
+import { botIsOut, createBots, resetBots, stepBots, type BotState } from "../game/bot";
+import { DEFAULT_MODE, type GameMode } from "../game/modes";
 import { coinsFor } from "../game/coins";
 import type { BuyResult, LeaderboardResult, PlayerState, RoomInfo, WalletView, WireDab } from "./types";
 
@@ -258,9 +258,15 @@ export function useOfflineGame() {
           role: "hider",
           caught: b.caught,
           caughtAt: b.caughtAt,
-          // In hunt mode the body is removed rather than left lying about, so
-          // nobody draws one for it.
-          spectating: caughtIsOut(mode) && b.caught,
+          // A caught bot vanishes in BOTH modes, which is not what the mode
+          // rule says for a human and is deliberate.
+          //
+          // In tag a caught player converts, and a bot cannot: an AI may never
+          // be the seeker (bot.ts). So a caught bot is out — and leaving its
+          // body lying in the arena said the opposite, since in tag a body on
+          // the floor is somebody who is about to get up and hunt you. Removing
+          // it is what makes "this one is not coming back" legible.
+          spectating: botIsOut(b),
           pos: [...b.motion.pos] as [number, number, number],
           rotY: b.rotY,
           pose: b.pose,

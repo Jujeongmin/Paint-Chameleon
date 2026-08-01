@@ -31,7 +31,7 @@ import { useControlsLearned } from "./game/input";
 import type { Tool } from "./game/useBrush";
 import type { ShotResult } from "./game/useShoot";
 import type { WireDab } from "./net/types";
-import { playCatch, playResults, playRoundStart } from "./audio/sound";
+import { playCatch, playHuntStart, playResults, playRoundStart } from "./audio/sound";
 import "./ui/ui.css";
 
 export default function App() {
@@ -160,6 +160,11 @@ export default function App() {
 
     if (phase === "hiding") {
       playRoundStart();
+    } else if (phase === "seeking") {
+      // The seeker has been sat in the holding cell for the whole hiding
+      // phase; this is the moment the door opens. Everyone hears it — the
+      // hiders need to know the clock changed hands just as much.
+      playHuntStart();
     } else if (phase === "results") {
       const won = isSeeker
         ? (room?.lastResults ?? []).some((r: any) => r.account === account && r.gained > 0)

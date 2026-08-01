@@ -153,6 +153,24 @@ export function playRoundStart(): void {
   tone(523.25, 0.25, 0.25, "sine", 0.12);
 }
 
+/**
+ * The hunt is on. Played on hiding -> seeking, for everybody.
+ *
+ * Deliberately not another rising figure like playRoundStart. That one says
+ * "get moving"; this one has to say "time is up", and the seeker in particular
+ * has spent the whole hiding phase underground with nothing to look at — the
+ * cue is the moment they are let out, so it wants to land like a door opening
+ * rather than like a countdown ticking on.
+ *
+ * Falling fifth into a low sustain, with the two notes overlapping so it reads
+ * as one gesture instead of two beeps.
+ */
+export function playHuntStart(): void {
+  tone(587.33, 0.14, 0.28, "triangle");
+  tone(392, 0.2, 0.26, "triangle", 0.1);
+  tone(146.83, 0.5, 0.22, "sawtooth", 0.16);
+}
+
 /** Bright major arpeggio on a win, a single low tone on a loss. */
 export function playResults(won: boolean): void {
   if (won) {

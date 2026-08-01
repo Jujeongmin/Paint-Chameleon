@@ -309,6 +309,22 @@ export function stepBot(bot: BotState, world: BotWorld, dt: number): void {
   }
 }
 
+/**
+ * Whether a bot has left the arena for good — which is any bot that has been
+ * caught, in EITHER mode.
+ *
+ * A human caught in tag converts and keeps playing, and this is the one place
+ * that difference is refused. The reason is the rule the whole file is built
+ * around: an AI may never be the seeker, so a bot has nowhere to convert TO.
+ *
+ * It is a function rather than an inline `bot.caught` at the call site because
+ * the mode-shaped version is what someone would naturally write, and the check
+ * that stops them needs something to point at.
+ */
+export function botIsOut(bot: BotState): boolean {
+  return bot.caught;
+}
+
 export function stepBots(bots: BotState[], world: BotWorld, dt: number): void {
   for (const bot of bots) stepBot(bot, world, dt);
 }

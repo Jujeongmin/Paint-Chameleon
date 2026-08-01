@@ -18,6 +18,7 @@ import {
   BOT_COUNT,
   BOT_FLEE_RADIUS,
   BOT_SAFE_RADIUS,
+  botIsOut,
   createBots,
   paintColorAt,
   resetBots,
@@ -236,6 +237,27 @@ console.log("\na round can be replayed exactly");
   check(`reset puts everyone back on the floor`, a.every((bot) => bot.motion.pos[1] === 0));
   check(`reset un-catches everyone`, a.every((bot) => !bot.caught));
 }
+
+console.log("\na caught bot is out, in both rooms");
+{
+  // The rule this pins is the one that does NOT follow the game mode. A human
+  // caught in tag converts to a seeker and keeps playing; a bot cannot, because
+  // an AI may never be the seeker. So a caught bot is removed in either room —
+  // and leaving its body lying in the arena said the opposite, since in tag a
+  // body on the floor is somebody about to get up and hunt you.
+  const bots = createBots();
+  check("a fresh bot is in play", bots.every((b) => !botIsOut(b)));
+  bots[0].caught = true;
+  check("a caught bot is out", botIsOut(bots[0]));
+  check(
+    "and the answer does not depend on the mode",
+    bots.every((b) => botIsOut(b) === b.caught),
+    "tag converts a human and removes a bot — that asymmetry is the point"
+  );
+  resetBots(bots);
+  check("a new round puts it back in play", bots.every((b) => !botIsOut(b)));
+}
+
 
 console.log("\ncaught bots stop");
 {
