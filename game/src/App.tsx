@@ -387,6 +387,7 @@ export default function App() {
                 players={players}
                 selfAccount={account}
                 reveal={phase === "results"}
+                armed={phase === "seeking"}
               />
             )}
           </Suspense>

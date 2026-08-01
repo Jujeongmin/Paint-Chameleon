@@ -1,7 +1,8 @@
-import { useRef } from "react";
+import { Suspense, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { Humanoid, IDLE_MOTION, type BodyMotion } from "./Humanoid";
+import { Gun } from "./Gun";
 import { NameTag } from "./NameTag";
 import { MAP_BOXES, groundHeightAt, type MapBox } from "./map";
 import { SEEKER_SCALE } from "./constants";
@@ -19,11 +20,13 @@ function RemotePlayer({
   boxes,
   showName,
   revealed,
+  armed,
 }: {
   player: PlayerState;
   boxes: MapBox[];
   showName?: boolean;
   revealed?: boolean;
+  armed?: boolean;
 }) {
   const group = useRef<THREE.Group>(null);
   const initialised = useRef(false);
@@ -91,6 +94,18 @@ function RemotePlayer({
         dimmed={!!player.caught}
         body={player.body}
         revealed={revealed}
+        // Same reasoning as LocalPlayer: the gun gets its own boundary so a
+        // slow or failed GLB fetch costs the gun, not the peer's whole body —
+        // the outer Suspense in App.tsx wraps the entire scene. The load is
+        // shared with the local gun through useLoader's cache, so a hider
+        // watching the seeker pays for it once.
+        held={
+          armed && player.role === "seeker" ? (
+            <Suspense fallback={null}>
+              <Gun />
+            </Suspense>
+          ) : undefined
+        }
       />
       {showName && <NameTag text={player.nick || "익명"} />}
     </group>
@@ -109,6 +124,13 @@ interface Props {
    * the results phase — the round is over, so nothing is given away.
    */
   reveal?: boolean;
+  /**
+   * Put the gun in the remote seeker's hand. True only while the chase is on,
+   * mirroring the condition LocalPlayer arms itself under — the seeker holding
+   * a blaster in the lobby or on the results screen would be a lie about what
+   * they can do right now.
+   */
+  armed?: boolean;
 }
 
 export function RemotePlayers({
@@ -117,6 +139,7 @@ export function RemotePlayers({
   boxes = MAP_BOXES,
   showNames,
   reveal,
+  armed,
 }: Props) {
   return (
     <>
@@ -128,6 +151,7 @@ export function RemotePlayers({
             player={p}
             boxes={boxes}
             showName={showNames}
+            armed={armed}
             // Survivors only: the seeker already knows where the people they
             // caught were, and the question this answers is where the rest hid.
             revealed={reveal && p.role !== "seeker" && !p.caught}
