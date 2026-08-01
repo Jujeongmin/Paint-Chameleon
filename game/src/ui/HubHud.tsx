@@ -50,10 +50,16 @@ export function HubHud({
     <div className="overlay">
       <div className="hud-top">
         <span className="phase-label">로비</span>
-        <span className="role-chip hider">{players.length}명 접속 중</span>
+        {/* A headcount is not a role. This wore the hider's teal, which in a
+            match means "you are a hider" — the one place in the game where
+            that colour carries information. */}
+        <span className="role-chip count">{players.length}명 접속 중</span>
         {/* The shop has no panel to read a balance off any more, so it lives
             here permanently. */}
-        <span className="role-chip coins">{wallet.wallet?.coins ?? "…"} 코인</span>
+        <span className="role-chip coins">
+          {wallet.wallet?.coins ?? "…"}
+          <span className="chip-unit">코인</span>
+        </span>
       </div>
 
       <div className="hud-left">

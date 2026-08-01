@@ -70,37 +70,66 @@ export function ResultsOverlay({
   secondsLeft: number;
 }) {
   const results = room.lastResults ?? [];
-  const nickOf = (acc: string) => players.find((p) => p.account === acc)?.nick || "익명";
+  // The server sends an empty nick for the seeker's row, so the player list is
+  // the fallback rather than the other way round.
+  const nickOf = (r: any) =>
+    r.nick || players.find((p) => p.account === r.account)?.nick || "익명";
+
+  const mine = results.find((r: any) => r.account === account);
+  const hiders = results.filter((r: any) => !r.seeker);
+  const caught = hiders.filter((r: any) => r.caught).length;
+
+  // One line saying how it went for YOU. The table says what happened to
+  // everybody, which is not the same question and is not the one you ask first.
+  const verdict = mine?.seeker
+    ? { line: `${caught}명 잡았습니다`, sub: `숨은 사람 ${hiders.length}명 중`, won: caught * 2 >= hiders.length }
+    : mine?.caught
+    ? { line: "발각됐습니다", sub: "다음 라운드에 다시", won: false }
+    : { line: "살아남았습니다", sub: "끝까지 들키지 않았습니다", won: true };
 
   return (
     <div className="overlay">
-      <div className="banner" style={{ minWidth: 380 }}>
-        <h2>라운드 {room.round} 결과</h2>
-        <p>{secondsLeft}초 후 다음 라운드</p>
+      {/*
+       * Down the right-hand side, not across the middle.
+       *
+       * The results phase runs for thirty seconds for one reason: the hiders
+       * who were never found glow through the walls, and you are meant to look
+       * around and see where they had been. A panel in the centre of the screen
+       * covers exactly that — the overlay was hiding the thing the phase exists
+       * to show. Nothing here is clickable either, so it takes no input away
+       * from a camera you are supposed to be turning.
+       */}
+      <div className="results-panel">
+        <div className="results-round">라운드 {room.round}</div>
+        <div className={"results-verdict" + (verdict.won ? " won" : " lost")}>{verdict.line}</div>
+        <div className="results-sub">{verdict.sub}</div>
 
         <table className="results-table">
-          <thead>
-            <tr>
-              <th>플레이어</th>
-              <th>결과</th>
-              <th style={{ textAlign: "right" }}>획득</th>
-            </tr>
-          </thead>
           <tbody>
             {results.map((r: any) => (
-              <tr key={r.account}>
-                <td style={{ color: r.account === account ? "var(--accent)" : undefined }}>
-                  {nickOf(r.account)}
+              <tr key={r.account} className={r.account === account ? "is-me" : undefined}>
+                <td className="who">
+                  <span
+                    className="dot"
+                    style={{
+                      background: r.seeker
+                        ? "var(--seeker)"
+                        : r.caught
+                        ? "var(--muted)"
+                        : "var(--hider)",
+                    }}
+                  />
+                  {nickOf(r)}
                   {r.account === account ? " (나)" : ""}
                 </td>
-                <td style={{ color: "var(--muted)" }}>
-                  {r.seeker ? "술래" : r.caught ? "발각" : "생존"}
-                </td>
+                <td className="what">{r.seeker ? "술래" : r.caught ? "발각" : "생존"}</td>
                 <td className="num">+{r.gained}</td>
               </tr>
             ))}
           </tbody>
         </table>
+
+        <div className="results-next">{secondsLeft}초 후 다음 라운드</div>
       </div>
     </div>
   );
