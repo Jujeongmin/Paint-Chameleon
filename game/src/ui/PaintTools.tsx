@@ -1,6 +1,7 @@
 import { ColorWheel, hsvToRgb, toCss } from "./ColorWheel";
 import { BRUSH } from "../game/constants";
 import type { Tool } from "../game/useBrush";
+import { t } from "./i18n";
 
 interface Props {
   zoom: number;
@@ -114,13 +115,13 @@ export function PaintTools({
           <button
             className={"tool-square picker" + (tool === "picker" ? " active" : "")}
             onClick={() => onTool(tool === "picker" ? "brush" : "picker")}
-            title="주변 벽·바닥이나 자기 몸에서 색을 뽑습니다"
+            title={t("paint.picker")}
           >
             <span className="tool-glyph">🖉</span>
             <span className="tool-name">PICKER</span>
           </button>
 
-          <button className="tool-square fill" onClick={onFill} title="전체를 현재 색으로">
+          <button className="tool-square fill" onClick={onFill} title={t("paint.fill")}>
             <span className="tool-glyph" style={{ background: toCss(hsvToRgb(hue, sat, value)) }} />
             <span className="tool-name">FILL</span>
           </button>

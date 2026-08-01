@@ -4,6 +4,7 @@ import { NameTag } from "../game/NameTag";
 import { LEADERBOARD, LEADERBOARD_FACE_Z } from "./hubMap";
 import { TEX_H, TEX_W, paintLeaderboardFace } from "./leaderboardFace";
 import type { LeaderboardResult } from "../net/types";
+import { t } from "../ui/i18n";
 
 /**
  * The all-time leaderboard, painted onto the face of the hub monument.
@@ -55,7 +56,7 @@ export function LeaderboardBoard({ data, account }: Props) {
           it lands on top of the face's own heading. Same 0.5 gap the shop sign
           keeps above its backdrop. */}
       <group position={[LEADERBOARD.x, 0, LEADERBOARD.z]}>
-        <NameTag text="리더보드" y={LEADERBOARD.height + 0.5} height={0.52} color="#e8a13f" />
+        <NameTag text={t("hub.leaderboard")} y={LEADERBOARD.height + 0.5} height={0.52} color="#e8a13f" />
       </group>
     </>
   );

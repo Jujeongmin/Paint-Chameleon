@@ -27,6 +27,7 @@ import { BODIES, DEFAULT_BODY_ID } from "../game/bodies";
 import { botIsOut, createBots, resetBots, stepBots, type BotState } from "../game/bot";
 import { DEFAULT_MODE, type GameMode } from "../game/modes";
 import { coinsFor } from "../game/coins";
+import { t, type Key } from "../ui/i18n";
 import type { BuyResult, LeaderboardResult, PlayerState, RoomInfo, WalletView, WireDab } from "./types";
 
 const ME = "local-player";
@@ -35,7 +36,7 @@ export function useOfflineGame() {
   const [joined, setJoined] = useState(false);
   /** Which world we're standing in. Mirrors the server's room `kind`. */
   const [scene, setScene] = useState<"hub" | "game">("hub");
-  const [nick, setNick] = useState("나");
+  const [nick, setNick] = useState(() => t("app.defaultNick"));
   const [mode, setMode] = useState<GameMode>(DEFAULT_MODE);
   const [phase, setPhase] = useState<Phase>("lobby");
   const [phaseEndsAt, setPhaseEndsAt] = useState(0);
@@ -114,7 +115,7 @@ export function useOfflineGame() {
       { account: ME, nick, caught: false, gained, seeker: true },
       ...bots.current.map((b) => ({
         account: b.account,
-        nick: b.nick,
+        nick: t(b.nameKey as Key),
         caught: b.caught,
         gained: coinsFor({ seeker: false, caught: b.caught, catches: 0 }),
         seeker: false,
@@ -254,7 +255,7 @@ export function useOfflineGame() {
       ...bots.current.map(
         (b): PlayerState => ({
           account: b.account,
-          nick: b.nick,
+          nick: t(b.nameKey as Key),
           role: "hider",
           caught: b.caught,
           caughtAt: b.caughtAt,
@@ -334,7 +335,7 @@ export function useOfflineGame() {
     players,
     secondsLeft,
     join: async (n: string) => {
-      setNick(n || "나");
+      setNick(n || t("app.defaultNick"));
       setJoined(true);
       setScene("hub");
       myPos.current = [0, 0, 10];
@@ -382,7 +383,7 @@ export function useOfflineGame() {
     },
     fetchLeaderboard: async (): Promise<LeaderboardResult> => {
       const ranked = Object.entries(scores)
-        .map(([account, total]) => ({ account, nick: account === ME ? nick : "익명", total }))
+        .map(([account, total]) => ({ account, nick: account === ME ? nick : t("app.anon"), total }))
         .sort((a, b) => b.total - a.total)
         .map((e, i) => ({ ...e, rank: i + 1 }));
 

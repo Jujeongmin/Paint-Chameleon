@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { Stand } from "../hub/hubMap";
 import { standAction } from "./standAction";
 import type { Wallet } from "./useWallet";
+import { t } from "./i18n";
 
 interface Props {
   /** Stand the player is standing at, or null. */
@@ -10,9 +11,9 @@ interface Props {
 }
 
 const LABEL = {
-  loading: "불러오는 중…",
-  equipped: "장착 중",
-  broke: "코인 부족",
+  loading: t("shop.loading"),
+  equipped: t("shop.equipping"),
+  broke: t("shop.broke"),
 } as const;
 
 /**
@@ -45,12 +46,12 @@ export function ShopPrompt({ stand, wallet }: Props) {
 
   return (
     <div className="stand-prompt">
-      <div className="stand-name">{stand.name}</div>
-      <div className="stand-price">{stand.price === 0 ? "기본 지급" : `${stand.price} 코인`}</div>
+      <div className="stand-name">{t(stand.nameKey)}</div>
+      <div className="stand-price">{stand.price === 0 ? t("shop.free") : t("shop.price", { n: stand.price })}</div>
       <div className={"stand-action" + (action === "buy" || action === "equip" ? "" : " denied")}>
         {action === "buy" || action === "equip" ? (
           <>
-            <kbd>E</kbd> {action === "buy" ? "구매" : "장착"}
+            <kbd>E</kbd> {action === "buy" ? t("shop.buy") : t("shop.equip")}
           </>
         ) : (
           LABEL[action]

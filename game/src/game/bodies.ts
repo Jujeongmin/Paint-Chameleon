@@ -32,6 +32,8 @@
  * over the whole catalogue.
  */
 
+import type { Key } from "../ui/i18n";
+
 import { MOVE } from "./constants";
 
 /** Crown of the head. Taken from the original body: 1.52 + 0.34. */
@@ -52,7 +54,8 @@ export const SHOULDER_RANGE = { min: 1.16, max: 1.4 };
 export interface BodyProfile {
   id: string;
   /** Shown in the shop. */
-  name: string;
+  /** i18n key for the name shown on the shop stand. */
+  nameKey: Key;
   /** 0 marks the profile everyone starts with. */
   price: number;
   /**
@@ -137,7 +140,7 @@ export const DEFAULT_BODY_ID = "classic";
 export const BODIES: BodyProfile[] = [
   {
     id: "classic",
-    name: "클래식",
+    nameKey: "body.classic",
     price: 0,
     head: { r: 0.34 },
     torso: { r: 0.26, l: 0.34, y: 0.98 },
@@ -149,7 +152,7 @@ export const BODIES: BodyProfile[] = [
   },
   {
     id: "square",
-    name: "네모",
+    nameKey: "body.box",
     price: 50,
     shape: "box",
     head: { r: 0.3 },
@@ -162,7 +165,7 @@ export const BODIES: BodyProfile[] = [
   },
   {
     id: "tank",
-    name: "떡대",
+    nameKey: "body.tank",
     price: 90,
     head: { r: 0.29 },
     torso: { r: 0.3, l: 0.4, y: 1.02 },

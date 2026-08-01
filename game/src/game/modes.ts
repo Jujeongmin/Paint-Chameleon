@@ -8,19 +8,29 @@
  * KEEP IN SYNC WITH server/src/rules.ts.
  */
 
+import type { Key } from "../ui/i18n";
+
 export type GameMode = "tag" | "hunt";
 
-export const GAME_MODES: Record<GameMode, { label: string; sub: string }> = {
+/**
+ * What each door is called, as i18n keys rather than words.
+ *
+ * The words themselves are in i18n.ts, because the room a player is in should
+ * be named in the language they chose. Keeping keys here means the mapping
+ * from mode to name stays next to the mode, and check:modes can assert that
+ * every mode has a name in every language.
+ */
+export const MODE_TEXT: Record<GameMode, { labelKey: Key; subKey: Key }> = {
   /**
    * Being caught puts you on the other side: you get up as a seeker and help
    * hunt whoever is left, so the hunt accelerates with every catch.
    */
-  tag: { label: "PAINT CHAMELEON", sub: "술래 늘리기" },
+  tag: { labelKey: "mode.tag.label", subKey: "mode.tag.sub" },
   /**
    * Being caught ends your round. The body is removed rather than left lying
    * about, and you watch the rest from a free camera.
    */
-  hunt: { label: "LAST ONE STANDING", sub: "생존" },
+  hunt: { labelKey: "mode.hunt.label", subKey: "mode.hunt.sub" },
 };
 
 export const DEFAULT_MODE: GameMode = "tag";

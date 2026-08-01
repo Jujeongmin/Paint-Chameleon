@@ -41,7 +41,14 @@ import { findRoute, simplifyRoute } from "./nav";
  */
 export const BOT_COUNT = 4;
 
-export const BOT_NAMES = ["단무지", "참깨", "고등어", "물미역", "누룽지", "치자", "미나리"];
+/**
+ * Bot names, as i18n keys. Seven of them, so four bots never repeat.
+ *
+ * Keys rather than words because a bot's nick shows up in the results table
+ * next to the human ones, and a Korean name in an English results table would
+ * be the one word on the screen nobody asked for.
+ */
+export const BOT_NAME_KEYS = ["bot.0", "bot.1", "bot.2", "bot.3", "bot.4", "bot.5", "bot.6"] as const;
 
 /** How near the seeker has to get before a settled bot gives up its spot. */
 export const BOT_FLEE_RADIUS = 13;
@@ -67,7 +74,8 @@ export type BotGoal =
 
 export interface BotState {
   account: string;
-  nick: string;
+  /** i18n key for the display name; the rig localises it when publishing. */
+  nameKey: string;
   body: string;
   motion: MotionState;
   rotY: number;
@@ -189,7 +197,7 @@ export function createBots(count = BOT_COUNT, boxes: MapBox[] = MAP_BOXES): BotS
     const spawn = SPAWN_POINTS[i % SPAWN_POINTS.length];
     const bot: BotState = {
       account: `bot-${i}`,
-      nick: BOT_NAMES[i % BOT_NAMES.length],
+      nameKey: BOT_NAME_KEYS[i % BOT_NAME_KEYS.length],
       body: "classic",
       motion: createMotionState([spawn[0], 0, spawn[1]]),
       rotY: 0,

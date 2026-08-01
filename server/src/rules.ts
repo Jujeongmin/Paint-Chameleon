@@ -329,20 +329,15 @@ export function applyEquip(
 
 export type GameMode = "tag" | "hunt";
 
-export const GAME_MODES: Record<GameMode, { label: string; sub: string }> = {
-  /**
-   * The original room. Being caught puts you on the other side: you get up as
-   * a seeker and help hunt whoever is left. The hunt therefore accelerates —
-   * every catch adds a hunter — and the round ends when the last hider falls.
-   */
-  tag: { label: "PAINT CHAMELEON", sub: "술래 늘리기" },
-  /**
-   * Being caught is the end of your round. The body is removed rather than
-   * left lying about, and you watch the rest from a free camera. The hunt does
-   * not accelerate, so the seeker's clock is the real opponent.
-   */
-  hunt: { label: "LAST ONE STANDING", sub: "생존" },
-};
+/**
+ * The modes that exist. Ids only — no display text.
+ *
+ * The server has no business holding words a player reads: it cannot know
+ * which language they picked, and a Korean string sitting in a rules file was
+ * a translation nobody could reach. Names live in game/src/ui/i18n.ts, keyed
+ * off these ids, and check:modes asserts every id has one in both languages.
+ */
+export const GAME_MODE_IDS: GameMode[] = ["tag", "hunt"];
 
 export const DEFAULT_MODE: GameMode = "tag";
 

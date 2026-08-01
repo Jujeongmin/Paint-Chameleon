@@ -11,6 +11,7 @@ import { surfaceFor } from "../game/paint";
 import { playShot, shotGainFor } from "../audio/sound";
 import type { LeaderboardResult, PlayerState, RoomInfo, WireDab, WalletView, BuyResult } from "./types";
 import { useOfflineGame } from "./offline";
+import { t } from "../ui/i18n";
 
 export type { LeaderboardResult, PlayerState, RoomInfo, RankedLeaderboardEntry, WireDab, WalletView, BuyResult, BuyFailure } from "./types";
 
@@ -154,18 +155,18 @@ function useOnlineGame() {
 
   /** Everyone lands in the hub first; matches start from a portal inside it. */
   const join = useCallback(
-    (nick: string) => call("joinHub", nick, "입장에 실패했습니다"),
+    (nick: string) => call("joinHub", nick, t("error.join")),
     [call]
   );
 
   const enterGame = useCallback(
     (nick: string, mode: GameMode = DEFAULT_MODE) =>
-      call("joinGame", [nick, mode], "매칭에 실패했습니다"),
+      call("joinGame", [nick, mode], t("error.match")),
     [call]
   );
 
   const returnToHub = useCallback(
-    (nick: string) => call("returnToHub", nick, "로비로 돌아가지 못했습니다"),
+    (nick: string) => call("returnToHub", nick, t("error.hub")),
     [call]
   );
 

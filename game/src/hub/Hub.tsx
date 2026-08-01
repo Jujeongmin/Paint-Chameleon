@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { NameTag } from "../game/NameTag";
+import { t } from "../ui/i18n";
 import { RemotePlayers } from "../game/RemotePlayers";
 import { Humanoid, IDLE_MOTION } from "../game/Humanoid";
 import { HUB, HUB_BOXES, PORTALS, SHOP, STAND, STANDS, type Portal, type Stand } from "./hubMap";
@@ -62,8 +63,8 @@ function PortalArch({ portal }: { portal: Portal }) {
         />
       </mesh>
 
-      <NameTag text={portal.label} y={5.5} height={0.52} color={hex(portal.color)} />
-      {portal.sub && <NameTag text={portal.sub} y={4.95} height={0.4} color="#ffffff" />}
+      <NameTag text={t(portal.labelKey)} y={5.5} height={0.52} color={hex(portal.color)} />
+      {portal.subKey && <NameTag text={t(portal.subKey)} y={4.95} height={0.4} color="#ffffff" />}
     </group>
   );
 }
@@ -94,7 +95,7 @@ function Mannequin({ stand, equipped }: { stand: Stand; equipped: boolean }) {
           {/* A reserved surface key: real accounts never contain a colon. */}
           <Humanoid account={`__shop:${stand.id}`} pose={0} body={stand.id} motionRef={motion} />
         </group>
-        <NameTag text={stand.name} y={2.3} height={0.4} color="#ffffff" />
+        <NameTag text={t(stand.nameKey)} y={2.3} height={0.4} color="#ffffff" />
       </group>
 
       {/* Trigger footprint, so it's obvious where to stand — same treatment
@@ -123,7 +124,7 @@ function ShopStand({ equippedBody }: { equippedBody: string | undefined }) {
       {/* NameTag renders at [0, y, 0] in its PARENT's space, so the sign needs
           its own positioned group — exactly how PortalArch places its labels. */}
       <group position={[SHOP.x, 0, SHOP.z]}>
-        <NameTag text="아바타 상점" y={3.6} height={0.52} color={hex(SHOP.color)} />
+        <NameTag text={t("hub.shopSign")} y={3.6} height={0.52} color={hex(SHOP.color)} />
       </group>
       {STANDS.map((s) => (
         <Mannequin key={s.id} stand={s} equipped={s.id === equippedBody} />

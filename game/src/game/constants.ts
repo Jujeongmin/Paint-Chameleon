@@ -1,5 +1,7 @@
 /** Shared tuning. Values duplicated in server/src/rules.ts must stay in sync. */
 
+import type { Key } from "../ui/i18n";
+
 export type Phase = "lobby" | "hiding" | "seeking" | "results";
 
 /** Phase durations in seconds. */
@@ -55,7 +57,8 @@ export const MAX_PLAYERS = 8;
  */
 export interface PoseSpec {
   id: string;
-  label: string;
+  /** i18n key for the name shown in the pose menu. */
+  labelKey: Key;
   /** Vertical squash of the whole figure. */
   scaleY: number;
   /** Forward tilt of the whole figure; lying down is nearly a right angle. */
@@ -70,15 +73,15 @@ export interface PoseSpec {
 }
 
 export const POSES: PoseSpec[] = [
-  { id: "stand", label: "서기", scaleY: 1, pitch: 0, lift: 0, armPitch: 0, armSpread: 0.08, legPitch: 0, legSpread: 1 },
+  { id: "stand", labelKey: "pose.stand", scaleY: 1, pitch: 0, lift: 0, armPitch: 0, armSpread: 0.08, legPitch: 0, legSpread: 1 },
   // pitch ~86° lays the root almost flat, which already pulls every child mesh
   // (torso y=0.98, head y=1.52) down near the root's own height — rotation
   // alone does most of the "lying down" work. lift only needs to nudge the
   // rotated rig up by about the head's radius (the largest, so lowest, part
   // once flattened) so it clears the floor instead of sinking through it.
-  { id: "lie", label: "눕기", scaleY: 0.95, pitch: 1.5, lift: 0.45, armPitch: 0.25, armSpread: 0.55, legPitch: -0.1, legSpread: 1.15 },
-  { id: "banzai", label: "만세", scaleY: 1.04, pitch: -0.06, lift: 0.02, armPitch: -2.85, armSpread: 0.35, legPitch: 0, legSpread: 1.05 },
-  { id: "sit", label: "앉기", scaleY: 0.8, pitch: 0.05, lift: -0.3, armPitch: 0.35, armSpread: 0.2, legPitch: 1.45, legSpread: 1.1 },
+  { id: "lie", labelKey: "pose.lie", scaleY: 0.95, pitch: 1.5, lift: 0.45, armPitch: 0.25, armSpread: 0.55, legPitch: -0.1, legSpread: 1.15 },
+  { id: "banzai", labelKey: "pose.reach", scaleY: 1.04, pitch: -0.06, lift: 0.02, armPitch: -2.85, armSpread: 0.35, legPitch: 0, legSpread: 1.05 },
+  { id: "sit", labelKey: "pose.crouch", scaleY: 0.8, pitch: 0.05, lift: -0.3, armPitch: 0.35, armSpread: 0.2, legPitch: 1.45, legSpread: 1.1 },
 ];
 
 /** Index into POSES for standing — the default, and what a jump snaps back to. */

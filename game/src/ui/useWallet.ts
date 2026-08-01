@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DEFAULT_BODY_ID } from "../game/bodies";
 import type { BuyFailure, BuyResult, WalletView } from "../net/types";
+import { t } from "./i18n";
 
 /** How long a purchase/equip result stays on the prompt before it clears. */
 const MESSAGE_MS = 2200;
 
 const REFUSAL: Record<BuyFailure, string> = {
-  unknown: "판매하지 않는 아바타입니다",
-  owned: "이미 가지고 있습니다",
-  broke: "코인이 부족합니다",
+  unknown: t("shop.notForSale"),
+  owned: t("shop.owned"),
+  broke: t("shop.broke"),
 };
 
 interface Api {
@@ -94,12 +95,12 @@ export function useWallet(api: Api): Wallet {
             // render and would hand back the pre-purchase balance in the same
             // tick.
             setWallet(res.wallet);
-            say("구매했습니다");
+            say(t("shop.bought"));
           } else {
             say(REFUSAL[res.reason]);
           }
         })
-        .catch(() => say("잠시 후 다시 시도해주세요"))
+        .catch(() => say(t("shop.tryAgain")))
         .finally(() => setBusy(false));
     },
     [busy, say]
@@ -113,9 +114,9 @@ export function useWallet(api: Api): Wallet {
         .equipAvatar(id)
         .then((res) => {
           if (res.ok) setWallet((w) => (w ? { ...w, equipped: id } : w));
-          else say("장착할 수 없습니다");
+          else say(t("shop.cannotEquip"));
         })
-        .catch(() => say("잠시 후 다시 시도해주세요"))
+        .catch(() => say(t("shop.tryAgain")))
         .finally(() => setBusy(false));
     },
     [busy, say]

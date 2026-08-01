@@ -1,14 +1,15 @@
 import { PHASE_SECONDS, POSES, type Phase } from "../game/constants";
-import { GAME_MODES, type GameMode } from "../game/modes";
+import { MODE_TEXT, type GameMode } from "../game/modes";
 import { Icon } from "./icons";
 import { KeyHints, type KeyHint } from "./KeyHints";
 import type { PlayerState, RoomInfo } from "../net/types";
+import { t, type Key } from "./i18n";
 
-const PHASE_LABEL: Record<Phase, string> = {
-  lobby: "대기 중",
-  hiding: "숨는 시간",
-  seeking: "추적",
-  results: "결과",
+const PHASE_KEY: Record<Phase, Key> = {
+  lobby: "phase.lobby",
+  hiding: "phase.hiding",
+  seeking: "phase.seeking",
+  results: "phase.results",
 };
 
 interface Props {
@@ -82,16 +83,16 @@ export function Hud({
   const hints: KeyHint[] = [];
   if (inRound) {
     if (showControls) {
-      hints.push({ cap: "WASD", icon: "move", label: "이동", tone: "move" });
-      hints.push({ cap: "SPACE", icon: "jump", label: "점프", tone: "move" });
-      hints.push({ cap: "MOUSE", icon: "look", label: "시점", tone: "move" });
+      hints.push({ cap: "WASD", icon: "move", label: t("key.move"), tone: "move" });
+      hints.push({ cap: "SPACE", icon: "jump", label: t("key.jump"), tone: "move" });
+      hints.push({ cap: "MOUSE", icon: "look", label: t("key.look"), tone: "move" });
     }
     if (!isSeeker) {
-      hints.push({ cap: "G", icon: "pose", label: "자세", tone: "pose", off: !canPose });
+      hints.push({ cap: "G", icon: "pose", label: t("key.poseAction"), tone: "pose", off: !canPose });
       hints.push({
         cap: "R",
         icon: "pin",
-        label: charLocked ? "고정 해제" : "캐릭터 고정",
+        label: charLocked ? t("key.pinOn") : t("key.pinOff"),
         tone: "pin",
         on: charLocked,
       });
@@ -99,7 +100,7 @@ export function Hud({
       hints.push({
         cap: "CLICK",
         icon: "shoot",
-        label: "사격",
+        label: t("key.shoot"),
         tone: "seeker",
         off: room.phase !== "seeking",
       });
@@ -113,22 +114,22 @@ export function Hud({
           <div className={"hud-top phase-" + room.phase}>
             {/* Which of the two rooms you are in. It changes what being caught
                 means, so it is not a detail you should have to remember. */}
-            <span className="mode-chip">{GAME_MODES[mode].sub}</span>
-            <span className="phase-label">{PHASE_LABEL[room.phase]}</span>
+            <span className="mode-chip">{t(MODE_TEXT[mode].subKey)}</span>
+            <span className="phase-label">{t(PHASE_KEY[room.phase])}</span>
             {room.phase !== "lobby" && (
               <span className={"timer" + (secondsLeft <= 10 ? " urgent" : "")}>{secondsLeft}</span>
             )}
             {room.phase !== "lobby" && (
               <span className={"role-chip " + (isSeeker ? "seeker" : "hider")}>
-                {isSeeker ? "술래" : "숨는 사람"}
+                {isSeeker ? t("role.seeker") : t("role.hider")}
               </span>
             )}
             {room.phase === "seeking" && (
               <span className="phase-label">
-                남은 사람 <b className="tally">{remaining}</b>/{hiders.length}
+                {t("hud.remaining")} <b className="tally">{remaining}</b>/{hiders.length}
               </span>
             )}
-            {charLocked && <span className="role-chip locked">고정됨</span>}
+            {charLocked && <span className="role-chip locked">{t("role.pinned")}</span>}
             {/* The clock again, as a length rather than a number: a glance at
                 the bar answers "am I nearly out of time" without reading. */}
             {total > 0 && (
@@ -140,7 +141,7 @@ export function Hud({
 
           <div className="hud-left">
             <div className="hud-heading">
-              라운드 {room.round} · {players.length}명
+              {t("hud.roundPlayers", { n: room.round, c: players.length })}
             </div>
             {players.map((p) => (
               <div key={p.account} className={"player-row" + (p.caught ? " caught" : "")}>
@@ -156,8 +157,8 @@ export function Hud({
                   }}
                 />
                 <span className="name">
-                  {p.nick || "익명"}
-                  {p.account === account ? " (나)" : ""}
+                  {p.nick || t("app.anon")}
+                  {p.account === account ? t("app.you") : ""}
                 </span>
                 <span className="score">{room.scores[p.account] ?? 0}</span>
               </div>
@@ -166,7 +167,7 @@ export function Hud({
               // The key is on the button rather than in a hint somewhere else:
               // the button is where you look when you are deciding to press it.
               <button className="btn ready-btn" style={{ marginTop: 10 }} onClick={onToggleReady}>
-                <span>{ready ? "준비 취소" : "준비 완료"}</span>
+                <span>{ready ? t("hud.unready") : t("hud.ready")}</span>
                 <kbd>Enter</kbd>
               </button>
             )}
@@ -180,11 +181,11 @@ export function Hud({
                 <Icon name="paint" />
               </span>
               <span className="paint-call-cap">F</span>
-              <span className="paint-call-label">페인트</span>
+              <span className="paint-call-label">{t("hud.paint")}</span>
               {/* Says why it is greyed rather than leaving you to work it out.
                   Painting closes when the hunt starts, and that is a rule of
                   the round, not a thing that went wrong. */}
-              {!canPaint && <span className="paint-call-why">숨는 시간에만</span>}
+              {!canPaint && <span className="paint-call-why">{t("hud.paintWhenHiding")}</span>}
             </div>
           )}
 
@@ -195,14 +196,14 @@ export function Hud({
           <div className="hud-bottom">
             {isSeeker && room.phase === "hiding" && (
               <div className="cell-note">
-                <strong>{secondsLeft}초</strong> 후 추적이 시작됩니다 · 숨는 사람 {remaining}명
+                {t("hud.cellNote", { n: secondsLeft, c: remaining })}
               </div>
             )}
 
             {!isSeeker && inRound && (
               <div className="pose-readout">
-                <span className="pose-readout-label">자세</span>
-                {POSES[pose]?.label ?? "서기"}
+                <span className="pose-readout-label">{t("hud.pose")}</span>
+                {t(POSES[pose]?.labelKey ?? "pose.stand")}
               </div>
             )}
 
@@ -220,8 +221,8 @@ export function Hud({
       */}
       {me.caught && spectating && room.phase === "seeking" && !paintMode && (
         <div className="banner spectator-banner">
-          <h2>탈락</h2>
-          <p>자유 시점으로 남은 라운드를 지켜봅니다</p>
+          <h2>{t("hud.out.title")}</h2>
+          <p>{t("hud.out.body")}</p>
         </div>
       )}
 
@@ -230,7 +231,7 @@ export function Hud({
         // it is live during play too, for a spectator whose round is already
         // over, and it should not move between those two moments.
         <button className="leave-btn" onClick={onLeave}>
-          로비로 나가기
+          {t("hud.leave")}
         </button>
       )}
     </div>

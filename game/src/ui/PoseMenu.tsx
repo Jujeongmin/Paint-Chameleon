@@ -1,4 +1,5 @@
 import { POSES } from "../game/constants";
+import { t } from "./i18n";
 
 interface Props {
   current: number;
@@ -11,7 +12,7 @@ export function PoseMenu({ current, onSelect, onClose }: Props) {
   return (
     <div className="pose-menu-backdrop" onClick={onClose}>
       <div className="pose-menu" onClick={(e) => e.stopPropagation()}>
-        <div className="pose-menu-title">자세 고르기</div>
+        <div className="pose-menu-title">{t("paint.poseMenu")}</div>
         <div className="pose-grid">
           {POSES.map((spec, i) => (
             <button
@@ -20,12 +21,12 @@ export function PoseMenu({ current, onSelect, onClose }: Props) {
               onClick={() => onSelect(i)}
             >
               <PoseGlyph poseId={spec.id} />
-              <span>{spec.label}</span>
+              <span>{t(spec.labelKey)}</span>
             </button>
           ))}
         </div>
         <button className="pose-menu-close" onClick={onClose}>
-          닫기 (G)
+          {t("paint.closeMenu")}
         </button>
       </div>
     </div>

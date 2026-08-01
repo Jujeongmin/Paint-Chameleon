@@ -3,7 +3,8 @@
  * match. Geometry reuses the match's MapBox format so collision, gravity and the
  * follow camera all work here without a second implementation.
  */
-import { GAME_MODES, type GameMode } from "../game/modes";
+import { MODE_TEXT, type GameMode } from "../game/modes";
+import type { Key } from "../ui/i18n";
 
 import type { MapBox } from "../game/map";
 import { BODIES } from "../game/bodies";
@@ -21,8 +22,9 @@ export const HUB = {
 
 export interface Portal {
   id: string;
-  label: string;
-  sub: string;
+  /** i18n keys — a door is named in whichever language the player picked. */
+  labelKey: Key;
+  subKey: Key | null;
   /** Centre of the archway on the floor. */
   x: number;
   z: number;
@@ -40,8 +42,8 @@ export const PORTALS: Portal[] = [
     id: "warehouse",
     // The game's own name, not the Poki original's — this build is deliberately
     // not a copy of Hide and Paint, and the front door should not claim it is.
-    label: GAME_MODES.tag.label,
-    sub: GAME_MODES.tag.sub,
+    labelKey: MODE_TEXT.tag.labelKey,
+    subKey: MODE_TEXT.tag.subKey,
     x: 0,
     z: -11,
     color: 0xe0a13a,
@@ -53,8 +55,8 @@ export const PORTALS: Portal[] = [
     // The left-hand door. Same arena, different answer to "what happens when
     // you are caught" — see game/src/game/modes.ts.
     id: "survival",
-    label: GAME_MODES.hunt.label,
-    sub: GAME_MODES.hunt.sub,
+    labelKey: MODE_TEXT.hunt.labelKey,
+    subKey: MODE_TEXT.hunt.subKey,
     x: -9.5,
     z: -10,
     color: 0x49b3ad,
@@ -64,8 +66,8 @@ export const PORTALS: Portal[] = [
   },
   {
     id: "soon-b",
-    label: "COMING SOON",
-    sub: "",
+    labelKey: "hub.portalLocked",
+    subKey: null,
     x: 9.5,
     z: -10,
     color: 0x6b6f7a,
@@ -96,7 +98,7 @@ export const STAND = {
 export interface Stand {
   /** Body profile id; see `bodies.ts`. */
   id: string;
-  name: string;
+  nameKey: Key;
   /** 0 for the profile everyone already owns. */
   price: number;
   /** Plinth centre. */
@@ -116,7 +118,7 @@ export interface Stand {
  */
 export const STANDS: Stand[] = BODIES.map((b, i) => {
   const x = SHOP.x + (i - (BODIES.length - 1) / 2) * STAND.spacing;
-  return { id: b.id, name: b.name, price: b.price, x, z: SHOP.z, tx: x, tz: SHOP.z + STAND.stepZ };
+  return { id: b.id, nameKey: b.nameKey, price: b.price, x, z: SHOP.z, tx: x, tz: SHOP.z + STAND.stepZ };
 });
 
 /**

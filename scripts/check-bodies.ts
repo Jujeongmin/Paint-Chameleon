@@ -49,7 +49,9 @@ console.log("\ncatalog");
     "every other profile costs something",
     BODIES.every((b) => b.id === DEFAULT_BODY_ID || b.price > 0)
   );
-  check("every profile has a display name", BODIES.every((b) => b.name.trim().length > 0));
+  // A key, not a name: display text lives in the i18n table now, and
+  // check:i18n is what asserts every key there resolves in both languages.
+  check("every profile has a name key", BODIES.every((b) => b.nameKey.trim().length > 0));
 }
 
 console.log("\ninvariants");

@@ -1259,25 +1259,74 @@ body.hide-cursor canvas {
   font-variant-numeric: tabular-nums;
 }
 
-.mute-toggle {
+/*
+ * Settings, bottom-left, out of the way of everything: the rail is bottom
+ * centre, the scoreboard top left, leaving and the paint panel on the right.
+ */
+.settings {
   position: fixed;
   bottom: 16px;
   left: 16px;
-  z-index: 40;
+  /* Above .screen (40), because the entry screens are full-bleed and settings
+     have to stay reachable on top of them — that is where the language switch
+     is needed most. */
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-btn {
   width: 40px;
   height: 40px;
   border-radius: 50%;
   border: 1px solid var(--line);
   background: var(--panel);
+  backdrop-filter: blur(8px);
   color: var(--text);
   font-size: 18px;
   cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.settings-btn:hover {
+  border-color: var(--accent);
+}
+
+.settings-langs {
+  display: flex;
+  padding: 3px;
+  gap: 3px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
   backdrop-filter: blur(8px);
 }
 
-.mute-toggle:hover {
-  border-color: var(--accent);
+/* Each language is spelled in itself, so the labels are never the same width.
+   No fixed size: let them be as wide as their own word. */
+.settings-lang {
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
+
+.settings-lang:hover {
+  color: var(--text);
+}
+
+.settings-lang.is-on {
+  background: rgba(111, 191, 92, 0.18);
+  color: var(--accent);
+}
+
 
 /* ---------------------------------------------------------------- shop */
 

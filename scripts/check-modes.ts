@@ -12,7 +12,7 @@
 
 import {
   DEFAULT_MODE,
-  GAME_MODES,
+  GAME_MODE_IDS,
   acceptsJoiners,
   afterResults,
   activeHiders,
@@ -24,7 +24,7 @@ import {
 } from "../server/src/rules";
 import {
   DEFAULT_MODE as CLIENT_DEFAULT,
-  GAME_MODES as CLIENT_MODES,
+  MODE_TEXT,
   canLeaveNow,
   caughtIsOut,
   modeOf,
@@ -124,14 +124,14 @@ console.log("\nwhat happens after the results screen");
 console.log("\nthe client agrees with the server");
 {
   check(`default mode matches (${DEFAULT_MODE})`, DEFAULT_MODE === CLIENT_DEFAULT);
-  for (const m of MODES) {
-    check(
-      `${m}: label and subtitle match`,
-      GAME_MODES[m].label === CLIENT_MODES[m].label && GAME_MODES[m].sub === CLIENT_MODES[m].sub,
-      `${JSON.stringify(GAME_MODES[m])} vs ${JSON.stringify(CLIENT_MODES[m])}`
-    );
-  }
-  check("both sides know the same set of modes", Object.keys(GAME_MODES).join() === Object.keys(CLIENT_MODES).join());
+  // The server holds ids and no words at all — it cannot know which language a
+  // player picked, so display text lives in the client's i18n table and
+  // check:i18n asserts every id has a name there in both languages.
+  check(
+    "both sides know the same set of modes",
+    [...GAME_MODE_IDS].sort().join() === Object.keys(MODE_TEXT).sort().join(),
+    `${GAME_MODE_IDS} vs ${Object.keys(MODE_TEXT)}`
+  );
 
   // The client asks "does being caught take me out" in three places — whether
   // to draw a body, whether to hand over the camera, whether leaving is live —
@@ -176,9 +176,9 @@ console.log("\nthe hub's doors lead where they claim");
     check(`${p.id} names a real mode (${p.mode})`, isGameMode(p.mode));
     if (isGameMode(p.mode)) {
       check(
-        `${p.id} shows that mode's own label`,
-        p.label === CLIENT_MODES[p.mode].label && p.sub === CLIENT_MODES[p.mode].sub,
-        `"${p.label}" / "${p.sub}"`
+        `${p.id} shows that mode's own name`,
+        p.labelKey === MODE_TEXT[p.mode].labelKey && p.subKey === MODE_TEXT[p.mode].subKey,
+        `${p.labelKey} / ${p.subKey}`
       );
     }
   }

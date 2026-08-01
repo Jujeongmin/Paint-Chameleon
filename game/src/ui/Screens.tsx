@@ -1,13 +1,14 @@
 import { useState } from "react";
 import type { PlayerState, RoomInfo } from "../net/types";
 import { unlockAudio } from "../audio/sound";
+import { t } from "./i18n";
 
 export function ConnectingScreen({ message }: { message?: string }) {
   return (
     <div className="screen">
       <div className="card" style={{ textAlign: "center" }}>
-        <h1 className="title">Paint Chameleon</h1>
-        <p className="subtitle" style={{ margin: 0 }}>{message ?? "서버에 연결하는 중…"}</p>
+        <h1 className="title">{t("app.title")}</h1>
+        <p className="subtitle" style={{ margin: 0 }}>{message ?? t("app.connecting")}</p>
       </div>
     </div>
   );
@@ -27,28 +28,26 @@ export function NickScreen({
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     unlockAudio();
-    onJoin(nick.trim() || "카멜레온");
+    onJoin(nick.trim() || t("app.defaultNick"));
   };
 
   return (
     <div className="screen">
       <form className="card" onSubmit={submit}>
-        <h1 className="title">Paint Chameleon</h1>
+        <h1 className="title">{t("app.title")}</h1>
         <p className="subtitle">
-          주변 색으로 몸을 칠하고 자세를 잡아 술래를 속이세요.
-          <br />
-          잘 숨은 곳, 좋은 각도, 그리고 붓질이 전부입니다.
+          {t("app.tagline")}
         </p>
         <input
           className="field"
-          placeholder="닉네임"
+          placeholder={t("app.nickname")}
           maxLength={16}
           value={nick}
           onChange={(e) => setNick(e.target.value)}
           autoFocus
         />
         <button className="btn" type="submit" disabled={joining}>
-          {joining ? "입장 중…" : "게임 참가"}
+          {joining ? t("app.joining") : t("app.join")}
         </button>
         {error && (
           <p style={{ color: "var(--danger)", fontSize: 13, marginBottom: 0 }}>{error}</p>
@@ -71,7 +70,7 @@ export function LoadingScreen({ done, total, label }: { done: number; total: num
   return (
     <div className="screen">
       <div className="card" style={{ textAlign: "center" }}>
-        <h1 className="title">Paint Chameleon</h1>
+        <h1 className="title">{t("app.title")}</h1>
         <p className="subtitle" style={{ margin: "0 0 18px" }}>{label}</p>
         <div className="load-bar">
           <div className="load-fill" style={{ width: `${pct}%` }} />
@@ -99,7 +98,7 @@ export function ResultsOverlay({
   // The server sends an empty nick for the seeker's row, so the player list is
   // the fallback rather than the other way round.
   const nickOf = (r: any) =>
-    r.nick || players.find((p) => p.account === r.account)?.nick || "익명";
+    r.nick || players.find((p) => p.account === r.account)?.nick || t("app.anon");
 
   const mine = results.find((r: any) => r.account === account);
   const hiders = results.filter((r: any) => !r.seeker);
@@ -108,10 +107,10 @@ export function ResultsOverlay({
   // One line saying how it went for YOU. The table says what happened to
   // everybody, which is not the same question and is not the one you ask first.
   const verdict = mine?.seeker
-    ? { line: `${caught}명 잡았습니다`, sub: `숨은 사람 ${hiders.length}명 중`, won: caught * 2 >= hiders.length }
+    ? { line: t("results.caughtN", { n: caught }), sub: t("results.ofN", { n: hiders.length }), won: caught * 2 >= hiders.length }
     : mine?.caught
-    ? { line: "발각됐습니다", sub: "다음 라운드에 다시", won: false }
-    : { line: "살아남았습니다", sub: "끝까지 들키지 않았습니다", won: true };
+    ? { line: t("results.found"), sub: t("results.foundSub"), won: false }
+    : { line: t("results.survived"), sub: t("results.survivedSub"), won: true };
 
   return (
     <div className="overlay">
@@ -126,7 +125,7 @@ export function ResultsOverlay({
        * from a camera you are supposed to be turning.
        */}
       <div className="results-panel">
-        <div className="results-round">라운드 {room.round}</div>
+        <div className="results-round">{t("hud.round", { n: room.round })}</div>
         <div className={"results-verdict" + (verdict.won ? " won" : " lost")}>{verdict.line}</div>
         <div className="results-sub">{verdict.sub}</div>
 
@@ -146,16 +145,16 @@ export function ResultsOverlay({
                     }}
                   />
                   {nickOf(r)}
-                  {r.account === account ? " (나)" : ""}
+                  {r.account === account ? t("app.you") : ""}
                 </td>
-                <td className="what">{r.seeker ? "술래" : r.caught ? "발각" : "생존"}</td>
+                <td className="what">{r.seeker ? t("results.statSeeker") : r.caught ? t("results.statCaught") : t("results.statSurvived")}</td>
                 <td className="num">+{r.gained}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        <div className="results-next">{secondsLeft}초 후 다음 라운드</div>
+        <div className="results-next">{t("results.next", { n: secondsLeft })}</div>
       </div>
     </div>
   );
@@ -165,10 +164,8 @@ export function WaitingBanner({ count, needed }: { count: number; needed: number
   return (
     <div className="overlay">
       <div className="banner">
-        <h2>플레이어 대기 중</h2>
-        <p>
-          {count}/{needed}명 · 모두 준비되면 시작합니다
-        </p>
+        <h2>{t("hud.waiting.title")}</h2>
+        <p>{t("hud.waiting.body", { c: count, n: needed })}</p>
       </div>
     </div>
   );

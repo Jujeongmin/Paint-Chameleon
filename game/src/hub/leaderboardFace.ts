@@ -9,6 +9,7 @@
  */
 
 import type { LeaderboardResult, RankedLeaderboardEntry } from "../net/types";
+import { t } from "../ui/i18n";
 
 /**
  * Texture resolution. Must keep the aspect of the face it's mapped to
@@ -71,7 +72,7 @@ function drawRow(
   // Long nicknames must not run into the score column.
   const nameLeft = PAD + 92;
   const nameRight = TEX_W - PAD - 250;
-  let name = (entry.nick || "익명") + (mine ? " (나)" : "");
+  let name = (entry.nick || t("app.anon")) + (mine ? t("app.you") : "");
   if (ctx.measureText(name).width > nameRight - nameLeft) {
     while (name.length > 1 && ctx.measureText(name + "…").width > nameRight - nameLeft) {
       name = name.slice(0, -1);
@@ -99,7 +100,7 @@ export function paintLeaderboardFace(
   ctx.fillStyle = COLOR.text;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("명예의 전당", TEX_W / 2, PAD + 32);
+  ctx.fillText(t("hub.hallOfFame"), TEX_W / 2, PAD + 32);
 
   ctx.strokeStyle = COLOR.line;
   ctx.lineWidth = 3;
@@ -114,7 +115,7 @@ export function paintLeaderboardFace(
     ctx.font = `500 ${ROW_FONT}px ${FONT}`;
     ctx.fillStyle = COLOR.muted;
     ctx.textAlign = "center";
-    ctx.fillText("아직 기록이 없습니다", TEX_W / 2, TEX_H / 2 + 20);
+    ctx.fillText(t("hub.noScores"), TEX_W / 2, TEX_H / 2 + 20);
     return;
   }
 

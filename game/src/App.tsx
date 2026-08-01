@@ -13,7 +13,7 @@ import { HubHud } from "./ui/HubHud";
 import { useWallet } from "./ui/useWallet";
 import { useLeaderboard } from "./ui/useLeaderboard";
 import { PaintTools } from "./ui/PaintTools";
-import { MuteToggle } from "./ui/MuteToggle";
+import { Settings } from "./ui/Settings";
 import { PoseMenu } from "./ui/PoseMenu";
 import { hsvToRgb, rgbToHsv } from "./ui/ColorWheel";
 import { ConnectingScreen, LoadingScreen, NickScreen, ResultsOverlay, WaitingBanner } from "./ui/Screens";
@@ -33,8 +33,15 @@ import type { ShotResult } from "./game/useShoot";
 import type { WireDab } from "./net/types";
 import { playCatch, playHuntStart, playResults, playRoundStart } from "./audio/sound";
 import "./ui/ui.css";
+import { t, useT } from "./ui/i18n";
 
 export default function App() {
+  // One subscription, at the root. A language change re-renders everything
+  // below, which is why every other file imports the plain `t` rather than a
+  // hook — the alternative is a subscription in each of thirty components for
+  // an event that happens once a session.
+  useT();
+
   const game = useGame();
   const { server, account, connected, joined, joining, error, room, me, players, secondsLeft } = game;
 
@@ -50,7 +57,7 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [pointerLocked, setPointerLocked] = useState(false);
   /** null once everything is ready; a progress report until then. */
-  const [warmup, setWarmup] = useState<WarmupProgress | null>({ done: 0, total: 1, label: "준비하는 중" });
+  const [warmup, setWarmup] = useState<WarmupProgress | null>({ done: 0, total: 1, label: t("load.preparing") });
 
   const wallet = useWallet(game);
 
@@ -369,12 +376,35 @@ export default function App() {
     [game]
   );
 
-  if (!connected) return <ConnectingScreen />;
-  if (!joined) return <NickScreen onJoin={handleJoin} joining={joining} error={error} />;
+  // Settings ride along on the entry screens too, and the language switch is
+  // why. English is the default, so the very first screen a Korean player sees
+  // is in a language they may not read — and it is also the screen with the
+  // fewest words on it to guess from. Making them join before they can change
+  // it would be exactly backwards.
+  if (!connected)
+    return (
+      <>
+        <ConnectingScreen />
+        <Settings />
+      </>
+    );
+  if (!joined)
+    return (
+      <>
+        <NickScreen onJoin={handleJoin} joining={joining} error={error} />
+        <Settings />
+      </>
+    );
   // Before the room, so the wait for assets and the wait for a room are one
   // wait rather than two screens in a row.
-  if (warmup) return <LoadingScreen {...warmup} />;
-  if (!room || !me) return <ConnectingScreen message="로비에 들어가는 중…" />;
+  if (warmup)
+    return (
+      <>
+        <LoadingScreen {...warmup} />
+        <Settings />
+      </>
+    );
+  if (!room || !me) return <ConnectingScreen message={t("app.enteringLobby")} />;
 
   const frozen = paintMode || poseMenuOpen || !!me.caught || phase === "results";
 
@@ -392,14 +422,14 @@ export default function App() {
         {inHub ? (
           <Hub
             account={account}
-            nick={me.nick || nick || "익명"}
+            nick={me.nick || nick || t("app.anon")}
             body={bodyId}
             players={players}
             portalRef={portalRef}
             // The door decides the game. A portal with no mode is one that
             // does not lead anywhere yet, and HubPlayer already refuses those.
             onEnterPortal={(portal) =>
-              game.enterGame(nick || me.nick || "익명", portal.mode ?? DEFAULT_MODE)
+              game.enterGame(nick || me.nick || t("app.anon"), portal.mode ?? DEFAULT_MODE)
             }
             onTransform={onHubTransform}
             standRef={standRef}
@@ -450,7 +480,7 @@ export default function App() {
         )}
       </Canvas>
 
-      <MuteToggle />
+      <Settings />
 
       {inHub ? (
         <HubHud
@@ -480,7 +510,7 @@ export default function App() {
             mode={mode}
             spectating={spectating}
             canLeave={canLeave}
-            onLeave={() => game.returnToHub(nick || me.nick || "익명")}
+            onLeave={() => game.returnToHub(nick || me.nick || t("app.anon"))}
           />
 
           {poseMenuOpen && (
@@ -490,9 +520,9 @@ export default function App() {
           {phase === "lobby" && !paintMode && !poseMenuOpen && (
             <button
               className="hub-return"
-              onClick={() => game.returnToHub(nick || me.nick || "익명")}
+              onClick={() => game.returnToHub(nick || me.nick || t("app.anon"))}
             >
-              로비로 돌아가기
+              {t("paint.backToHub")}
             </button>
           )}
 
@@ -529,9 +559,9 @@ export default function App() {
               )}
               <div className="paint-hint">
                 {tool === "picker"
-                  ? "스포이드 — 벽·바닥이나 자기 몸을 클릭해 색을 뽑으세요"
-                  : "몸을 드래그해 칠하고, 빈 공간을 드래그해 시점을 돌리세요 · 휠로 확대 · Shift+휠로 붓 크기"}
-                {phase === "hiding" && ` · ${secondsLeft}초 남음`}
+                  ? t("paint.hintPicker")
+                  : t("paint.hintBrush")}
+                {phase === "hiding" && t("paint.timeLeft", { n: secondsLeft })}
               </div>
             </div>
           )}

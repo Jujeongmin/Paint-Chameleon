@@ -9,6 +9,7 @@ import { CELL_BOXES } from "./cell";
 import { HUB_BOXES } from "../hub/hubMap";
 import { MOVE, SEEKER_SCALE } from "./constants";
 import { prewarmNav } from "./nav";
+import { t } from "../ui/i18n";
 
 /**
  * Everything expensive, done before the round instead of during it.
@@ -58,19 +59,19 @@ function steps(): Step[] {
   const out: Step[] = [];
 
   for (const url of MODEL_URLS) {
-    out.push({ label: "모델 내려받는 중", run: () => prefetch(url) });
+    out.push({ label: t("load.models"), run: () => prefetch(url) });
   }
   for (const url of ARENA_TEXTURE_URLS) {
-    out.push({ label: "표면 내려받는 중", run: () => prefetch(url) });
+    out.push({ label: t("load.textures"), run: () => prefetch(url) });
   }
-  out.push({ label: "무기 내려받는 중", run: () => prefetch(GUN_URL) });
+  out.push({ label: t("load.weapon"), run: () => prefetch(GUN_URL) });
 
   // Now hand the same URLs to the loaders React will use, so that by the time a
   // component asks for them there is nothing left to suspend on. The arrays
   // matter: useLoader caches on exactly the argument it was given, so priming
   // with the same array `useProps` passes is what makes the entry a hit.
   out.push({
-    label: "모델 준비 중",
+    label: t("load.parsing"),
     run: () => {
       useLoader.preload(GLTFLoader, MODEL_URLS);
       useLoader.preload(THREE.TextureLoader, ARENA_TEXTURE_URLS as unknown as string[]);
@@ -79,7 +80,7 @@ function steps(): Step[] {
   });
 
   out.push({
-    label: "지형 계산 중",
+    label: t("load.terrain"),
     run: () => {
       // Both radii: a hider's and the giant seeker's. check:map floods at the
       // seeker's, the bots at a hider's, and neither should be the one that
@@ -115,5 +116,5 @@ export async function runWarmup(onProgress: (p: WarmupProgress) => void): Promis
     await new Promise((resolve) => requestAnimationFrame(resolve));
     await list[i].run();
   }
-  onProgress({ done: list.length, total: list.length, label: "준비 완료" });
+  onProgress({ done: list.length, total: list.length, label: t("load.done") });
 }

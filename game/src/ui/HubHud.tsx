@@ -3,6 +3,7 @@ import type { PortalProgress } from "../hub/HubPlayer";
 import type { Stand } from "../hub/hubMap";
 import type { PlayerState } from "../net/types";
 import { ShopPrompt } from "./ShopPrompt";
+import { t } from "./i18n";
 import type { Wallet } from "./useWallet";
 
 interface Props {
@@ -49,27 +50,27 @@ export function HubHud({
   return (
     <div className="overlay">
       <div className="hud-top">
-        <span className="phase-label">로비</span>
+        <span className="phase-label">{t("hub.title")}</span>
         {/* A headcount is not a role. This wore the hider's teal, which in a
             match means "you are a hider" — the one place in the game where
             that colour carries information. */}
-        <span className="role-chip count">{players.length}명 접속 중</span>
+        <span className="role-chip count">{t("hub.online", { n: players.length })}</span>
         {/* The shop has no panel to read a balance off any more, so it lives
             here permanently. */}
         <span className="role-chip coins">
           {wallet.wallet?.coins ?? "…"}
-          <span className="chip-unit">코인</span>
+          <span className="chip-unit">{t("hub.coins")}</span>
         </span>
       </div>
 
       <div className="hud-left">
-        <div className="hud-heading">여기 있는 사람들</div>
+        <div className="hud-heading">{t("hub.people")}</div>
         {players.map((p) => (
           <div key={p.account} className="player-row">
             <span className="dot" style={{ background: "var(--hider)" }} />
             <span className="name">
-              {p.nick || "익명"}
-              {p.account === account ? " (나)" : ""}
+              {p.nick || t("app.anon")}
+              {p.account === account ? t("app.you") : ""}
             </span>
           </div>
         ))}
@@ -91,24 +92,24 @@ export function HubHud({
 
       {joining && (
         <div className="banner">
-          <h2>매칭 중…</h2>
-          <p>잠시만 기다려주세요</p>
+          <h2>{t("hub.matching")}</h2>
+          <p>{t("hub.matchingSub")}</p>
         </div>
       )}
 
       {!joining && portal && (
         <div className="portal-prompt">
-          <div className="portal-title">{portal.label}</div>
+          <div className="portal-title">{t(portal.labelKey)}</div>
           {portal.available ? (
             <>
-              <div className="portal-sub">{portal.sub}</div>
+              <div className="portal-sub">{portal.subKey ? t(portal.subKey) : ""}</div>
               <div className="portal-bar">
                 <div className="portal-fill" style={{ width: `${Math.round(progress * 100)}%` }} />
               </div>
-              <div className="portal-hint">계속 서 있으면 입장합니다</div>
+              <div className="portal-hint">{t("hub.portalHold")}</div>
             </>
           ) : (
-            <div className="portal-hint">아직 준비되지 않았습니다</div>
+            <div className="portal-hint">{t("hub.portalLocked")}</div>
           )}
         </div>
       )}
