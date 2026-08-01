@@ -18,6 +18,7 @@ import { PoseMenu } from "./ui/PoseMenu";
 import { hsvToRgb, rgbToHsv } from "./ui/ColorWheel";
 import { ConnectingScreen, LoadingScreen, NickScreen, ResultsOverlay, WaitingBanner } from "./ui/Screens";
 import { runWarmup, type WarmupProgress } from "./game/warmup";
+import { DEFAULT_MODE, canLeaveNow, caughtIsOut } from "./game/modes";
 import {
   BRUSH,
   NET_THROTTLE_MS,
@@ -121,6 +122,12 @@ export default function App() {
   // fixed and the menu stays closed for them.
   const canPose = !inHub && !isSeeker && (phase === "hiding" || phase === "lobby") && !me?.caught;
   const canPaint = canPose || inCell;
+
+  const mode = room?.mode ?? DEFAULT_MODE;
+  /** Caught, in the room where that ends your round: no body, free camera. */
+  const spectating = !inHub && caughtIsOut(mode) && !!me?.caught;
+  /** When the leave button is live. See modes.ts — one rule, asked in one place. */
+  const canLeave = !inHub && canLeaveNow(mode, phase, !!me?.caught);
 
   // Paint belongs to a match. Walking back into the hub has to wipe it too, or
   // everyone stands around the lobby still wearing the last round's camouflage
@@ -384,7 +391,11 @@ export default function App() {
             body={bodyId}
             players={players}
             portalRef={portalRef}
-            onEnterPortal={() => game.enterGame(nick || me.nick || "익명")}
+            // The door decides the game. A portal with no mode is one that
+            // does not lead anywhere yet, and HubPlayer already refuses those.
+            onEnterPortal={(portal) =>
+              game.enterGame(nick || me.nick || "익명", portal.mode ?? DEFAULT_MODE)
+            }
             onTransform={onHubTransform}
             standRef={standRef}
             leaderboard={leaderboard}
@@ -408,6 +419,7 @@ export default function App() {
               frozen={frozen}
               paintMode={paintMode}
               charLocked={charLocked}
+            spectating={spectating}
               onToggleLock={() => setCharLocked((v) => !v)}
               onTransform={sendTransform}
               onShoot={onShoot}
@@ -460,6 +472,10 @@ export default function App() {
             onToggleReady={toggleReady}
             showControls={!controlsLearned}
             canPose={canPose}
+            mode={mode}
+            spectating={spectating}
+            canLeave={canLeave}
+            onLeave={() => game.returnToHub(nick || me.nick || "익명")}
           />
 
           {poseMenuOpen && (

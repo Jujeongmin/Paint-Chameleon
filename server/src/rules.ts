@@ -317,3 +317,118 @@ export function applyEquip(
   if (!w.owned.includes(id)) return { ok: false };
   return { ok: true, wallet: { coins: w.coins, owned: [...w.owned], equipped: id } };
 }
+
+// ----------------------------------------------------------------- game modes
+//
+// Two rooms, two answers to the same question: what happens when a hider is
+// shot. Everything else about a round is identical, so the difference is
+// written as data and one pure function rather than as two round systems.
+//
+// KEEP IN SYNC WITH game/src/game/modes.ts — check:modes compares them and
+// drives the decision table from both sides.
+
+export type GameMode = "tag" | "hunt";
+
+export const GAME_MODES: Record<GameMode, { label: string; sub: string }> = {
+  /**
+   * The original room. Being caught puts you on the other side: you get up as
+   * a seeker and help hunt whoever is left. The hunt therefore accelerates —
+   * every catch adds a hunter — and the round ends when the last hider falls.
+   */
+  tag: { label: "PAINT CHAMELEON", sub: "술래 늘리기" },
+  /**
+   * Being caught is the end of your round. The body is removed rather than
+   * left lying about, and you watch the rest from a free camera. The hunt does
+   * not accelerate, so the seeker's clock is the real opponent.
+   */
+  hunt: { label: "LAST ONE STANDING", sub: "생존" },
+};
+
+export const DEFAULT_MODE: GameMode = "tag";
+
+export function isGameMode(v: unknown): v is GameMode {
+  return v === "tag" || v === "hunt";
+}
+
+/** Anything the round rules need to know about one player. */
+export interface RoundUser {
+  account: string;
+  role?: string;
+  caught?: boolean;
+  /** Removed from play: hunt mode only, and only after being caught. */
+  spectating?: boolean;
+}
+
+/**
+ * What a successful shot does to the target, as a state patch.
+ *
+ * `caught` means different things in the two modes and that is the whole point
+ * of routing it through here. In hunt it is the end of your round. In tag it is
+ * a change of side, so the flag is NOT set — it drives the dimmed body and the
+ * "발각" result row, and a player who is now hunting is neither. Their catch is
+ * recorded as `convertedAt` instead, which is what the scoring reads.
+ */
+export function catchPatch(mode: GameMode, now: number): Record<string, unknown> {
+  if (mode === "tag") {
+    return {
+      role: "seeker",
+      caught: false,
+      caughtAt: null,
+      convertedAt: now,
+      // A fresh seeker must not inherit a cooldown, and must be able to shoot
+      // immediately — being converted and then unable to act reads as a bug.
+      lastShotAt: 0,
+      pose: 0,
+    };
+  }
+  return { caught: true, caughtAt: now, spectating: true };
+}
+
+/**
+ * Is the hunt over?
+ *
+ * One rule for both modes, which is possible precisely because tag moves the
+ * caught player's ROLE rather than setting a flag: "nobody left to find" is
+ * then the same sentence in each. The seeker count guard stops an empty room,
+ * or one whose seeker walked out, from reading as a finished round.
+ */
+export function huntOver(users: RoundUser[]): boolean {
+  let seekers = 0;
+  let live = 0;
+  for (const u of users) {
+    if (u.role === "seeker") seekers++;
+    else if (!u.caught) live++;
+  }
+  return seekers > 0 && live === 0;
+}
+
+/** Players who are still playing rather than watching. */
+export function activeHiders(users: RoundUser[]): number {
+  return users.filter((u) => u.role !== "seeker" && !u.caught).length;
+}
+
+/**
+ * Whether a room will take someone walking in off the street.
+ *
+ * Between rounds only — during the results screen as well as the lobby, so a
+ * room that is about to restart can fill up rather than restarting short.
+ * Joining mid-hunt is deliberately not allowed: in tag you would arrive as the
+ * only hider in a room full of seekers, and in hunt you would arrive with the
+ * hiding phase already spent.
+ */
+export function acceptsJoiners(phase: string, playerCount: number, max: number): boolean {
+  if (playerCount >= max) return false;
+  return phase === "lobby" || phase === "results";
+}
+
+/**
+ * After the results screen: start another round, or fall back to the lobby.
+ *
+ * Not going back to the lobby every time is the point — a room that has enough
+ * people simply plays again, and anybody who wanted to stop had the whole
+ * results phase to press leave. Dropping below the minimum sends what is left
+ * back to the lobby rather than starting a round nobody can play.
+ */
+export function afterResults(playerCount: number, minPlayers: number): "restart" | "lobby" {
+  return playerCount >= minPlayers ? "restart" : "lobby";
+}

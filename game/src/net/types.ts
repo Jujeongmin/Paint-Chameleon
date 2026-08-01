@@ -1,4 +1,5 @@
 import type { Phase } from "../game/constants";
+import type { GameMode } from "../game/modes";
 import type { PaintDab } from "../game/paint";
 
 export interface PlayerState {
@@ -14,11 +15,20 @@ export interface PlayerState {
   moving?: boolean;
   /** Equipped body profile id; unknown values fall back to the default. */
   body?: string;
+  /**
+   * Out of the round and watching: hunt mode only, and only after being caught.
+   * Nobody draws a body for a spectator — that is the mode's whole promise.
+   */
+  spectating?: boolean;
+  /** When a caught hider changed sides. Tag mode only; null otherwise. */
+  convertedAt?: number | null;
 }
 
 export interface RoomInfo {
   /** Hub rooms are social space; game rooms run rounds. */
   kind: "hub" | "game";
+  /** Which of the two rooms this is. See game/src/game/modes.ts. */
+  mode: GameMode;
   phase: Phase;
   phaseEndsAt: number;
   tickAt: number;

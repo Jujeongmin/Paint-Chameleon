@@ -49,6 +49,7 @@ const PLAYERS: PlayerState[] = [
 function room(over: Partial<RoomInfo>): RoomInfo {
   return {
     kind: "game",
+    mode: "tag",
     phase: "hiding",
     phaseEndsAt: 0,
     tickAt: 0,
@@ -94,6 +95,10 @@ function Preview() {
           charLocked={false}
           ready={false}
           onToggleReady={() => {}}
+          mode="tag"
+          spectating={false}
+          canLeave={false}
+          onLeave={() => {}}
           showControls
         />
       </Frame>
@@ -112,6 +117,10 @@ function Preview() {
           charLocked={false}
           ready
           onToggleReady={() => {}}
+          mode="tag"
+          spectating={false}
+          canLeave={false}
+          onLeave={() => {}}
           showControls
         />
       </Frame>
@@ -130,6 +139,10 @@ function Preview() {
           charLocked
           ready
           onToggleReady={() => {}}
+          mode="tag"
+          spectating={false}
+          canLeave={false}
+          onLeave={() => {}}
           showControls
         />
       </Frame>
@@ -148,6 +161,10 @@ function Preview() {
           charLocked={false}
           ready
           onToggleReady={() => {}}
+          mode="tag"
+          spectating={false}
+          canLeave={false}
+          onLeave={() => {}}
           showControls={false}
         />
       </Frame>
@@ -166,6 +183,10 @@ function Preview() {
           charLocked={false}
           ready
           onToggleReady={() => {}}
+          mode="tag"
+          spectating={false}
+          canLeave={false}
+          onLeave={() => {}}
           showControls={false}
         />
       </Frame>
@@ -184,6 +205,10 @@ function Preview() {
           charLocked={false}
           ready
           onToggleReady={() => {}}
+          mode="tag"
+          spectating={false}
+          canLeave={false}
+          onLeave={() => {}}
           showControls={false}
         />
       </Frame>
@@ -202,6 +227,10 @@ function Preview() {
           charLocked={false}
           ready
           onToggleReady={() => {}}
+          mode="tag"
+          spectating={false}
+          canLeave
+          onLeave={() => {}}
           showControls={false}
         />
         <ResultsOverlay
@@ -217,6 +246,28 @@ function Preview() {
           players={PLAYERS}
           account={ACCOUNT}
           secondsLeft={21}
+        />
+      </Frame>
+
+      <Frame id="spectating" title="탈락 · 생존 모드" note="몸은 사라지고, 나가기 버튼이 살아납니다">
+        <Hud
+          room={room({ phase: "seeking", mode: "hunt" })}
+          me={player({ account: ACCOUNT, nick: "나", role: "hider", caught: true, spectating: true })}
+          players={PLAYERS}
+          account={ACCOUNT}
+          secondsLeft={38}
+          pose={0}
+          paintMode={false}
+          canPaint={false}
+          canPose={false}
+          charLocked={false}
+          ready
+          onToggleReady={() => {}}
+          mode="hunt"
+          spectating
+          canLeave
+          onLeave={() => {}}
+          showControls={false}
         />
       </Frame>
 

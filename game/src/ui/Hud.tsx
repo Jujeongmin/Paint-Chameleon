@@ -1,4 +1,5 @@
 import { PHASE_SECONDS, POSES, type Phase } from "../game/constants";
+import { GAME_MODES, type GameMode } from "../game/modes";
 import { Icon } from "./icons";
 import { KeyHints, type KeyHint } from "./KeyHints";
 import type { PlayerState, RoomInfo } from "../net/types";
@@ -26,6 +27,12 @@ interface Props {
   onToggleReady: () => void;
   /** False once the player has used the controls; hides the basic tutorial. */
   showControls: boolean;
+  mode: GameMode;
+  /** Caught in a room where that removes you: watching, not playing. */
+  spectating: boolean;
+  /** Whether leaving is offered right now. Decided by modes.ts, not here. */
+  canLeave: boolean;
+  onLeave: () => void;
 }
 
 export function Hud({
@@ -42,6 +49,10 @@ export function Hud({
   ready,
   onToggleReady,
   showControls,
+  mode,
+  spectating,
+  canLeave,
+  onLeave,
 }: Props) {
   const isSeeker = me.role === "seeker";
   const hiders = players.filter((p) => p.role === "hider");
@@ -100,6 +111,9 @@ export function Hud({
       {!paintMode && (
         <>
           <div className={"hud-top phase-" + room.phase}>
+            {/* Which of the two rooms you are in. It changes what being caught
+                means, so it is not a detail you should have to remember. */}
+            <span className="mode-chip">{GAME_MODES[mode].sub}</span>
             <span className="phase-label">{PHASE_LABEL[room.phase]}</span>
             {room.phase !== "lobby" && (
               <span className={"timer" + (secondsLeft <= 10 ? " urgent" : "")}>{secondsLeft}</span>
@@ -198,11 +212,26 @@ export function Hud({
         </>
       )}
 
-      {me.caught && room.phase === "seeking" && !paintMode && (
-        <div className="banner">
-          <h2>잡혔습니다</h2>
-          <p>라운드가 끝날 때까지 관전합니다</p>
+      {/*
+        The two rooms say different things about being caught, and the banner is
+        where a player finds out which one they are in. In tag it is not even
+        shown — you are not out, you are hunting now, and a "잡혔습니다" banner
+        over a player who just got a gun would be the opposite of true.
+      */}
+      {me.caught && spectating && room.phase === "seeking" && !paintMode && (
+        <div className="banner spectator-banner">
+          <h2>탈락</h2>
+          <p>자유 시점으로 남은 라운드를 지켜봅니다</p>
         </div>
+      )}
+
+      {canLeave && !paintMode && (
+        // Deliberately its own control rather than a line in the results panel:
+        // it is live during play too, for a spectator whose round is already
+        // over, and it should not move between those two moments.
+        <button className="leave-btn" onClick={onLeave}>
+          로비로 나가기
+        </button>
       )}
     </div>
   );

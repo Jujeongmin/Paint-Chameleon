@@ -3,6 +3,7 @@
  * match. Geometry reuses the match's MapBox format so collision, gravity and the
  * follow camera all work here without a second implementation.
  */
+import { GAME_MODES, type GameMode } from "../game/modes";
 
 import type { MapBox } from "../game/map";
 import { BODIES } from "../game/bodies";
@@ -30,6 +31,8 @@ export interface Portal {
   triggerRadius: number;
   /** Null until the mode exists — renders as a locked arch. */
   available: boolean;
+  /** Which game this door leads to. Absent on a door that leads nowhere yet. */
+  mode?: GameMode;
 }
 
 export const PORTALS: Portal[] = [
@@ -37,23 +40,27 @@ export const PORTALS: Portal[] = [
     id: "warehouse",
     // The game's own name, not the Poki original's — this build is deliberately
     // not a copy of Hide and Paint, and the front door should not claim it is.
-    label: "PAINT CHAMELEON",
-    sub: "WAREHOUSE",
+    label: GAME_MODES.tag.label,
+    sub: GAME_MODES.tag.sub,
     x: 0,
     z: -11,
     color: 0xe0a13a,
     triggerRadius: 2.2,
     available: true,
+    mode: "tag",
   },
   {
-    id: "soon-a",
-    label: "COMING SOON",
-    sub: "",
+    // The left-hand door. Same arena, different answer to "what happens when
+    // you are caught" — see game/src/game/modes.ts.
+    id: "survival",
+    label: GAME_MODES.hunt.label,
+    sub: GAME_MODES.hunt.sub,
     x: -9.5,
     z: -10,
-    color: 0x6b6f7a,
+    color: 0x49b3ad,
     triggerRadius: 2.0,
-    available: false,
+    available: true,
+    mode: "hunt",
   },
   {
     id: "soon-b",

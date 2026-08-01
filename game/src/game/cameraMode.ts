@@ -20,6 +20,11 @@ export interface CameraModeInput {
   charLocked: boolean;
   isSeeker: boolean;
   phase: Phase;
+  /**
+   * Caught, in the room where that is the end of your round. There is no body
+   * left to frame, so the camera has nothing to do but fly.
+   */
+  spectating?: boolean;
 }
 
 export function cameraModeFor({
@@ -27,7 +32,13 @@ export function cameraModeFor({
   charLocked,
   isSeeker,
   phase,
+  spectating,
 }: CameraModeInput): CameraMode {
+  // Spectating outranks even painting, and has to: the argument for painting
+  // winning is that you must be able to see the body you are painting, and a
+  // spectator does not have one. Every other mode would be framing a player
+  // who is no longer in the world.
+  if (spectating) return "freeFly";
   // Painting wins outright: you cannot paint a body you cannot see, so neither
   // a detached camera nor first person may take the view away from it.
   if (paintMode) return "paint";

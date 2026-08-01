@@ -6,6 +6,7 @@ import {
   useRoomAllUserStates,
 } from "@agent8/gameserver";
 import { MIN_PLAYERS, type Phase } from "../game/constants";
+import { DEFAULT_MODE, modeOf, type GameMode } from "../game/modes";
 import { surfaceFor } from "../game/paint";
 import { playShot, shotGainFor } from "../audio/sound";
 import type { LeaderboardResult, PlayerState, RoomInfo, WireDab, WalletView, BuyResult } from "./types";
@@ -110,6 +111,7 @@ function useOnlineGame() {
     if (!rawRoom || !rawRoom.roomId) return null;
     return {
       kind: rawRoom.kind === "hub" ? "hub" : "game",
+      mode: modeOf(rawRoom.mode),
       phase: (rawRoom.phase as Phase) || "lobby",
       phaseEndsAt: rawRoom.phaseEndsAt || 0,
       tickAt: rawRoom.tickAt || 0,
@@ -134,12 +136,12 @@ function useOnlineGame() {
     : 0;
 
   const call = useCallback(
-    async (fn: string, nick: string, failure: string) => {
+    async (fn: string, args: string | unknown[], failure: string) => {
       if (!connected || joining) return;
       setJoining(true);
       setError(null);
       try {
-        await server.remoteFunction(fn, [nick]);
+        await server.remoteFunction(fn, Array.isArray(args) ? args : [args]);
         setJoined(true);
       } catch (e: any) {
         setError(e?.message ?? failure);
@@ -157,7 +159,8 @@ function useOnlineGame() {
   );
 
   const enterGame = useCallback(
-    (nick: string) => call("joinGame", nick, "매칭에 실패했습니다"),
+    (nick: string, mode: GameMode = DEFAULT_MODE) =>
+      call("joinGame", [nick, mode], "매칭에 실패했습니다"),
     [call]
   );
 

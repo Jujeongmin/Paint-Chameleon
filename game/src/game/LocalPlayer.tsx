@@ -41,6 +41,8 @@ interface Props {
   paintMode: boolean;
   /** Character is pinned: position, facing and pose all held. Camera stays free. */
   charLocked: boolean;
+  /** Caught, in a room where that removes you. No body is drawn and the camera flies. */
+  spectating?: boolean;
   onToggleLock: () => void;
   onTransform: (pos: [number, number, number], rotY: number, pose: number, moving: boolean) => void;
   onShoot: (result: ShotResult) => void;
@@ -69,6 +71,7 @@ export function LocalPlayer({
   inCell,
   paintMode,
   charLocked,
+  spectating,
   onToggleLock,
   onTransform,
   onShoot,
@@ -141,6 +144,7 @@ export function LocalPlayer({
   // one value, because R3F re-registers the useFrame callback every render, so
   // the loop always closes over the latest one.
   const mode = cameraModeFor({
+    spectating,
     paintMode,
     charLocked,
     isSeeker: me.role === "seeker",
@@ -459,7 +463,10 @@ export function LocalPlayer({
             motionRef={bodyMotion}
             // The outline is a wireframe sphere around the whole body, so in
             // first person it wraps the camera and draws a cage over the view.
-            hideBody={mode === "firstPerson"}
+            // A spectator's body is gone entirely, not just hidden from
+            // themselves: the server has marked them, so nobody else draws one
+            // either (see RemotePlayers).
+            hideBody={mode === "firstPerson" || !!spectating}
             dimmed={me.caught}
             fadeRef={bodyFade}
             held={

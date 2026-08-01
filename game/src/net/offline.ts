@@ -25,6 +25,7 @@ import { CELL_SPAWN, HUNT_START } from "../game/cell";
 import { surfaceFor } from "../game/paint";
 import { BODIES, DEFAULT_BODY_ID } from "../game/bodies";
 import { createBots, resetBots, stepBots, type BotState } from "../game/bot";
+import { DEFAULT_MODE, caughtIsOut, type GameMode } from "../game/modes";
 import { coinsFor } from "../game/coins";
 import type { BuyResult, LeaderboardResult, PlayerState, RoomInfo, WalletView, WireDab } from "./types";
 
@@ -35,6 +36,7 @@ export function useOfflineGame() {
   /** Which world we're standing in. Mirrors the server's room `kind`. */
   const [scene, setScene] = useState<"hub" | "game">("hub");
   const [nick, setNick] = useState("나");
+  const [mode, setMode] = useState<GameMode>(DEFAULT_MODE);
   const [phase, setPhase] = useState<Phase>("lobby");
   const [phaseEndsAt, setPhaseEndsAt] = useState(0);
   const [round, setRound] = useState(0);
@@ -149,9 +151,9 @@ export function useOfflineGame() {
         // two ways the server ends it.
         if (now >= phaseEndsAt || bots.current.every((b) => b.caught)) endRound();
       } else if (phase === "results" && now >= phaseEndsAt) {
-        setPhase("lobby");
-        setPhaseEndsAt(0);
-        setReadyState(false);
+        // Straight into another round, as the server now does — the lobby is
+        // where you go to stop, and leaving is a button rather than a phase.
+        startRound();
       }
 
       if (import.meta.env.DEV) {
@@ -256,6 +258,9 @@ export function useOfflineGame() {
           role: "hider",
           caught: b.caught,
           caughtAt: b.caughtAt,
+          // In hunt mode the body is removed rather than left lying about, so
+          // nobody draws one for it.
+          spectating: caughtIsOut(mode) && b.caught,
           pos: [...b.motion.pos] as [number, number, number],
           rotY: b.rotY,
           pose: b.pose,
@@ -272,6 +277,7 @@ export function useOfflineGame() {
     : scene === "hub"
     ? {
         kind: "hub",
+        mode,
         phase: "lobby",
         phaseEndsAt: 0,
         tickAt: Date.now(),
@@ -285,6 +291,7 @@ export function useOfflineGame() {
       }
     : {
         kind: "game",
+        mode,
         phase,
         phaseEndsAt,
         tickAt: Date.now(),
@@ -326,7 +333,8 @@ export function useOfflineGame() {
       setScene("hub");
       myPos.current = [0, 0, 10];
     },
-    enterGame: async () => {
+    enterGame: async (_nick?: string, requested: GameMode = DEFAULT_MODE) => {
+      setMode(requested);
       setScene("game");
       setPhase("lobby");
       setPhaseEndsAt(0);
@@ -356,6 +364,11 @@ export function useOfflineGame() {
       if (phase !== "seeking") return { ok: false };
       const bot = bots.current.find((b) => b.account === target);
       if (!bot || bot.caught) return { ok: false };
+      // A caught bot is OUT, in both modes — it does not convert to a seeker
+      // even in tag. That is not an oversight: an AI may never be the seeker
+      // (see bot.ts), and a converted bot hunting the others would be exactly
+      // that. Tag's conversion is therefore the one rule this rig cannot
+      // rehearse; it needs real players.
       bot.caught = true;
       bot.caughtAt = Date.now();
       forceTick((n) => n + 1);

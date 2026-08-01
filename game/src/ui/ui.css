@@ -1066,6 +1066,51 @@ body.hide-cursor canvas {
   pointer-events: none;
 }
 
+/* Which room you are in, at the head of the top bar. Quiet — it does not
+   change during a round, so it must not compete with the clock, which does. */
+.mode-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+/*
+ * Leaving. Top-right, opposite the scoreboard, and nowhere near the crosshair
+ * or the rail — it is the one button in the HUD that ends your session, and it
+ * should be impossible to hit while playing and impossible to miss when the
+ * round is over.
+ */
+.leave-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(14, 17, 23, 0.86);
+  backdrop-filter: blur(8px);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.leave-btn:hover {
+  background: rgba(228, 88, 79, 0.22);
+  border-color: var(--seeker);
+}
+
+.spectator-banner h2 {
+  color: var(--muted);
+}
+
 /* The ready button carries its own shortcut. The keycap borrows the button's
    own ink rather than the HUD's, because it sits on a filled green field where
    the usual dark keycap would read as a hole. */

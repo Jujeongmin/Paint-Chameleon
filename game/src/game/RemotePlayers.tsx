@@ -144,7 +144,11 @@ export function RemotePlayers({
   return (
     <>
       {players
-        .filter((p) => p.account !== selfAccount && p.pos)
+        // A spectator has no body anywhere. Filtering here rather than
+        // dimming is the difference between the two rooms: in tag a caught
+        // player is still in the world (hunting you now), and in hunt they are
+        // simply gone.
+        .filter((p) => p.account !== selfAccount && p.pos && !p.spectating)
         .map((p) => (
           <RemotePlayer
             key={p.account}

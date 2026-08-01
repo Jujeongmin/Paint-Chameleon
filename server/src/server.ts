@@ -36,6 +36,13 @@ import {
   parseOwned,
   serializeOwned,
   coinsFor,
+  DEFAULT_MODE,
+  acceptsJoiners,
+  afterResults,
+  catchPatch,
+  huntOver,
+  isGameMode,
+  type GameMode,
   type WalletState,
   type PurchaseFailure,
 } from "./rules";
@@ -102,6 +109,10 @@ async function startRound(roomId: string, users: Array<Record<string, any>>, sta
       rotY: 0,
       lastShotAt: 0,
       lastMoveAt: now,
+      // Both are mode-specific and both are per-round: a player converted or
+      // eliminated last round starts this one as an ordinary hider.
+      convertedAt: null,
+      spectating: false,
     });
   }
 
@@ -124,22 +135,33 @@ async function endRound(roomId: string, users: Array<Record<string, any>>, state
   const results: Array<Record<string, any>> = [];
   const seekingStartedAt = num(state.phaseEndsAt) - PHASE_SECONDS.seeking * 1000;
 
+  const mode: GameMode = isGameMode(state.mode) ? state.mode : DEFAULT_MODE;
   let catches = 0;
 
   for (const u of users) {
-    if (u.role === "seeker") continue;
+    // The original seeker is scored below. In tag, everyone else wearing that
+    // role got there by being caught, so they are scored as the hider they
+    // were — with the conversion standing in for the catch.
+    if (u.account === state.seeker) continue;
 
+    const converted = mode === "tag" && !!u.convertedAt;
     let gained: number;
-    if (u.caught) {
+    if (u.caught || converted) {
       catches++;
-      const aliveMs = Math.max(0, num(u.caughtAt, now) - seekingStartedAt);
+      const endedAt = converted ? num(u.convertedAt, now) : num(u.caughtAt, now);
+      const aliveMs = Math.max(0, endedAt - seekingStartedAt);
       gained = Math.round((aliveMs / 1000) * SCORE.hiderPerSecondAlive);
     } else {
       gained = SCORE.hiderSurvived;
     }
 
     scores[u.account] = (scores[u.account] || 0) + gained;
-    results.push({ account: u.account, nick: u.nick, caught: !!u.caught, gained });
+    results.push({
+      account: u.account,
+      nick: u.nick,
+      caught: !!u.caught || converted,
+      gained,
+    });
   }
 
   if (state.seeker) {
@@ -286,7 +308,8 @@ export class Server {
   }
 
   /** Join an open lobby, or open a new one. Returns the room id. */
-  async joinGame(nick: string): Promise<{ roomId: string }> {
+  async joinGame(nick: string, requestedMode?: string): Promise<{ roomId: string }> {
+    const mode: GameMode = isGameMode(requestedMode) ? requestedMode : DEFAULT_MODE;
     // Leave the hub first — a player is only ever in one room.
     if ($sender.roomId) await $global.leaveRoom();
 
@@ -297,8 +320,14 @@ export class Server {
         // Opt in, don't opt out: a room with no kind yet (or a hub, whose phase
         // is null and would read as "lobby") must never absorb a match.
         if (s.kind !== "game") continue;
+        // Never put someone in a room playing the other game. The two modes
+        // disagree about what being caught means, which is the whole of the
+        // difference, so a mixed room would be neither.
+        if ((isGameMode(s.mode) ? s.mode : DEFAULT_MODE) !== mode) continue;
         const count = Array.isArray(s.$users) ? s.$users.length : 0;
-        if ((s.phase || "lobby") === "lobby" && count < MAX_PLAYERS) {
+        // Between rounds, not only in the lobby: a room on its results screen
+        // is about to play again and should fill up first.
+        if (acceptsJoiners(s.phase || "lobby", count, MAX_PLAYERS)) {
           target = s.roomId;
           break;
         }
@@ -310,6 +339,7 @@ export class Server {
     if (!state.phase) {
       await $global.updateRoomState(roomId, {
         kind: "game" as RoomKind,
+        mode,
         phase: "lobby" as Phase,
         round: 0,
         seeker: null,
@@ -335,6 +365,8 @@ export class Server {
       moving: false,
       lastShotAt: 0,
       lastMoveAt: Date.now(),
+      convertedAt: null,
+      spectating: false,
     });
 
     return { roomId };
@@ -569,8 +601,16 @@ export class Server {
 
     // Unchanged from the tag it replaces: same write, same broadcast. Nothing
     // client-side subscribes to "caught" yet, but a later feature might.
-    await $room.updateUserState(targetAccount, { caught: true, caughtAt: now });
-    await $room.broadcastToRoom("caught", { account: targetAccount, by: $sender.account, at: now });
+    // What a catch DOES is the difference between the two rooms, and it is
+    // decided in one place so the two can never drift into a third behaviour.
+    const mode: GameMode = isGameMode(state.mode) ? state.mode : DEFAULT_MODE;
+    await $room.updateUserState(targetAccount, catchPatch(mode, now));
+    await $room.broadcastToRoom("caught", {
+      account: targetAccount,
+      by: $sender.account,
+      at: now,
+      mode,
+    });
 
     return { ok: true };
   }
@@ -632,10 +672,11 @@ export class Server {
       }
 
       case "seeking": {
-        const hiders = userStates.filter((u) => u.role === "hider");
-        const allCaught = hiders.length > 0 && hiders.every((u) => u.caught);
+        // One rule for both modes — see huntOver in rules.ts. It works for tag
+        // precisely because a caught player there changes ROLE rather than
+        // setting a flag, so "nobody left to find" is the same sentence.
         const seekerGone = !!state.seeker && !users.includes(state.seeker);
-        if (now >= num(state.phaseEndsAt) || allCaught || seekerGone) {
+        if (now >= num(state.phaseEndsAt) || huntOver(userStates) || seekerGone) {
           await endRound(roomId, userStates, state);
         }
         break;
@@ -643,9 +684,18 @@ export class Server {
 
       case "results": {
         if (now >= num(state.phaseEndsAt)) {
-          await $global.updateRoomState(roomId, { phase: "lobby" as Phase, phaseEndsAt: 0 });
-          for (const u of userStates) {
-            await $global.updateRoomUserState(roomId, u.account, { ready: false });
+          // A room with enough people simply plays again. Anyone who wanted to
+          // stop had the whole results phase to press leave, and making
+          // everybody re-press ready after every round was a lobby nobody
+          // asked to visit. Falling short of MIN_PLAYERS goes back to the
+          // lobby rather than starting a round that cannot be played.
+          if (afterResults(users.length, MIN_PLAYERS) === "restart") {
+            await startRound(roomId, userStates, state);
+          } else {
+            await $global.updateRoomState(roomId, { phase: "lobby" as Phase, phaseEndsAt: 0 });
+            for (const u of userStates) {
+              await $global.updateRoomUserState(roomId, u.account, { ready: false });
+            }
           }
         }
         break;
