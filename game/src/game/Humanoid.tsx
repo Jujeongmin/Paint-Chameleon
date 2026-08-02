@@ -6,6 +6,7 @@ import { AIM_ARM_PITCH } from "./aim";
 import { buildPartGeometries } from "./bodyGeometry";
 import { MOVE, POSES } from "./constants";
 import { derive, profileFor } from "./bodies";
+import { groundedLift } from "./poseBounds";
 
 /**
  * Chunky white figure. Deliberately simple: broad, flat-ish panels give the
@@ -106,6 +107,9 @@ export function Humanoid({
   const { headY, hipY, armHalf, legHalf } = useMemo(() => derive(profile), [profile]);
 
   const geoms = useMemo(() => buildPartGeometries(profile), [profile]);
+  // Cheap, but it walks every part of the silhouette — not something to redo
+  // sixty times a second when neither input changes between poses.
+  const lift = useMemo(() => groundedLift(profile, pose), [profile, pose]);
 
   const material = useMemo(
     () =>
@@ -201,7 +205,10 @@ export function Humanoid({
       // Lean into the walk a little; it reads as intent rather than sliding.
       const lean = spec.pitch + gaitAmount.current * 0.12 - air * 0.1;
       root.current.rotation.x += (lean - root.current.rotation.x) * k;
-      root.current.position.y += (spec.lift + bob - root.current.position.y) * k;
+      // Derived per body, not read off the pose. See groundedLift — one
+      // authored number cannot put three differently-proportioned bodies on the
+      // floor in a rotated pose, and lying was visibly hovering because of it.
+      root.current.position.y += (lift + bob - root.current.position.y) * k;
     }
 
     if (head.current) {

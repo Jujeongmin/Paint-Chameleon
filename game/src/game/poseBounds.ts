@@ -17,7 +17,7 @@
  */
 
 import { POSES } from "./constants";
-import { derive, BODIES, type BodyProfile } from "./bodies";
+import { derive, BODIES, FOOT_Y, type BodyProfile } from "./bodies";
 
 type V3 = [number, number, number];
 
@@ -38,10 +38,64 @@ function add(a: V3, b: V3): V3 {
   return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 }
 
-/** One part: the endpoints of its swept segment (a sphere repeats one point) plus a radius. */
+/**
+ * One part: the endpoints of its swept segment (a sphere repeats one point)
+ * plus a radius, and the orientation of the group it hangs in.
+ *
+ * `rot` only matters for the box-shaped profiles. A capsule is a swept SPHERE,
+ * so how it is turned about its own axis changes nothing about its extent —
+ * which is why this was untyped for a long time and nothing noticed. A box has
+ * corners, and a corner sweeps further than the rounded surface it replaces, so
+ * for those the orientation is the whole question.
+ */
 interface Part {
   points: V3[];
   r: number;
+  /** Rotation of the part's own group, in root-child space. */
+  rot: M3;
+}
+
+/** Row-major 3x3. Only ever built from rotations about X and Z. */
+type M3 = [V3, V3, V3];
+
+const IDENTITY: M3 = [
+  [1, 0, 0],
+  [0, 1, 0],
+  [0, 0, 1],
+];
+
+function mulM(a: M3, b: M3): M3 {
+  const out: M3 = [
+    [0, 0, 0],
+    [0, 0, 0],
+    [0, 0, 0],
+  ];
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      out[i][j] = a[i][0] * b[0][j] + a[i][1] * b[1][j] + a[i][2] * b[2][j];
+    }
+  }
+  return out;
+}
+
+function matX(a: number): M3 {
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  return [
+    [1, 0, 0],
+    [0, c, -s],
+    [0, s, c],
+  ];
+}
+
+function matZ(a: number): M3 {
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  return [
+    [c, -s, 0],
+    [s, c, 0],
+    [0, 0, 1],
+  ];
 }
 
 export interface Bounds {
@@ -58,8 +112,8 @@ function restParts(p: BodyProfile, poseIndex: number): Part[] {
   const { headY, hipY, armHalf, legHalf } = derive(p);
   const parts: Part[] = [];
 
-  // Head — a sphere.
-  parts.push({ points: [[0, headY, 0]], r: p.head.r });
+  // Head — a sphere, or a cube on the box-shaped profiles.
+  parts.push({ points: [[0, headY, 0]], r: p.head.r, rot: IDENTITY });
 
   // Torso — a capsule: the cylinder spans ±l/2 and the caps add the radius.
   parts.push({
@@ -68,6 +122,7 @@ function restParts(p: BodyProfile, poseIndex: number): Part[] {
       [0, p.torso.y + p.torso.l / 2, 0],
     ],
     r: p.torso.r,
+    rot: IDENTITY,
   });
 
   // Arms hang at (0, -armHalf, 0) inside a shoulder group rotated X=armPitch,
@@ -81,6 +136,9 @@ function restParts(p: BodyProfile, poseIndex: number): Part[] {
     parts.push({
       points: local.map((v) => add(rotX(rotZ(v, side * spec.armSpread), spec.armPitch), origin)),
       r: p.arm.r,
+      // Euler XYZ means R = Rx·Ry·Rz, so Z is applied to the part first — the
+      // same order the point transform above uses.
+      rot: mulM(matX(spec.armPitch), matZ(side * spec.armSpread)),
     });
   }
 
@@ -94,13 +152,15 @@ function restParts(p: BodyProfile, poseIndex: number): Part[] {
     parts.push({
       points: local.map((v) => add(rotX(v, spec.legPitch), origin)),
       r: p.leg.r,
+      rot: matX(spec.legPitch),
     });
   }
 
   return parts;
 }
 
-export function poseBounds(p: BodyProfile, poseIndex: number): Bounds {
+/** The silhouette before the root's vertical lift is applied. */
+function unliftedBounds(p: BodyProfile, poseIndex: number): Bounds {
   const spec = POSES[Math.min(Math.max(poseIndex | 0, 0), POSES.length - 1)];
   const min: V3 = [Infinity, Infinity, Infinity];
   const max: V3 = [-Infinity, -Infinity, -Infinity];
@@ -112,14 +172,42 @@ export function poseBounds(p: BodyProfile, poseIndex: number): Bounds {
   const cp = Math.cos(spec.pitch);
   const sp = Math.sin(spec.pitch);
 
+  // Root rotation composed with the non-uniform scale, which the matrix order
+  // T·R·S applies to the child BEFORE the root turns it. Only needed for boxes.
+  const rootRS: M3 = mulM(matX(spec.pitch), [
+    [1, 0, 0],
+    [0, spec.scaleY, 0],
+    [0, 0, 1],
+  ]);
+  const boxy = p.shape === "box";
+
   for (const part of restParts(p, poseIndex)) {
-    const ex = part.r;
-    const ey = Math.hypot(part.r * spec.scaleY * cp, part.r * sp);
-    const ez = Math.hypot(part.r * spec.scaleY * sp, part.r * cp);
+    let ex: number;
+    let ey: number;
+    let ez: number;
+
+    if (boxy) {
+      // A box's extent along an axis is the sum of |row · half-extent| over its
+      // own three axes — corners included, which is the whole point. The part's
+      // half extents are r on both horizontal axes and r vertically, because
+      // the segment endpoints below already carry the length.
+      const m = mulM(rootRS, part.rot);
+      const h: V3 = [part.r, part.r, part.r];
+      ex = Math.abs(m[0][0]) * h[0] + Math.abs(m[0][1]) * h[1] + Math.abs(m[0][2]) * h[2];
+      ey = Math.abs(m[1][0]) * h[0] + Math.abs(m[1][1]) * h[1] + Math.abs(m[1][2]) * h[2];
+      ez = Math.abs(m[2][0]) * h[0] + Math.abs(m[2][1]) * h[1] + Math.abs(m[2][2]) * h[2];
+    } else {
+      // A capsule is a swept sphere: the scale turns it into an ellipsoid and
+      // the root rotation gives the projected half extents. Its own orientation
+      // does not enter, because a sphere has none.
+      ex = part.r;
+      ey = Math.hypot(part.r * spec.scaleY * cp, part.r * sp);
+      ez = Math.hypot(part.r * spec.scaleY * sp, part.r * cp);
+    }
 
     for (const v of part.points) {
       const scaled: V3 = [v[0], v[1] * spec.scaleY, v[2]];
-      const w = add(rotX(scaled, spec.pitch), [0, spec.lift, 0]);
+      const w = rotX(scaled, spec.pitch);
       const e: V3 = [ex, ey, ez];
       for (let i = 0; i < 3; i++) {
         min[i] = Math.min(min[i], w[i] - e[i]);
@@ -129,6 +217,41 @@ export function poseBounds(p: BodyProfile, poseIndex: number): Bounds {
   }
 
   return { min, max };
+}
+
+/**
+ * The lift that puts this body's lowest point on the floor in this pose.
+ *
+ * This used to be a hand-authored `lift` field on each pose, and hand-authoring
+ * cannot reach the answer: the three body profiles have different radii, so a
+ * rotated pose bottoms out at a different height for each, and one number
+ * cannot satisfy three. Lying was the visible case — it hovered between 7.5cm
+ * and 9.3cm depending on the body. Crouching had drifted the other way and sank
+ * 2.3cm INTO the floor on two of the three.
+ *
+ * Standing needs no lift and never did: `derive` builds the legs downward from
+ * FOOT_Y, so its soles land there for every profile. That makes FOOT_Y the
+ * floor, and every other pose simply has to reach the line standing already
+ * reaches.
+ *
+ * Exact and one step, because the lift is a pure translation. It also stays
+ * right when a fourth avatar is added, which is the part a constant could
+ * never do.
+ */
+export function groundedLift(p: BodyProfile, poseIndex: number): number {
+  return FOOT_Y - unliftedBounds(p, poseIndex).min[1];
+}
+
+/**
+ * The silhouette as drawn — lift included, so the bottom is always FOOT_Y.
+ */
+export function poseBounds(p: BodyProfile, poseIndex: number): Bounds {
+  const raw = unliftedBounds(p, poseIndex);
+  const lift = groundedLift(p, poseIndex);
+  return {
+    min: [raw.min[0], raw.min[1] + lift, raw.min[2]],
+    max: [raw.max[0], raw.max[1] + lift, raw.max[2]],
+  };
 }
 
 export function poseSize(p: BodyProfile, poseIndex: number) {
