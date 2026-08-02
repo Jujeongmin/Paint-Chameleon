@@ -46,6 +46,7 @@ const EN = {
   "load.textures": "Downloading surfaces",
   "load.weapon": "Downloading the blaster",
   "load.parsing": "Preparing models",
+  "load.audio": "Loading sound",
   "load.terrain": "Mapping the arena",
   "load.done": "Ready",
 
@@ -193,6 +194,7 @@ const KO: Record<Key, string> = {
   "load.textures": "표면 내려받는 중",
   "load.weapon": "무기 내려받는 중",
   "load.parsing": "모델 준비 중",
+  "load.audio": "사운드 준비 중",
   "load.terrain": "지형 계산 중",
   "load.done": "준비 완료",
 

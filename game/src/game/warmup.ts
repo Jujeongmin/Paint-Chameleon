@@ -9,6 +9,7 @@ import { CELL_BOXES } from "./cell";
 import { HUB_BOXES } from "../hub/hubMap";
 import { MOVE, SEEKER_SCALE } from "./constants";
 import { prewarmNav } from "./nav";
+import { loadSounds } from "../audio/sound";
 import { t } from "../ui/i18n";
 
 /**
@@ -77,6 +78,14 @@ function steps(): Step[] {
       useLoader.preload(THREE.TextureLoader, ARENA_TEXTURE_URLS as unknown as string[]);
       useLoader.preload(GLTFLoader, GUN_URL);
     },
+  });
+
+  out.push({
+    label: t("load.audio"),
+    // Fetched and decoded here for the same reason as everything else on this
+    // screen: the first catch of the round is a bad moment to discover a clip
+    // has not arrived. It resolves even if a file is missing — see loadSounds.
+    run: () => loadSounds(),
   });
 
   out.push({

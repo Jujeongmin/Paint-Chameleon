@@ -22,6 +22,7 @@ class MemoryStorage {
 }
 (globalThis as any).localStorage = new MemoryStorage();
 
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import {
   isMuted,
   shouldPlayBrushTick,
@@ -146,6 +147,48 @@ console.log("\nthe shot can be played without an AudioContext");
     threw = true;
   }
   check("playShot does not throw without a real AudioContext", !threw);
+}
+
+console.log("\nevery cue has a file, and every file is used");
+{
+  // The cues are samples now, and a missing file is silent rather than loud —
+  // loadSounds swallows a failed fetch on purpose, because a game that will not
+  // start is worse than a game with one missing sound. That trade is only safe
+  // if something else notices the file is gone, and this is that something.
+  const dir = "public/audio";
+  const onDisk = readdirSync(dir).filter((f) => f.endsWith(".ogg")).sort();
+
+  // Read the names straight out of the module rather than repeating them: a
+  // list here would be a second place to forget.
+  const source = readFileSync("game/src/audio/sound.ts", "utf8");
+  const referenced = [...source.matchAll(/"\/audio\/([\w-]+\.ogg)"/g)].map((m) => m[1]).sort();
+
+  check(`${referenced.length} cues are wired`, referenced.length > 0);
+
+  const missing = referenced.filter((f) => !onDisk.includes(f));
+  check("every cue the code plays exists on disk", missing.length === 0, missing.join(", "));
+
+  const unused = onDisk.filter((f) => !referenced.includes(f));
+  check(
+    "and nothing ships that nothing plays",
+    unused.length === 0,
+    `public/ is copied wholesale into the build, so an unused clip is dead weight a player downloads: ${unused.join(", ")}`
+  );
+
+  // Kenney's packs are hundreds of files; the point of copying seven was to
+  // keep the download small. A number that creeps back up is worth noticing.
+  const bytes = onDisk.reduce((sum, f) => sum + statSync(`${dir}/${f}`).size, 0);
+  check(
+    `the whole set is small (${Math.round(bytes / 1024)}KB)`,
+    bytes < 400 * 1024,
+    "the three source packs are 2MB; only what is played should be in public/"
+  );
+
+  check(
+    "the licence is written down next to the files",
+    existsSync(`${dir}/README.md`),
+    "CC0 needs no attribution, but where a file came from still has to be findable"
+  );
 }
 
 if (failures === 0) {
