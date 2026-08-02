@@ -16,8 +16,6 @@
 
 import {
   BOT_COUNT,
-  BOT_FLEE_RADIUS,
-  BOT_SAFE_RADIUS,
   botIsOut,
   createBots,
   paintColorAt,
@@ -158,33 +156,31 @@ console.log("\nthey wear a colour off the map, and it is not the default white")
   console.log(`  ·     emptiest spot in the arena is ${loneliest.toFixed(1)}u from the nearest prop`);
 }
 
-console.log("\nthey run when the seeker closes in");
+console.log("\nthey do NOT run when the seeker closes in");
 {
+  // The inverse of what this file used to assert. The game asks a hider to
+  // hold still; movement is what gives you away. A bot that bolts when
+  // somebody walks past turns a hider who might not have been noticed into a
+  // moving target that certainly is — and it is not playing the game the
+  // player is playing.
   const bots = createBots();
   run(bots, PHASE_SECONDS.hiding, () => world());
 
-  // Walk the seeker onto whichever bot settled first and watch it leave.
+  // Park the seeker directly on top of one of them for six seconds.
   const target = bots[0];
   const spot: [number, number, number] = [target.motion.pos[0], 0, target.motion.pos[2]];
-  const before = { x: spot[0], z: spot[2] };
+  const before = { x: spot[0], z: spot[2], pose: target.pose, paint: target.paint };
 
   run(bots, 6, (f) => world({ phase: "seeking", seeker: spot, now: f * DT * 1000 }));
 
   const moved = Math.hypot(target.motion.pos[0] - before.x, target.motion.pos[2] - before.z);
-  check(`the bot standing on the seeker's spot bolted (${moved.toFixed(1)}u)`, moved > 3);
-
-  // And a bot far away is not spooked by the same seeker — otherwise "flees"
-  // would just be "always runs", which is not hiding.
-  const far = bots.find(
-    (b) => b !== target && Math.hypot(b.motion.pos[0] - spot[0], b.motion.pos[2] - spot[2]) > BOT_SAFE_RADIUS
-  );
-  check(
-    `a bot ${BOT_SAFE_RADIUS}u away stayed put (${far?.goal})`,
-    !far || far.goal === "hidden",
-    far ? `${far.nick} is ${far.goal}` : "no bot was far enough to test"
-  );
-  check(`the flee radius leaves room to settle again (${BOT_FLEE_RADIUS} < ${BOT_SAFE_RADIUS})`, BOT_FLEE_RADIUS < BOT_SAFE_RADIUS);
+  check(`a bot with the seeker on top of it does not move (${moved.toFixed(3)}u)`, moved < 0.05);
+  check("...and does not break its pose", target.pose === before.pose);
+  check("...and does not repaint", target.paint === before.paint);
+  check("...and is still hidden, not travelling", target.goal === "hidden");
+  check("nor does anybody else start moving", bots.every((b) => b.goal === "hidden"));
 }
+
 
 console.log("\nthey outlive a whole round without breaking");
 {

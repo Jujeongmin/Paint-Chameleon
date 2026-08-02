@@ -18,6 +18,7 @@ import { PoseMenu } from "./ui/PoseMenu";
 import { hsvToRgb, rgbToHsv } from "./ui/ColorWheel";
 import { ConnectingScreen, LoadingScreen, NickScreen, ResultsOverlay, WaitingBanner } from "./ui/Screens";
 import { runWarmup, type WarmupProgress } from "./game/warmup";
+import { fetchSavedNick, saveNick } from "./net/profile";
 import { DEFAULT_MODE, canLeaveNow, caughtIsOut, roundFreezes } from "./game/modes";
 import {
   BRUSH,
@@ -56,6 +57,18 @@ export default function App() {
   const [charLocked, setCharLocked] = useState(false);
   const [ready, setReady] = useState(false);
   const [pointerLocked, setPointerLocked] = useState(false);
+  /**
+   * The account's remembered nick, once we have asked for it.
+   *
+   *   undefined — not asked yet, so we do not know whether to show the screen
+   *   null      — asked, and this account has never set one
+   *   string    — asked, and it has: skip the screen entirely
+   *
+   * The three-state is the point. Defaulting to null would flash the nick
+   * screen for one render before the answer came back, and a screen that
+   * appears and vanishes is worse than one that waits.
+   */
+  const [savedNick, setSavedNick] = useState<string | null | undefined>(undefined);
   /** null once everything is ready; a progress report until then. */
   const [warmup, setWarmup] = useState<WarmupProgress | null>({ done: 0, total: 1, label: t("load.preparing") });
 
@@ -384,12 +397,39 @@ export default function App() {
     };
   }, [joined]);
 
+  // Ask once, as soon as there is a server to ask. Today this always answers
+  // null and the screen always shows — see net/profile.ts for why the stub is
+  // a stub and what the real one has to do.
+  useEffect(() => {
+    if (!connected || joined) return;
+    let live = true;
+    fetchSavedNick(server)
+      .catch(() => null)
+      .then((found) => {
+        if (!live) return;
+        setSavedNick(found);
+        // A remembered nick skips the screen rather than pre-filling it: being
+        // asked to confirm your own name every time is the same interruption
+        // the saved nick exists to remove.
+        if (found) {
+          setNick(found);
+          game.join(found);
+        }
+      });
+    return () => {
+      live = false;
+    };
+  }, [connected, joined, server, game]);
+
   const handleJoin = useCallback(
     (name: string) => {
       setNick(name);
+      // Fire-and-forget, and deliberately not awaited: a profile write that is
+      // slow or broken must not stand between somebody and the game.
+      saveNick(server, name).catch(() => {});
       game.join(name);
     },
-    [game]
+    [game, server]
   );
 
   // Settings ride along on the entry screens too, and the language switch is
@@ -398,6 +438,16 @@ export default function App() {
   // fewest words on it to guess from. Making them join before they can change
   // it would be exactly backwards.
   if (!connected)
+    return (
+      <>
+        <ConnectingScreen />
+        <Settings />
+      </>
+    );
+  // Still waiting to hear whether this account has a name already. Showing the
+  // nick screen here and pulling it away a frame later would be worse than a
+  // beat of "connecting".
+  if (savedNick === undefined)
     return (
       <>
         <ConnectingScreen />

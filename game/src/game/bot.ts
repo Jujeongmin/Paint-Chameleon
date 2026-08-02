@@ -50,14 +50,21 @@ export const BOT_COUNT = 4;
  */
 export const BOT_NAME_KEYS = ["bot.0", "bot.1", "bot.2", "bot.3", "bot.4", "bot.5", "bot.6"] as const;
 
-/** How near the seeker has to get before a settled bot gives up its spot. */
-export const BOT_FLEE_RADIUS = 13;
-/**
- * ...and how far it has to get away before it will settle again. Wider than the
- * flee radius on purpose: with one threshold a bot parked at exactly that
- * distance flickers between settling and bolting every frame.
+/*
+ * THEY DO NOT RUN. There used to be a flee radius here — a settled bot gave up
+ * its spot when the seeker came within thirteen metres — and it is gone on
+ * purpose.
+ *
+ * The game asks a hider to paint themselves the colour of the room and hold
+ * still. Movement is the thing that gives you away; that is the entire premise.
+ * A bot that bolts the moment somebody walks past is not playing the game the
+ * player is playing, and it is also playing it badly — it converts a hider who
+ * might not have been noticed into a moving target that certainly is.
+ *
+ * The cost, stated plainly: a bot cannot save itself. Once the seeker looks
+ * straight at it, it is caught. That is the same deal a human hider takes when
+ * they choose a spot and commit to it.
  */
-export const BOT_SAFE_RADIUS = 20;
 
 /** Waypoint is reached at this distance; larger than the grid so it never stalls. */
 const ARRIVE = 0.8;
@@ -67,10 +74,8 @@ export type BotGoal =
   | "travel"
   /** Arrived: taking a pose and putting paint on. */
   | "settle"
-  /** In place and still. */
-  | "hidden"
-  /** Seeker got close; running somewhere else. */
-  | "flee";
+  /** In place and still, whatever walks past. */
+  | "hidden";
 
 export interface BotState {
   account: string;
@@ -250,27 +255,9 @@ export function stepBot(bot: BotState, world: BotWorld, dt: number): void {
   }
 
   const [x, , z] = bot.motion.pos;
-  const seekerDistance = world.seeker
-    ? Math.hypot(x - world.seeker[0], z - world.seeker[2])
-    : Infinity;
 
-  // --- decide.
-  //
-  // Distance only, deliberately: reacting to being SEEN would need a sight ray
-  // per bot per frame against 700-odd boxes, and the honest cheap version of
-  // "they are on top of me" is how far away they are. It means a bot behind a
-  // wall bolts from a seeker who never saw it, which reads as bad luck rather
-  // than as the bot cheating — the opposite mistake, a bot that sits still
-  // while being shot at, would read as broken.
-  if (bot.goal === "hidden" || bot.goal === "settle") {
-    if (seekerDistance < BOT_FLEE_RADIUS) {
-      bot.goal = "flee";
-      bot.pose = 0;
-      planRoute(bot, chooseSlot(bot, world), world.boxes);
-    }
-  } else if (bot.goal === "flee" && seekerDistance > BOT_SAFE_RADIUS && bot.route.length === 0) {
-    bot.goal = "settle";
-  }
+  // Nothing to decide. Where the seeker is does not enter into it — see the
+  // note at the top of this file about why they hold still.
 
   // --- walk.
   let forward = 0;
@@ -289,15 +276,16 @@ export function stepBot(bot: BotState, world: BotWorld, dt: number): void {
       bot.rotY += diff * Math.min(1, dt * 8);
       forward = 1;
     }
-  } else if (bot.goal === "travel" || bot.goal === "flee") {
+  } else if (bot.goal === "travel") {
     // Route exhausted: arrived, or never had one.
     bot.goal = "settle";
   }
 
-  // Fleeing is a run; travelling before the hunt is a walk. Same top speed as a
-  // human hider either way — a bot that outruns the player is not a hider, it
-  // is a moving target that cannot be caught.
-  const speed = MOVE.hiderSpeed * (bot.goal === "flee" ? 1 : 0.85);
+  // A walk, not a run, and slower than a human's top speed. The only walking a
+  // bot does now is getting to its spot before the hunt starts, and it has the
+  // whole hiding phase to do it in — the measured worst case is under four
+  // seconds (check:balance).
+  const speed = MOVE.hiderSpeed * 0.85;
 
   stepMotion(bot.motion, { forward, strafe: 0, jump: false }, bot.rotY, {
     boxes: world.boxes,
