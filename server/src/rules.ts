@@ -9,7 +9,12 @@
 export const ARENA = { size: 88, wallHeight: 10, wallThickness: 1 };
 
 export const MIN_PLAYERS = 2;
-export const MAX_PLAYERS = 8;
+/**
+ * Room size. Bounded by SPAWN_POINTS below, not by taste — every player has to
+ * start somewhere a body fits, and check:map asserts there are at least this
+ * many such places. Raising it past the number of spawn points goes red.
+ */
+export const MAX_PLAYERS = 10;
 /** Must match src/game/constants.ts POSES.length — check:sync enforces it. */
 export const POSE_COUNT = 4;
 

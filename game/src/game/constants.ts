@@ -45,7 +45,8 @@ export const PHASE_SECONDS: Record<Phase, number> = {
 };
 
 export const MIN_PLAYERS = 2;
-export const MAX_PLAYERS = 8;
+/** KEEP IN SYNC WITH server/src/rules.ts — check:sync compares them. */
+export const MAX_PLAYERS = 10;
 
 /**
  * Poses a hider can hold, chosen from a menu rather than cycled.

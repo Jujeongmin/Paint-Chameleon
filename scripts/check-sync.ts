@@ -21,6 +21,8 @@ import {
 import { playerBlockedAt } from "../game/src/game/map";
 import { BODIES } from "../game/src/game/bodies";
 import {
+  MIN_PLAYERS as CLIENT_MIN_PLAYERS,
+  MAX_PLAYERS as CLIENT_MAX_PLAYERS,
   POSES,
   MOVE,
   PAINT as CLIENT_PAINT,
@@ -42,6 +44,8 @@ import {
   PHASE_SECONDS as SERVER_PHASES,
   COINS as SERVER_COINS,
   coinsFor as serverCoinsFor,
+  MIN_PLAYERS as SERVER_MIN_PLAYERS,
+  MAX_PLAYERS as SERVER_MAX_PLAYERS,
 } from "../server/src/rules";
 
 let failures = 0;
@@ -65,6 +69,28 @@ if (
   fail(`arena dimensions differ: ${JSON.stringify(CLIENT_ARENA)} vs ${JSON.stringify(SERVER_ARENA)}`);
 } else {
   pass(`arena ${CLIENT_ARENA.size}x${CLIENT_ARENA.size} matches`);
+}
+
+console.log("\nroom size");
+
+// The client shows the lobby's "{c}/{n}" and the server decides who actually
+// gets in. Those were two copies of the same number with nothing comparing
+// them — exactly the drift this file exists to stop, sitting in its own blind
+// spot.
+{
+  if (CLIENT_MIN_PLAYERS === SERVER_MIN_PLAYERS) pass(`minimum players matches (${CLIENT_MIN_PLAYERS})`);
+  else fail(`minimum players differs: ${CLIENT_MIN_PLAYERS} vs ${SERVER_MIN_PLAYERS}`);
+
+  if (CLIENT_MAX_PLAYERS === SERVER_MAX_PLAYERS) pass(`maximum players matches (${CLIENT_MAX_PLAYERS})`);
+  else fail(`maximum players differs: ${CLIENT_MAX_PLAYERS} vs ${SERVER_MAX_PLAYERS}`);
+
+  // A room that can hold more people than it has places to put them would seat
+  // the last arrivals inside the scenery.
+  if (SERVER_SPAWNS.length >= SERVER_MAX_PLAYERS) {
+    pass(`${SERVER_SPAWNS.length} spawn points for ${SERVER_MAX_PLAYERS} players`);
+  } else {
+    fail(`only ${SERVER_SPAWNS.length} spawn points for ${SERVER_MAX_PLAYERS} players`);
+  }
 }
 
 console.log("\nspawn points");

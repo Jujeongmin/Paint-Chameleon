@@ -25,7 +25,7 @@ import { INSTANCE_MIN, instancingPlan, modelDrawn } from "../game/src/game/insta
 import { NAV_GRID, findRoute, floodFrom, reached } from "../game/src/game/nav";
 import { groundHeightAt, playerBlockedAt, STEP_HEIGHT } from "../game/src/game/map";
 import { createMotionState, stepMotion } from "../game/src/game/movement";
-import { MOVE, SEEKER_SCALE } from "../game/src/game/constants";
+import { MAX_PLAYERS, MOVE, SEEKER_SCALE } from "../game/src/game/constants";
 
 let failures = 0;
 
@@ -137,7 +137,12 @@ for (const [x, z] of SPAWN_POINTS) {
   check(`(${x}, ${z}) is somewhere a player fits`, !occupied(x, z));
   check(`(${x}, ${z}) is on the floor`, groundHeightAt(x, z, 0, MAP_BOXES) === 0);
 }
-check(`there are at least MAX_PLAYERS spawn points (${SPAWN_POINTS.length})`, SPAWN_POINTS.length >= 8);
+// Derived, not typed: this said `>= 8` while MAX_PLAYERS said 8, so raising
+// the room size would have left it asserting the old number and passing.
+check(
+  `there are at least MAX_PLAYERS spawn points (${SPAWN_POINTS.length} for ${MAX_PLAYERS})`,
+  SPAWN_POINTS.length >= MAX_PLAYERS
+);
 
 console.log("\ndesigned hiding slots");
 
