@@ -156,6 +156,44 @@ export function Arena({ onPickColor }: Props) {
     [perimeter, wallSource, anisotropy]
   );
 
+  /**
+   * One material per distinct slab size, not one per slab.
+   *
+   * These were built inline in the JSX, which meant `tiled()` ran for all forty
+   * decks and legs plus the roof on every render — 123 clones of a 1024px
+   * texture, each flagged needsUpdate, so 123 GPU uploads. Entering the arena
+   * stalled on it, and because nothing disposed the previous clones a second
+   * render simply made 123 more.
+   *
+   * There are only two distinct sizes among the forty, so two materials cover
+   * them. Keyed by the size the tiling is derived from — that is the only thing
+   * that made them different in the first place.
+   */
+  const slabMaterials = useMemo(() => {
+    const byWidth = new Map<number, THREE.MeshStandardMaterial>();
+    for (const b of slabs) {
+      const across = Math.max(b.s[0], b.s[2]);
+      if (byWidth.has(across)) continue;
+      byWidth.set(
+        across,
+        new THREE.MeshStandardMaterial({
+          ...tiled(wallSource, across / TILE, across / TILE, anisotropy),
+          roughness: 1,
+        })
+      );
+    }
+    return byWidth;
+  }, [slabs, wallSource, anisotropy]);
+
+  const roofMaterial = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        ...tiled(wallSource, ARENA.size / TILE, ARENA.size / TILE, anisotropy),
+        roughness: 1,
+      }),
+    [wallSource, anisotropy]
+  );
+
   const pick = (color: number) => (e: ThreeEvent<MouseEvent>) => {
     if (!onPickColor) return;
     e.stopPropagation();
@@ -196,10 +234,7 @@ export function Arena({ onPickColor }: Props) {
           onClick={pick(WALL_COLOR)}
         >
           <boxGeometry args={roof.s} />
-          <meshStandardMaterial
-            {...tiled(wallSource, ARENA.size / TILE, ARENA.size / TILE, anisotropy)}
-            roughness={1}
-          />
+          <primitive object={roofMaterial} attach="material" />
         </mesh>
       )}
 
@@ -213,10 +248,7 @@ export function Arena({ onPickColor }: Props) {
           onClick={pick(WALL_COLOR)}
         >
           <boxGeometry args={b.s} />
-          <meshStandardMaterial
-            {...tiled(wallSource, Math.max(b.s[0], b.s[2]) / TILE, Math.max(b.s[0], b.s[2]) / TILE, anisotropy)}
-            roughness={1}
-          />
+          <primitive object={slabMaterials.get(Math.max(b.s[0], b.s[2]))!} attach="material" />
         </mesh>
       ))}
 
