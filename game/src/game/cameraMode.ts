@@ -1,6 +1,8 @@
 import type { Phase } from "./constants";
-import { ARENA } from "./arena";
+import { ARENA, type MapBox } from "./arena";
 import { CAMERA_FLOOR, CAMERA_RADIUS } from "./camera";
+import { CELL_BOXES } from "./cell";
+import { MAP_BOXES } from "./map";
 
 /**
  * Which camera is driving, decided once per frame.
@@ -81,3 +83,30 @@ export function clampFreeCamera(x: number, y: number, z: number): [number, numbe
     Math.min(limit, Math.max(-limit, z)),
   ];
 }
+
+/**
+ * Which boxes the follow camera is allowed to collide with.
+ *
+ * Paint mode gets none of them, and that is the whole point of this function
+ * existing rather than the ternary being written inline.
+ *
+ * Painting means reaching all four sides of a body, and a hider paints where
+ * they mean to hide — against a wall, under a deck, in a corner. Orbiting to
+ * the back from there puts geometry between camera and pivot, and
+ * clearCameraDistance answers a blocked ray with the blocked distance:
+ * `paintMinDistance` looks like a floor in the signature and is not one. The
+ * camera collapsed to centimetres, sat inside the head, and that side of the
+ * body became unpaintable — in exactly the spots people paint in.
+ *
+ * Ignoring the map is safe here and nowhere else. Paint mode is modal, `frozen`
+ * covers it, so nobody is moving and the camera is looking inward at its own
+ * body. Seeing through a wall for a few seconds is the trade paintMinDistance's
+ * comment in constants.ts had already chosen. The floor is unaffected either
+ * way — it is a plane, checked separately, and still blocks.
+ */
+export function cameraBoxesFor(paintMode: boolean, inCell: boolean): MapBox[] {
+  if (paintMode) return NO_BOXES;
+  return inCell ? CELL_BOXES : MAP_BOXES;
+}
+
+const NO_BOXES: MapBox[] = [];

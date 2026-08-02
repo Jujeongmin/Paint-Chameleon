@@ -5,7 +5,7 @@ import { Humanoid, IDLE_MOTION, type BodyMotion } from "./Humanoid";
 import { Gun, Tracer } from "./Gun";
 import { aimHandOffset } from "./aim";
 import { profileFor } from "./bodies";
-import { FREE_FLY, cameraModeFor, clampFreeCamera } from "./cameraMode";
+import { FREE_FLY, cameraBoxesFor, cameraModeFor, clampFreeCamera } from "./cameraMode";
 import { useKeyboard, usePointerLook } from "./input";
 import { MAP_BOXES } from "./map";
 import { CELL_BOXES, CELL_FLOOR_Y, CELL_HALF, CELL_SPAWN, HUNT_START } from "./cell";
@@ -400,7 +400,8 @@ export function LocalPlayer({
         : firstPerson
           ? 0
           : CAMERA.minDistance * scale,
-      boxes: inCell ? CELL_BOXES : MAP_BOXES,
+      // Paint mode collides with nothing — see cameraBoxesFor for why.
+      boxes: cameraBoxesFor(paintMode, inCell),
       dt: step,
       // First person pivots at the eyes at both ends of the rig's shoulder-to-
       // eye lerp, so there is nowhere for the view to travel to and it cannot
