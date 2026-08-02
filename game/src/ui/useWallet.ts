@@ -8,6 +8,9 @@ import { t } from "./i18n";
 /** How long a purchase/equip result stays on the prompt before it clears. */
 const MESSAGE_MS = 2200;
 
+/** Gap between attempts to load the wallet. See the fetch effect for why. */
+const WALLET_RETRY_MS = 1000;
+
 const REFUSAL: Record<BuyFailure, string> = {
   unknown: t("shop.notForSale"),
   owned: t("shop.owned"),
@@ -28,6 +31,12 @@ const AD_REFUSAL: Record<AdFailure, string> = {
 };
 
 interface Api {
+  /**
+   * Whether the game server socket is up. The wallet fetch is a remote call and
+   * the SDK throws `Cannot read properties of null (reading 'emit')` if the
+   * socket has not connected yet — which, on a cold load, it has not.
+   */
+  connected: boolean;
   fetchWallet: () => Promise<WalletView>;
   buyAvatar: (id: string) => Promise<BuyResult>;
   equipAvatar: (id: string) => Promise<{ ok: boolean }>;
@@ -80,20 +89,53 @@ export function useWallet(api: Api): Wallet {
   const apiRef = useRef(api);
   apiRef.current = api;
 
+  /**
+   * Load the wallet, and keep trying until it lands.
+   *
+   * This used to be a single fetch in a mount effect with no dependencies, and
+   * it lost the race with the socket on every cold load: the effect runs as
+   * soon as App mounts, the connection is not up yet, and the SDK throws
+   * `Cannot read properties of null (reading 'emit')` from inside
+   * remoteFunction. The old catch swallowed it as cosmetic, nothing retried,
+   * and the shop sat on "Loading…" for the rest of the session — because
+   * `standAction` reads a null wallet as "not known yet", which was true and
+   * was never going to stop being true.
+   *
+   * Two things fix it and both are needed. Waiting for `connected` removes the
+   * race, and retrying covers the rest: the socket can be up a moment before
+   * the server is ready to answer, and it can drop and come back mid-session.
+   * The leaderboard never had this bug for the same reason — it polls, so its
+   * first failure was always followed by another attempt.
+   *
+   * Stops the moment a wallet arrives. A wallet is a real thing being waited
+   * for, not a poll: it only changes when this client changes it, and every
+   * write already returns the new one.
+   */
   useEffect(() => {
+    if (!api.connected || wallet) return;
     let cancelled = false;
-    apiRef.current
-      .fetchWallet()
-      .then((w) => {
-        if (!cancelled) setWallet(w);
-      })
-      .catch(() => {
-        // Cosmetic: the default body is a fine thing to stand in.
-      });
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const attempt = () => {
+      apiRef.current
+        .fetchWallet()
+        .then((w) => {
+          if (!cancelled) setWallet(w);
+        })
+        .catch(() => {
+          // Not cosmetic, but not fatal either — try again shortly. Silent
+          // because a failure here is expected during startup, and one that
+          // never resolves shows up as the shop saying "Loading…".
+          if (!cancelled) timer = setTimeout(attempt, WALLET_RETRY_MS);
+        });
+    };
+    attempt();
+
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
     };
-  }, []);
+  }, [api.connected, wallet]);
 
   useEffect(
     () => () => {
