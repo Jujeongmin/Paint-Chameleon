@@ -27,6 +27,7 @@ import {
 import { CLUSTERS, FAMILIES, FLOOR_COLOR, slotOf } from "../game/src/game/arena";
 import { MAP_BOXES, playerBlockedAt } from "../game/src/game/map";
 import { MOVE, PHASE_SECONDS } from "../game/src/game/constants";
+import { t, type Key } from "../game/src/ui/i18n";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = "") {
@@ -38,6 +39,19 @@ function check(label: string, ok: boolean, detail = "") {
 }
 
 const DT = 1 / 60;
+
+/**
+ * A bot's display name, for the labels below.
+ *
+ * Bots carry an i18n KEY rather than a name — their nick shows up in the
+ * results table next to human ones and had to be translatable. These labels
+ * read "undefined" for a while because this file was still reaching for
+ * `bot.nick`, and nothing caught it: scripts/ was outside tsconfig's `include`,
+ * so none of the check scripts had ever been typechecked.
+ */
+function name(bot: BotState): string {
+  return t(bot.nameKey as Key);
+}
 
 function world(over: Partial<BotWorld> = {}): BotWorld {
   return { boxes: MAP_BOXES, seeker: null, phase: "hiding", now: 0, ...over };
@@ -74,13 +88,13 @@ console.log("\nthey get somewhere to hide within the hiding phase");
   run(bots, PHASE_SECONDS.hiding, () => world());
 
   for (const bot of bots) {
-    check(`${bot.nick} stopped travelling (${bot.goal})`, bot.goal === "hidden");
+    check(`${name(bot)} stopped travelling (${bot.goal})`, bot.goal === "hidden");
     // Not "reached the exact slot" — collision and the 0.8u arrival radius mean
     // a bot settles near it, and near enough to be among the props is the claim
     // the design actually makes.
     const [sx, sz] = slotOf(CLUSTERS[bot.slot]);
     const d = Math.hypot(bot.motion.pos[0] - sx, bot.motion.pos[2] - sz);
-    check(`${bot.nick} settled by its slot (${d.toFixed(2)}u)`, d < 3.5);
+    check(`${name(bot)} settled by its slot (${d.toFixed(2)}u)`, d < 3.5);
   }
 }
 
@@ -98,7 +112,7 @@ console.log("\nand they are somewhere a player could stand");
       if (playerBlockedAt(bot.motion.pos[0], bot.motion.pos[2], 0, MOVE.playerRadius, MAP_BOXES)) {
         bad++;
         if (!worst) {
-          worst = `${bot.nick} at (${bot.motion.pos[0].toFixed(1)}, ${bot.motion.pos[2].toFixed(1)})`;
+          worst = `${name(bot)} at (${bot.motion.pos[0].toFixed(1)}, ${bot.motion.pos[2].toFixed(1)})`;
         }
       }
     }
@@ -106,7 +120,7 @@ console.log("\nand they are somewhere a player could stand");
   check(`no bot is ever inside geometry (${bad} frame-bots)`, bad === 0, worst);
 
   for (const bot of bots) {
-    check(`${bot.nick} is on the floor, not in the air (y ${bot.motion.pos[1].toFixed(2)})`, bot.motion.pos[1] < 0.01);
+    check(`${name(bot)} is on the floor, not in the air (y ${bot.motion.pos[1].toFixed(2)})`, bot.motion.pos[1] < 0.01);
   }
 }
 
@@ -117,9 +131,9 @@ console.log("\nthey wear a colour off the map, and it is not the default white")
 
   const palette = new Set<number>([FLOOR_COLOR, ...FAMILIES.flatMap((f) => f.colors)]);
   for (const bot of bots) {
-    check(`${bot.nick} chose a colour`, bot.paint !== null, `${bot.paint}`);
+    check(`${name(bot)} chose a colour`, bot.paint !== null, `${bot.paint}`);
     check(
-      `${bot.nick}'s colour comes from the arena's own palette`,
+      `${name(bot)}'s colour comes from the arena's own palette`,
       bot.paint !== null && palette.has(bot.paint),
       `0x${(bot.paint ?? 0).toString(16)}`
     );
@@ -202,9 +216,9 @@ console.log("\nthey outlive a whole round without breaking");
   });
 
   for (const bot of bots) {
-    check(`${bot.nick} ended the round settled or running, not stuck (${bot.goal})`, bot.goal !== "travel");
+    check(`${name(bot)} ended the round settled or running, not stuck (${bot.goal})`, bot.goal !== "travel");
     const inside = Math.abs(bot.motion.pos[0]) < 44 && Math.abs(bot.motion.pos[2]) < 44;
-    check(`${bot.nick} is still inside the arena`, inside, `(${bot.motion.pos[0].toFixed(1)}, ${bot.motion.pos[2].toFixed(1)})`);
+    check(`${name(bot)} is still inside the arena`, inside, `(${bot.motion.pos[0].toFixed(1)}, ${bot.motion.pos[2].toFixed(1)})`);
   }
 }
 

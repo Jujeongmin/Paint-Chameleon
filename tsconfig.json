@@ -16,5 +16,9 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["game/src"]
+  // scripts/ and the server's pure rules are typechecked too. They were not,
+  // and a rename in game/src left eight check labels printing "undefined"
+  // while the check itself still passed — the scripts are the thing that
+  // guards this project, so they need guarding themselves.
+  "include": ["game/src", "scripts", "server/src/rules.ts"]
 }
