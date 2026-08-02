@@ -57,9 +57,33 @@ npm run check
 
 ### verse8 배포
 
+**맨 명령은 401로 실패합니다.** 아래 그대로 쓰지 마세요 — 남겨둔 것은 이게
+왜 안 되는지가 반복해서 물어볼 만한 것이기 때문입니다.
+
 ```bash
-npx -y @agent8/deploy
+npx -y @agent8/deploy          # ← 401 Unauthorized
 ```
+
+`@agent8/deploy` v1.5.5의 기본 모드는 **Authorization 헤더를 아예 붙이지
+않습니다.** 서버는 `{"message":"No access token provided","statusCode":401}`
+를 돌려줍니다. 토큰이 틀린 게 아니라 안 보낸 것이고, 그래서 **재시도로는
+절대 풀리지 않습니다.**
+
+토큰을 보내는 것은 `--preview` / `--prod` 모드뿐이고, 그때 `V8_ACCESS_TOKEN`
+환경변수를 `Authorization: Bearer`로 실어 보냅니다.
+
+```bash
+V8_ACCESS_TOKEN=... npx -y @agent8/deploy --preview
+```
+
+verse/account 값은 CLI 인자 → `.agent8.lock`(정본) → `.env`(사본) 순으로
+읽으므로 따로 줄 필요가 없습니다.
+
+**`.agent8.lock`을 고쳐서 401을 풀려고 하지 마세요.** 파일 자체가 "DO NOT
+EDIT OR DELETE — 값을 바꾸면 배포된 게임·서버 데이터와의 연결이 끊긴다"고
+적고 있습니다. 401은 그 파일과 무관합니다.
+
+자세한 배포 절차는 [docs/verse8-deploy.md](docs/verse8-deploy.md).
 
 ---
 

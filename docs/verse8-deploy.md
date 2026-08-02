@@ -144,6 +144,42 @@ Verse8 페이지가 주는 그 명령은 **다른 상황용**입니다. 저쪽�
 
 ---
 
+## 배포와 401
+
+`npx -y @agent8/deploy` 를 그냥 실행하면 **반드시 401입니다.**
+
+```
+POST https://verse8-game-backend-…/verses/<verse-id>/files
+{"message":"No access token provided","error":"Unauthorized","statusCode":401}
+```
+
+v1.5.5 소스 기준으로 **기본 모드는 Authorization 헤더를 붙이지 않습니다.**
+토큰이 틀린 게 아니라 안 보낸 것이라, **재시도로는 절대 안 풀립니다.** 에디터
+에이전트가 여기서 무한 재시도에 빠진 적이 있습니다.
+
+토큰을 싣는 것은 `--preview` / `--prod` 뿐이고, `V8_ACCESS_TOKEN` 을
+`Authorization: Bearer` 로 보냅니다.
+
+```bash
+V8_ACCESS_TOKEN=… npx -y @agent8/deploy --preview
+```
+
+verse/account 는 CLI 인자 → `.agent8.lock`(정본) → `.env`(사본) 순으로 읽으니
+따로 줄 필요가 없습니다.
+
+### 막혔을 때 절대 하면 안 되는 것
+
+**`.agent8.lock` 이나 `.env` 를 고치거나 지우지 마십시오.** 파일 첫 줄이
+"DO NOT EDIT OR DELETE — 값을 바꾸면 배포된 게임·서버 데이터와의 연결이
+끊긴다"고 적고 있습니다. 401은 그 파일들과 아무 관계가 없습니다. 막힌
+에이전트가 "고치려고" 저기 손대는 것이 이 상황의 진짜 위험입니다.
+
+`.deployed` 는 배포 도구가 업로드 해시를 적는 자기 파일입니다. 실패한 배포의
+해시가 남아 다음 배포를 헷갈리게 하면 지워도 됩니다 — 플랫폼 관리 파일이
+아닙니다.
+
+---
+
 ## Verse8 에디터 프롬프트
 
 가장 큰 위험은 **에디터의 AI가 이미 돌아가는 코드를 다시 쓰는 것**입니다.
@@ -182,7 +218,7 @@ Verse8 페이지가 주는 그 명령은 **다른 상황용**입니다. 저쪽�
 - 빌드 설정은 꼭 필요한 경우에만 최소한으로, 뭘 왜 바꿨는지 말해줘.
 - 서버는 server/src/server.ts 하나뿐이야. 새로 만들지 마.
 - 끝나면 npm run check 통과 확인.
-배포 명령은 npx -y @agent8/deploy 야.
+배포는 아래 "배포와 401"을 먼저 읽어. 맨 npx -y @agent8/deploy 는 401이야.
 ```
 
 ### 3) 닉네임 계정 저장 — 남아 있는 유일한 서버 작업
