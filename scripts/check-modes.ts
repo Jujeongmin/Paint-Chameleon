@@ -28,6 +28,7 @@ import {
   canLeaveNow,
   caughtIsOut,
   modeOf,
+  roundFreezes,
 } from "../game/src/game/modes";
 import { MIN_PLAYERS, MAX_PLAYERS } from "../server/src/rules";
 import { PORTALS } from "../game/src/hub/hubMap";
@@ -167,6 +168,25 @@ console.log("\nleaving is offered exactly when it should be");
     "you are hunting now"
   );
 }
+
+console.log("\nwho can move, and when");
+{
+  // The results phase pins hiders and lets the seeker walk, and the asymmetry
+  // is the whole point: the reveal shows WHERE people hid, so the seeker has to
+  // be able to go and look, and the hider has to still be there when they
+  // arrive. A revealed hider who wandered off would be a glow marking nothing.
+  check("the seeker walks through the results", !roundFreezes("results", true));
+  check("hiders stay where they hid", roundFreezes("results", false));
+
+  for (const phase of ["lobby", "hiding", "seeking"]) {
+    check(
+      `${phase} pins nobody`,
+      !roundFreezes(phase, true) && !roundFreezes(phase, false),
+      "being caught and opening a panel freeze too, but those are App's business, not the round's"
+    );
+  }
+}
+
 
 console.log("\nthe hub's doors lead where they claim");
 {

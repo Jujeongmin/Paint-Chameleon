@@ -231,7 +231,11 @@ export function Hud({
         // it is live during play too, for a spectator whose round is already
         // over, and it should not move between those two moments.
         <button className="leave-btn" onClick={onLeave}>
-          {t("hud.leave")}
+          <span>{t("hud.leave")}</span>
+          {/* The seeker keeps pointer lock through the results now, so the
+              click path is unavailable to them until they press Escape. The
+              key is the way out that always works. */}
+          <kbd>Enter</kbd>
         </button>
       )}
     </div>

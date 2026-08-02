@@ -55,6 +55,27 @@ export function caughtIsOut(mode: GameMode): boolean {
 }
 
 /**
+ * Whether the round itself pins you where you are.
+ *
+ * Only the results phase does, and only to hiders. The seeker walks: the whole
+ * reason that phase is thirty seconds long is that the hiders who were never
+ * found glow through the walls, and "go and look at where they were" is not
+ * something you can do standing still.
+ *
+ * Hiders stay pinned for the same reason, from the other side. A revealed hider
+ * who wanders off is a glow that no longer marks the hiding place — the thing
+ * the reveal exists to show would walk away while the seeker was on their way
+ * over to see it.
+ *
+ * This is only the ROUND's opinion. App.tsx also freezes for the paint panel,
+ * the pose menu and being caught, which are about what the player is doing
+ * rather than about what phase it is.
+ */
+export function roundFreezes(phase: string, isSeeker: boolean): boolean {
+  return phase === "results" && !isSeeker;
+}
+
+/**
  * When leaving is offered.
  *
  * Always once the round is over, which is the promise the results screen makes.

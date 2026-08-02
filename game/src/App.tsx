@@ -18,7 +18,7 @@ import { PoseMenu } from "./ui/PoseMenu";
 import { hsvToRgb, rgbToHsv } from "./ui/ColorWheel";
 import { ConnectingScreen, LoadingScreen, NickScreen, ResultsOverlay, WaitingBanner } from "./ui/Screens";
 import { runWarmup, type WarmupProgress } from "./game/warmup";
-import { DEFAULT_MODE, canLeaveNow, caughtIsOut } from "./game/modes";
+import { DEFAULT_MODE, canLeaveNow, caughtIsOut, roundFreezes } from "./game/modes";
 import {
   BRUSH,
   NET_THROTTLE_MS,
@@ -115,6 +115,8 @@ export default function App() {
    * every time somebody readies up.
    */
   const toggleReadyRef = useRef<() => void>(() => {});
+  /** Same trick for leaving, which the results screen binds to the same key. */
+  const leaveRef = useRef<() => void>(() => {});
 
   const inHub = room?.kind === "hub";
   const phase = room?.phase ?? "lobby";
@@ -251,6 +253,15 @@ export default function App() {
         e.preventDefault();
         toggleReadyRef.current();
       }
+      // The same key ends the session on the results screen. The two never
+      // coexist — one is the lobby, the other is the end of a round — and the
+      // seeker now keeps pointer lock through the results, so without a key
+      // the leave button would be visible and unclickable until they pressed
+      // Escape first.
+      if (e.code === "Enter" && !inHub && phase === "results" && !poseMenuOpen) {
+        e.preventDefault();
+        leaveRef.current();
+      }
       if (e.code === "KeyG" && canPose && !charLocked && !paintMode) {
         e.preventDefault();
         setPoseMenuOpen((v) => !v);
@@ -344,6 +355,10 @@ export default function App() {
     [game]
   );
 
+  const leave = useCallback(() => {
+    game.returnToHub(nick || me?.nick || t("app.anon"));
+  }, [game, nick, me?.nick]);
+
   const toggleReady = useCallback(() => {
     const next = !ready;
     setReady(next);
@@ -351,6 +366,7 @@ export default function App() {
   }, [ready, game]);
 
   toggleReadyRef.current = toggleReady;
+  leaveRef.current = leave;
 
   // Kick off once the player has committed to playing. Before the nick screen
   // is submitted there is nothing to be ready FOR, and downloading several
@@ -406,7 +422,7 @@ export default function App() {
     );
   if (!room || !me) return <ConnectingScreen message={t("app.enteringLobby")} />;
 
-  const frozen = paintMode || poseMenuOpen || !!me.caught || phase === "results";
+  const frozen = paintMode || poseMenuOpen || !!me.caught || roundFreezes(phase, isSeeker);
 
   return (
     <>
@@ -510,7 +526,7 @@ export default function App() {
             mode={mode}
             spectating={spectating}
             canLeave={canLeave}
-            onLeave={() => game.returnToHub(nick || me.nick || t("app.anon"))}
+            onLeave={leave}
           />
 
           {poseMenuOpen && (
