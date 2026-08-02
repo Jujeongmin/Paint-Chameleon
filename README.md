@@ -55,35 +55,34 @@ npm run check
 규칙) + `check:cell`(지하 대기실 밀봉·천장 여유) + `check:audio`(사격음 감쇠 포함) +
 `check:leaderboard` + 서버 테스트를 한 번에 돌립니다.
 
-### verse8 배포
+### verse8 배포 — 에디터의 **Launch** 버튼
 
-**맨 명령은 401로 실패합니다.** 아래 그대로 쓰지 마세요 — 남겨둔 것은 이게
-왜 안 되는지가 반복해서 물어볼 만한 것이기 때문입니다.
+배포는 CLI가 아니라 **에디터 상단 바의 Launch 버튼**으로 합니다. 플랫폼이
+직접 처리하고, 출시된 게임은 My Creations에서 관리합니다. 수정 후에는 Edit
+Game → 다시 Launch로 갱신됩니다.
+
+**CLI로는 안 됩니다.** 이 저장소가 한동안 아래를 안내하고 있었는데, 그건
+스캐폴드에서 온 문장이었고 실제로는 항상 실패합니다:
 
 ```bash
-npx -y @agent8/deploy          # ← 401 Unauthorized
+npx -y @agent8/deploy          # ← 401 Unauthorized, 언제나
 ```
 
 `@agent8/deploy` v1.5.5의 기본 모드는 **Authorization 헤더를 아예 붙이지
 않습니다.** 서버는 `{"message":"No access token provided","statusCode":401}`
 를 돌려줍니다. 토큰이 틀린 게 아니라 안 보낸 것이고, 그래서 **재시도로는
-절대 풀리지 않습니다.**
+절대 풀리지 않습니다** — 에디터 에이전트가 여기서 무한 재시도에 빠진 적이
+있습니다.
 
-토큰을 보내는 것은 `--preview` / `--prod` 모드뿐이고, 그때 `V8_ACCESS_TOKEN`
-환경변수를 `Authorization: Bearer`로 실어 보냅니다.
-
-```bash
-V8_ACCESS_TOKEN=... npx -y @agent8/deploy --preview
-```
-
-verse/account 값은 CLI 인자 → `.agent8.lock`(정본) → `.env`(사본) 순으로
-읽으므로 따로 줄 필요가 없습니다.
+`--preview` / `--prod` 는 `V8_ACCESS_TOKEN` 을 Bearer로 보내지만, **그 토큰을
+크리에이터가 발급받는 경로가 문서에 없습니다.** 플랫폼의 출시 파이프라인이
+서버 측에서 주입하는 값으로 보입니다. 즉 CLI 배포는 사용자용이 아닙니다.
 
 **`.agent8.lock`을 고쳐서 401을 풀려고 하지 마세요.** 파일 자체가 "DO NOT
 EDIT OR DELETE — 값을 바꾸면 배포된 게임·서버 데이터와의 연결이 끊긴다"고
 적고 있습니다. 401은 그 파일과 무관합니다.
 
-자세한 배포 절차는 [docs/verse8-deploy.md](docs/verse8-deploy.md).
+자세한 절차는 [docs/verse8-deploy.md](docs/verse8-deploy.md).
 
 ---
 
