@@ -15,6 +15,11 @@ import react from "@vitejs/plugin-react";
  */
 export default defineConfig({
   root: "game",
+  // Vite reads env from the root dir by default; the deploy tool and the
+  // canonical verse live in the root .env/.agent8.lock, so read them from
+  // there too — otherwise VITE_AGENT8_VERSE stays unset and the deployed
+  // client boots in offline mode.
+  envDir: "..",
   publicDir: "../public",
   plugins: [react()],
   // Honour an assigned PORT so multiple dev servers can coexist.
