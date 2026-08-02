@@ -45,6 +45,7 @@ import {
   type GameMode,
   startAd,
   claimAd,
+  syncRoomBots,
   type WalletState,
   type PurchaseFailure,
   type AdFailure,
@@ -126,6 +127,7 @@ async function startRound(roomId: string, users: Array<Record<string, any>>, sta
     seekerHistory: [...history, seeker].slice(-12),
     phaseEndsAt: now + PHASE_SECONDS.hiding * 1000,
     lastResults: null,
+    bots: syncRoomBots(state.bots, users.length, true),
   });
 
   // Everyone starts each round unpainted.
@@ -167,6 +169,12 @@ async function endRound(roomId: string, users: Array<Record<string, any>>, state
     });
   }
 
+  for (const bot of syncRoomBots(state.bots, users.length)) {
+    if (bot.caught) catches++;
+    const gained = bot.caught ? 0 : SCORE.hiderSurvived;
+    results.push({ account: bot.account, nick: bot.nameKey, nameKey: bot.nameKey, caught: bot.caught, gained, bot: true });
+  }
+
   if (state.seeker) {
     const gained = catches * SCORE.seekerPerCatch;
     scores[state.seeker] = (scores[state.seeker] || 0) + gained;
@@ -190,6 +198,7 @@ async function endRound(roomId: string, users: Array<Record<string, any>>, state
   // non-critical panel that re-polls on its own; a dropped coin grant is lost
   // rather than retried (see grantCoins below for why retrying is worse).
   for (const r of results) {
+    if (r.bot) continue;
     const nick = r.seeker ? users.find((u) => u.account === r.account)?.nick ?? "" : r.nick;
     try {
       await upsertLeaderboard(r.account, nick, r.gained);
@@ -361,6 +370,7 @@ export class Server {
         scores: {},
         phaseEndsAt: 0,
         lastResults: null,
+        bots: syncRoomBots([], 1, true),
       });
     }
 
@@ -383,6 +393,14 @@ export class Server {
       spectating: false,
     });
 
+    // A human takes one of the ten public seats immediately. $roomTick also
+    // repairs this after disconnects, where there is no leave callback.
+    const joinedState = await $global.getRoomState(roomId);
+    const humanAccounts = await $global.getRoomUserAccounts(roomId);
+    await $global.updateRoomState(roomId, {
+      bots: syncRoomBots(joinedState.bots, humanAccounts.length),
+    });
+
     return { roomId };
   }
 
@@ -394,6 +412,7 @@ export class Server {
       kind: s.kind ?? null,
       phase: s.phase ?? null,
       users: Array.isArray(s.$users) ? s.$users.length : 0,
+      bots: Array.isArray(s.bots) ? s.bots : [],
     }));
   }
 
@@ -624,7 +643,9 @@ export class Server {
 
     const users = await $room.getAllUserStates();
     const me = users.find((u) => u.account === $sender.account);
-    const target = users.find((u) => u.account === targetAccount) ?? null;
+    const bots = syncRoomBots(state.bots, users.length);
+    const botTarget = bots.find((b) => b.account === targetAccount) ?? null;
+    const target = users.find((u) => u.account === targetAccount) ?? botTarget;
     const now = Date.now();
 
     // `me` can be legitimately missing right after joinGame (see the "shot is
@@ -666,7 +687,14 @@ export class Server {
     // What a catch DOES is the difference between the two rooms, and it is
     // decided in one place so the two can never drift into a third behaviour.
     const mode: GameMode = isGameMode(state.mode) ? state.mode : DEFAULT_MODE;
-    await $room.updateUserState(targetAccount, catchPatch(mode, now));
+    if (botTarget) {
+      const nextBots = bots.map((b) =>
+        b.account === targetAccount ? { ...b, caught: true, caughtAt: now, spectating: true } : b
+      );
+      await $global.updateRoomState($sender.roomId, { bots: nextBots });
+    } else {
+      await $room.updateUserState(targetAccount, catchPatch(mode, now));
+    }
     await $room.broadcastToRoom("caught", {
       account: targetAccount,
       by: $sender.account,
@@ -694,6 +722,11 @@ export class Server {
     for (const account of users) {
       const s = await $global.getRoomUserState(roomId, account);
       userStates.push({ ...s, account });
+    }
+
+    const bots = syncRoomBots(state.bots, users.length);
+    if (JSON.stringify(bots) !== JSON.stringify(state.bots ?? [])) {
+      await $global.updateRoomState(roomId, { bots });
     }
 
     switch (phase) {
@@ -738,7 +771,7 @@ export class Server {
         // precisely because a caught player there changes ROLE rather than
         // setting a flag, so "nobody left to find" is the same sentence.
         const seekerGone = !!state.seeker && !users.includes(state.seeker);
-        if (now >= num(state.phaseEndsAt) || huntOver(userStates) || seekerGone) {
+        if (now >= num(state.phaseEndsAt) || huntOver([...userStates, ...bots]) || seekerGone) {
           await endRound(roomId, userStates, state);
         }
         break;

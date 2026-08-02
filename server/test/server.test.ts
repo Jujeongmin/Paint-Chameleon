@@ -18,6 +18,22 @@ describe("matchmaking", () => {
 
     expect(b.roomId).toBe(a.roomId);
   });
+
+  test("AI hiders fill the lobby to ten and yield seats to humans", async (server) => {
+    server.connect({ account: "user-roster-a" });
+    const a = await server.joinGame("roster-a");
+    let room = (await server.__rooms()).find((r: any) => r.roomId === a.roomId);
+    expect(room.users + room.bots.length).toBe(10);
+    expect(room.bots.length).toBe(9);
+    expect(room.bots.every((b: any) => b.ready && b.role === "hider")).toBe(true);
+
+    server.connect({ account: "user-roster-b" });
+    await server.joinGame("roster-b");
+    room = (await server.__rooms()).find((r: any) => r.roomId === a.roomId);
+    expect(room.users + room.bots.length).toBe(10);
+    expect(room.bots.length).toBe(8);
+    expect(room.bots[0].account).toBe("bot-0");
+  });
 });
 
 describe("hub", () => {

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { PlayerState, RoomInfo } from "../net/types";
 import { unlockAudio } from "../audio/sound";
-import { t } from "./i18n";
+import { t, type Key } from "./i18n";
 
 export function ConnectingScreen({ message }: { message?: string }) {
   return (
@@ -98,7 +98,9 @@ export function ResultsOverlay({
   // The server sends an empty nick for the seeker's row, so the player list is
   // the fallback rather than the other way round.
   const nickOf = (r: any) =>
-    r.nick || players.find((p) => p.account === r.account)?.nick || t("app.anon");
+    (r.nameKey ? t(r.nameKey as Key) : r.nick) ||
+    players.find((p) => p.account === r.account)?.nick ||
+    t("app.anon");
 
   const mine = results.find((r: any) => r.account === account);
   const hiders = results.filter((r: any) => !r.seeker);

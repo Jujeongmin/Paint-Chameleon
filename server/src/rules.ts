@@ -15,6 +15,8 @@ export const MIN_PLAYERS = 2;
  * many such places. Raising it past the number of spawn points goes red.
  */
 export const MAX_PLAYERS = 10;
+/** Public match roster is always this large; vacant seats are hider bots. */
+export const MATCH_ROSTER_SIZE = 10;
 /** Must match src/game/constants.ts POSES.length — check:sync enforces it. */
 export const POSE_COUNT = 4;
 
@@ -94,6 +96,52 @@ export const SPAWN_POINTS: [number, number][] = [
 export function randomSpawn(): [number, number, number] {
   const p = SPAWN_POINTS[Math.floor(Math.random() * SPAWN_POINTS.length)];
   return [p[0], 0, p[1]];
+}
+
+export interface RoomBot {
+  account: string;
+  nameKey: string;
+  ready: true;
+  role: "hider";
+  caught: boolean;
+  caughtAt: number | null;
+  spectating: boolean;
+  pos: [number, number, number];
+  rotY: number;
+  pose: number;
+  moving: false;
+  body: "classic";
+}
+
+/** Number of AI hiders needed after real people take their seats. */
+export function botSeatsFor(humanCount: number): number {
+  return Math.max(0, MATCH_ROSTER_SIZE - Math.max(0, Math.floor(humanCount)));
+}
+
+/**
+ * Stable bot seats for a room. Keeping the lowest ids means one person joining
+ * removes exactly one bot without making every remaining body remount.
+ */
+export function syncRoomBots(existing: unknown, humanCount: number, reset = false): RoomBot[] {
+  const old = Array.isArray(existing) ? existing : [];
+  return Array.from({ length: botSeatsFor(humanCount) }, (_, i) => {
+    const previous = old.find((b: any) => b?.account === `bot-${i}`) as RoomBot | undefined;
+    const spawn = SPAWN_POINTS[(i + 2) % SPAWN_POINTS.length];
+    return {
+      account: `bot-${i}`,
+      nameKey: `bot.${i % 7}`,
+      ready: true,
+      role: "hider",
+      caught: reset ? false : !!previous?.caught,
+      caughtAt: reset ? null : previous?.caughtAt ?? null,
+      spectating: reset ? false : !!previous?.spectating,
+      pos: reset || !previous?.pos ? [spawn[0], 0, spawn[1]] : previous.pos,
+      rotY: previous?.rotY ?? 0,
+      pose: reset ? i % POSE_COUNT : previous?.pose ?? i % POSE_COUNT,
+      moving: false,
+      body: "classic",
+    };
+  });
 }
 
 /**

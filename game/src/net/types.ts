@@ -22,6 +22,9 @@ export interface PlayerState {
   spectating?: boolean;
   /** When a caught hider changed sides. Tag mode only; null otherwise. */
   convertedAt?: number | null;
+  /** Translation key for an AI hider's display name. */
+  nameKey?: string;
+  bot?: boolean;
 }
 
 export interface RoomInfo {
@@ -36,6 +39,7 @@ export interface RoomInfo {
   seeker: string | null;
   scores: Record<string, number>;
   lastResults: any[] | null;
+  bots?: PlayerState[];
   /**
    * How many players this room needs before a round can start. The online
    * and offline implementations disagree on this — the live server enforces

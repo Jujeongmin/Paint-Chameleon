@@ -20,7 +20,7 @@ import type {
   BuyResult,
 } from "./types";
 import { useOfflineGame } from "./offline";
-import { t } from "../ui/i18n";
+import { t, type Key } from "../ui/i18n";
 
 export type { LeaderboardResult, PlayerState, RoomInfo, RankedLeaderboardEntry, WireDab, WalletView, BuyResult, BuyFailure } from "./types";
 
@@ -129,15 +129,24 @@ function useOnlineGame() {
       seeker: rawRoom.seeker ?? null,
       scores: rawRoom.scores || {},
       lastResults: rawRoom.lastResults ?? null,
+      bots: Array.isArray(rawRoom.bots) ? rawRoom.bots : [],
       // The live server won't start a round below MIN_PLAYERS — see RoomInfo.
       minPlayers: MIN_PLAYERS,
     };
   }, [rawRoom]);
 
-  const players: PlayerState[] = useMemo(
-    () => (Array.isArray(rawAll) ? (rawAll as PlayerState[]).filter((p) => p && p.account) : []),
-    [rawAll]
-  );
+  const players: PlayerState[] = useMemo(() => {
+    const humans = Array.isArray(rawAll) ? (rawAll as PlayerState[]).filter((p) => p && p.account) : [];
+    if (rawRoom?.kind === "hub") return humans;
+    const bots = Array.isArray(rawRoom?.bots)
+      ? rawRoom.bots.map((b: PlayerState) => ({
+          ...b,
+          bot: true,
+          nick: b.nameKey ? t(b.nameKey as Key) : b.nick,
+        }))
+      : [];
+    return [...humans, ...bots];
+  }, [rawAll, rawRoom?.bots, rawRoom?.kind]);
 
   const me: PlayerState | null = (rawMine as PlayerState) ?? null;
 

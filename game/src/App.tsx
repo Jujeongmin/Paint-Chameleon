@@ -641,12 +641,11 @@ export default function App() {
             />
           )}
 
-          {phase === "lobby" && players.length < room.minPlayers && (
-            <WaitingBanner count={players.length} needed={room.minPlayers} />
+          {phase === "lobby" && players.filter((p) => !p.bot).length < room.minPlayers && (
+            <WaitingBanner count={players.filter((p) => !p.bot).length} needed={room.minPlayers} />
           )}
         </>
       )}
     </>
   );
 }
-
