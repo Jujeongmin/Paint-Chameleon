@@ -28,7 +28,17 @@ import { botIsOut, createBots, resetBots, stepBots, type BotState } from "../gam
 import { DEFAULT_MODE, type GameMode } from "../game/modes";
 import { coinsFor } from "../game/coins";
 import { t, type Key } from "../ui/i18n";
-import type { BuyResult, LeaderboardResult, PlayerState, RoomInfo, WalletView, WireDab } from "./types";
+import type {
+  AdClaimResult,
+  AdStartResult,
+  BuyResult,
+  LeaderboardResult,
+  PlayerState,
+  RoomInfo,
+  WalletView,
+  WireDab,
+} from "./types";
+import { claimAd, startAd } from "../game/adRules";
 
 const ME = "local-player";
 
@@ -61,6 +71,10 @@ export function useOfflineGame() {
     coins: 100,
     owned: [DEFAULT_BODY_ID],
     equipped: DEFAULT_BODY_ID,
+    adOpenedAt: 0,
+    adClaimedAt: 0,
+    adDay: 0,
+    adCount: 0,
   });
 
   /**
@@ -400,9 +414,9 @@ export function useOfflineGame() {
       if (wallet.coins < profile.price) return { ok: false, reason: "broke" };
 
       const next: WalletView = {
+        ...wallet,
         coins: wallet.coins - profile.price,
         owned: [...wallet.owned, id],
-        equipped: wallet.equipped,
       };
       setWallet(next);
       return { ok: true, wallet: next };
@@ -412,6 +426,32 @@ export function useOfflineGame() {
       if (!wallet.owned.includes(id)) return { ok: false };
       setWallet((w) => ({ ...w, equipped: id }));
       return { ok: true };
+    },
+
+    /**
+     * The rig runs the SAME startAd/claimAd the server runs — they are pure and
+     * mirrored into game/src/game/adRules.ts for exactly this. Reimplementing
+     * "close enough" here would make the rehearsal disagree with the real thing
+     * about the one part worth rehearsing: the refusals. Only the clock differs,
+     * and it is this machine's rather than the server's, which is fine offline
+     * and is the whole reason this is not a way to earn anything real.
+     */
+    startAdWatch: async (): Promise<AdStartResult> => {
+      const result = startAd(wallet, Date.now());
+      if (!result.ok) return { ok: false, reason: result.reason, wallet };
+      setWallet(result.wallet);
+      return { ok: true, wallet: result.wallet };
+    },
+
+    claimAdReward: async (): Promise<AdClaimResult> => {
+      const result = claimAd(wallet, Date.now());
+      if (!result.ok) {
+        const next = result.wallet ?? wallet;
+        if (result.wallet) setWallet(result.wallet);
+        return { ok: false, reason: result.reason, wallet: next };
+      }
+      setWallet(result.wallet);
+      return { ok: true, wallet: result.wallet, coins: result.coins };
     },
   };
 }

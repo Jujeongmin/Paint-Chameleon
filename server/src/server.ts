@@ -43,8 +43,11 @@ import {
   huntOver,
   isGameMode,
   type GameMode,
+  startAd,
+  claimAd,
   type WalletState,
   type PurchaseFailure,
+  type AdFailure,
 } from "./rules";
 
 type Phase = "lobby" | "hiding" | "seeking" | "results";
@@ -242,6 +245,13 @@ async function readWallet(account: string): Promise<{ wallet: WalletState; __id:
       // the free avatar, or the player loses the body they're standing in.
       owned: owned.length ? owned : [...DEFAULT_WALLET.owned],
       equipped: row.equipped || DEFAULT_WALLET.equipped,
+      // Rows written before ads existed have none of these columns, and num()
+      // turns the resulting undefined into 0 — which is exactly "never watched
+      // one", so an old account starts with a full daily allowance.
+      adOpenedAt: num(row.adOpenedAt),
+      adClaimedAt: num(row.adClaimedAt),
+      adDay: num(row.adDay),
+      adCount: num(row.adCount),
     },
     __id: row.__id,
   };
@@ -252,6 +262,10 @@ async function writeWallet(account: string, __id: string | null, wallet: WalletS
     coins: wallet.coins,
     owned: serializeOwned(wallet.owned),
     equipped: wallet.equipped,
+    adOpenedAt: wallet.adOpenedAt,
+    adClaimedAt: wallet.adClaimedAt,
+    adDay: wallet.adDay,
+    adCount: wallet.adCount,
   };
   if (__id) await $global.updateCollectionItem(WALLET_COLLECTION, { __id, ...fields });
   else await $global.addCollectionItem(WALLET_COLLECTION, { account, ...fields });
@@ -456,6 +470,54 @@ export class Server {
 
       await writeWallet(account, __id, result.wallet);
       return { ok: true as const, wallet: result.wallet };
+    });
+  }
+
+  /**
+   * Open an ad. Returns the wallet so the client can show the remaining count
+   * without a second round trip, and `startedAt` so it knows the server agreed
+   * — the client's own clock is never the one that decides anything here.
+   *
+   * Under the same wallet lock as buying: a start writes the row, and a start
+   * racing a claim would otherwise read a wallet the claim is about to replace.
+   */
+  async startAdWatch(): Promise<
+    { ok: true; wallet: WalletState } | { ok: false; reason: AdFailure; wallet: WalletState }
+  > {
+    const account = $sender.account;
+    return await $lock("wallet:" + account, async () => {
+      const { wallet, __id } = await readWallet(account);
+      const result = startAd(wallet, Date.now());
+      if (!result.ok) return { ok: false as const, reason: result.reason, wallet };
+
+      await writeWallet(account, __id, result.wallet);
+      return { ok: true as const, wallet: result.wallet };
+    });
+  }
+
+  /**
+   * Claim the reward. Every check that matters lives in claimAd and runs on
+   * this side of the wire; the client sends nothing but the request itself.
+   *
+   * A refusal can still carry a wallet to write — a stale or over-cap ticket
+   * has to be cleared, or it sits in the row and gets retried forever.
+   */
+  async claimAdReward(): Promise<
+    | { ok: true; wallet: WalletState; coins: number }
+    | { ok: false; reason: AdFailure; wallet: WalletState }
+  > {
+    const account = $sender.account;
+    return await $lock("wallet:" + account, async () => {
+      const { wallet, __id } = await readWallet(account);
+      const result = claimAd(wallet, Date.now());
+
+      if (!result.ok) {
+        if (result.wallet) await writeWallet(account, __id, result.wallet);
+        return { ok: false as const, reason: result.reason, wallet: result.wallet ?? wallet };
+      }
+
+      await writeWallet(account, __id, result.wallet);
+      return { ok: true as const, wallet: result.wallet, coins: result.coins };
     });
   }
 

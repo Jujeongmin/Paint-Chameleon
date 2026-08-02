@@ -1,7 +1,11 @@
 import { createRoot } from "react-dom/client";
 import { Hud } from "./Hud";
 import { HubHud } from "./HubHud";
+import { AdBreak } from "./AdBreak";
 import { PaintTools } from "./PaintTools";
+import { ShopPrompt } from "./ShopPrompt";
+import { STANDS } from "../hub/hubMap";
+import type { Wallet } from "./useWallet";
 import { ResultsOverlay, WaitingBanner } from "./Screens";
 import type { PlayerState, RoomInfo } from "../net/types";
 import "./ui.css";
@@ -77,6 +81,28 @@ function Frame({ id, title, note, children }: { id: string; title: string; note:
 
 const HIDER = PLAYERS[0];
 const SEEKER = player({ account: ACCOUNT, nick: "나", role: "seeker" });
+
+/**
+ * A Wallet with nothing behind it. The preview page has no server and no hub,
+ * and the point here is the layout of the two ad surfaces, not the flow that
+ * drives them — every callback is deliberately inert.
+ */
+function fakeWallet(over: Partial<Wallet> = {}): Wallet {
+  return {
+    wallet: { coins: 40, owned: ["classic"], equipped: "classic", adOpenedAt: 0, adClaimedAt: 0, adDay: 0, adCount: 0 },
+    equipped: "classic",
+    message: null,
+    busy: false,
+    buy: () => {},
+    equip: () => {},
+    adProgress: null,
+    adsLeft: 7,
+    adReady: true,
+    watchAd: () => {},
+    cancelAd: () => {},
+    ...over,
+  };
+}
 
 function Preview() {
   return (
@@ -309,6 +335,23 @@ function Preview() {
           />
         </div>
       </Frame>
+
+      <Frame
+        id="shop-ad"
+        title="아바타 스탠드 · 광고 줄"
+        note="구매 줄 아래에 광고 줄이 붙습니다 — 조용해야 하고, 살 수 없는 아바타 앞에서도 보여야 합니다"
+      >
+        <ShopPrompt stand={STANDS[1]} wallet={fakeWallet({ adReady: true })} />
+      </Frame>
+
+      <Frame id="shop-ad-off" title="아바타 스탠드 · 광고 없음" note="쿨다운이거나 오늘 다 봤을 때. 회색이고 F는 안내되지 않습니다">
+        <ShopPrompt stand={STANDS[1]} wallet={fakeWallet({ adReady: false })} />
+      </Frame>
+
+      <Frame id="ad-break" title="광고 화면" note="허브를 완전히 가립니다. 막대는 절반, 남은 시간과 Esc 안내가 보여야 합니다">
+        <AdBreak wallet={fakeWallet({ adProgress: 0.5 })} />
+      </Frame>
+
     </>
   );
 }

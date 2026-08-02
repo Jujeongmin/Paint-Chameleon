@@ -9,7 +9,16 @@ import { MIN_PLAYERS, type Phase } from "../game/constants";
 import { DEFAULT_MODE, modeOf, type GameMode } from "../game/modes";
 import { surfaceFor } from "../game/paint";
 import { playShot, shotGainFor } from "../audio/sound";
-import type { LeaderboardResult, PlayerState, RoomInfo, WireDab, WalletView, BuyResult } from "./types";
+import type {
+  AdClaimResult,
+  AdStartResult,
+  LeaderboardResult,
+  PlayerState,
+  RoomInfo,
+  WireDab,
+  WalletView,
+  BuyResult,
+} from "./types";
 import { useOfflineGame } from "./offline";
 import { t } from "../ui/i18n";
 
@@ -212,6 +221,18 @@ function useOnlineGame() {
     [server]
   );
 
+  // No arguments on either, and that is the design: the client has nothing to
+  // say about an ad that the server would be willing to believe.
+  const startAdWatch = useCallback(
+    async (): Promise<AdStartResult> => await server.remoteFunction("startAdWatch", []),
+    [server]
+  );
+
+  const claimAdReward = useCallback(
+    async (): Promise<AdClaimResult> => await server.remoteFunction("claimAdReward", []),
+    [server]
+  );
+
   return {
     server,
     account,
@@ -234,5 +255,7 @@ function useOnlineGame() {
     fetchWallet,
     buyAvatar,
     equipAvatar,
+    startAdWatch,
+    claimAdReward,
   };
 }

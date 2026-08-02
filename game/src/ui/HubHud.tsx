@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PortalProgress } from "../hub/HubPlayer";
 import type { Stand } from "../hub/hubMap";
 import type { PlayerState } from "../net/types";
+import { AdBreak } from "./AdBreak";
 import { ShopPrompt } from "./ShopPrompt";
 import { t } from "./i18n";
 import type { Wallet } from "./useWallet";
@@ -77,6 +78,10 @@ export function HubHud({
       </div>
 
       {!joining && <ShopPrompt stand={stand} wallet={wallet} />}
+      {/* Outside the joining guard on purpose: an ad already running when a
+          portal fires must still be visible, or the player is left staring at
+          a frozen hub with no idea why nothing responds. */}
+      <AdBreak wallet={wallet} />
 
       {/* The cursor is hidden out here too, so the aim point has to be visible. */}
       <div className="crosshair" />

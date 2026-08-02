@@ -67,6 +67,16 @@ export interface WalletView {
   coins: number;
   owned: string[];
   equipped: string;
+  /**
+   * Ad bookkeeping, as the server keeps it. The client reads these to draw the
+   * remaining count and the cooldown and does nothing else with them — every
+   * one is a server clock reading, and re-deriving a decision from them here
+   * would be re-deciding something the server already decided.
+   */
+  adOpenedAt: number;
+  adClaimedAt: number;
+  adDay: number;
+  adCount: number;
 }
 
 export type BuyFailure = "unknown" | "owned" | "broke";
@@ -74,3 +84,14 @@ export type BuyFailure = "unknown" | "owned" | "broke";
 export type BuyResult =
   | { ok: true; wallet: WalletView }
   | { ok: false; reason: BuyFailure };
+
+export type AdFailure = "cooldown" | "cap" | "tooSoon" | "noAd" | "stale";
+
+/** A refusal still carries a wallet — the server may have cleared a stale ad. */
+export type AdStartResult =
+  | { ok: true; wallet: WalletView }
+  | { ok: false; reason: AdFailure; wallet: WalletView };
+
+export type AdClaimResult =
+  | { ok: true; wallet: WalletView; coins: number }
+  | { ok: false; reason: AdFailure; wallet: WalletView };
