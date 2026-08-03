@@ -208,6 +208,30 @@ export function playerBlockedAt(
 }
 
 /**
+ * True when the player's collision body is close enough to hold onto a wall.
+ *
+ * `playerBlockedAt` deliberately uses strict overlap, so a body resting flush
+ * against a wall is not itself blocked. Probe a very small distance in the
+ * four horizontal directions instead; this also lets a stationary player
+ * keep holding on after the movement that brought them to the wall stops.
+ */
+export function playerTouchingWall(
+  x: number,
+  z: number,
+  feetY: number,
+  radius: number,
+  boxes: MapBox[] = MAP_BOXES
+): boolean {
+  const probe = 0.06;
+  return (
+    playerBlockedAt(x + probe, z, feetY, radius, boxes) ||
+    playerBlockedAt(x - probe, z, feetY, radius, boxes) ||
+    playerBlockedAt(x, z + probe, feetY, radius, boxes) ||
+    playerBlockedAt(x, z - probe, feetY, radius, boxes)
+  );
+}
+
+/**
  * How far a wedged body is shoved toward freedom each frame. Fast enough that
  * being stuck lasts a few frames rather than a second, slow enough that it
  * reads as being squeezed out rather than teleporting.

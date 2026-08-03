@@ -484,6 +484,47 @@ console.log("\nfirst-person handoff");
 
 console.log("\njump shape (drives the airborne animation)");
 
+console.log("\nwall hold");
+
+{
+  const wall = [{
+    p: [0, 2, 0] as [number, number, number],
+    s: [1, 4, 8] as [number, number, number],
+    c: 0,
+  }];
+  const state = createMotionState([-(0.5 + MOVE.playerRadius), 0, 0]);
+  const dt = 1 / 60;
+
+  // Keep Space held: the player rises normally, then stays at the apex while
+  // their collision body remains flush with the wall.
+  for (let i = 0; i < 180; i++) {
+    stepMotion(state, { forward: 0, strafe: 0, jump: true }, 0, {
+      boxes: wall,
+      dt,
+      now: i * dt * 1000,
+      speed: MOVE.hiderSpeed,
+      radius: MOVE.playerRadius,
+      worldHalfSize: 20,
+    });
+  }
+  const heldY = state.pos[1];
+  check("holding jump against a wall keeps the player airborne", !state.grounded && heldY > 0.8);
+  check("wall hold cancels vertical velocity", state.vy === 0);
+
+  // Let go and ensure the hold is not sticky.
+  for (let i = 0; i < 120 && !state.grounded; i++) {
+    stepMotion(state, { forward: 0, strafe: 0, jump: false }, 0, {
+      boxes: wall,
+      dt,
+      now: (180 + i) * dt * 1000,
+      speed: MOVE.hiderSpeed,
+      radius: MOVE.playerRadius,
+      worldHalfSize: 20,
+    });
+  }
+  check("releasing jump resumes gravity and lands", state.grounded && state.pos[1] === 0);
+}
+
 {
   // Simulate a real jump from open ground. The rig reads `grounded` and `vy` to
   // decide tuck vs reach, so the airborne window has to last long enough to see

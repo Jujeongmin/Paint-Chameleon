@@ -13,7 +13,7 @@
  *   right   = (-cos yaw, sin yaw)     // forward x up
  */
 
-import { groundHeightAt, moveXZ, type MapBox } from "./map";
+import { groundHeightAt, moveXZ, playerTouchingWall, type MapBox } from "./map";
 import { MOVE } from "./constants";
 
 export function forwardVector(yaw: number): [number, number] {
@@ -118,6 +118,18 @@ export function stepMotion(
   const next = moveXZ(s.pos, s.vel[0] * dt, s.vel[1] * dt, radius, boxes, opts.worldHalfSize);
 
   s.vy -= MOVE.gravity * dt;
+
+  // Let either role hang from arena geometry by holding jump. A jump still
+  // gets its full upward arc; the hold begins at the apex (or whenever a
+  // falling player reaches a wall), avoiding a tiny ground-level hover when
+  // Space is pressed while already touching one. Releasing Space or moving
+  // away makes this condition false and gravity resumes on the same frame.
+  const wallHolding =
+    input.jump &&
+    !s.grounded &&
+    s.vy <= 0 &&
+    playerTouchingWall(next[0], next[2], next[1], radius, boxes);
+  if (wallHolding) s.vy = 0;
   next[1] += s.vy * dt;
 
   const ground = groundHeightAt(next[0], next[2], next[1], boxes, opts.floorY ?? 0);
