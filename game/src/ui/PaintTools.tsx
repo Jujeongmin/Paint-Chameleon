@@ -28,6 +28,7 @@ function VerticalSlider({
   max,
   onChange,
   height,
+  shortcut,
 }: {
   label: string;
   readout: string;
@@ -36,6 +37,7 @@ function VerticalSlider({
   max: number;
   onChange: (v: number) => void;
   height: number;
+  shortcut: string;
 }) {
   return (
     <div className="vslider">
@@ -51,6 +53,7 @@ function VerticalSlider({
         />
       </div>
       <span className="vslider-readout">{readout}</span>
+      <kbd className="control-shortcut">{shortcut}</kbd>
     </div>
   );
 }
@@ -81,6 +84,7 @@ export function PaintTools({
           max={100}
           onChange={onZoom}
           height={200}
+          shortcut="WHEEL"
         />
       </div>
 
@@ -96,6 +100,7 @@ export function PaintTools({
           max={Math.round(BRUSH.max * 100)}
           onChange={(v) => onBrushSize(v / 100)}
           height={190}
+          shortcut="SHIFT + WHEEL"
         />
         <span className="brush-caption">BRUSH SIZE</span>
       </div>
@@ -117,6 +122,7 @@ export function PaintTools({
             onClick={() => onTool(tool === "picker" ? "brush" : "picker")}
             title={t("paint.picker")}
           >
+            <kbd className="tool-shortcut">P</kbd>
             <span className="tool-glyph">🖉</span>
             <span className="tool-name">PICKER</span>
           </button>

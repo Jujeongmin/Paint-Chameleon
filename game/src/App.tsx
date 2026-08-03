@@ -278,6 +278,10 @@ export default function App() {
         e.preventDefault();
         setPaintMode((v) => !v);
       }
+      if (e.code === "KeyP" && paintMode && !poseMenuOpen) {
+        e.preventDefault();
+        setTool((current) => (current === "picker" ? "brush" : "picker"));
+      }
       // Ready has been a mouse-only button since the lobby existed, which
       // means letting go of the controls to press it. Enter rather than Space:
       // Space is jump, and a key that both readies you and launches you is the

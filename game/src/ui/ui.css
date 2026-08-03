@@ -714,6 +714,22 @@ body.hide-cursor canvas {
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
 }
 
+.control-shortcut,
+.tool-shortcut {
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 6px;
+  background: rgba(10, 12, 18, 0.72);
+  color: #fff;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+}
+
+.control-shortcut { padding: 5px 7px; }
+
 .vslider-track {
   display: grid;
   place-items: center;
@@ -831,6 +847,14 @@ body.hide-cursor canvas {
   color: #fff;
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.28);
   transition: transform 0.1s;
+  position: relative;
+}
+
+.tool-shortcut {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  padding: 4px 5px;
 }
 
 .tool-square:active {
