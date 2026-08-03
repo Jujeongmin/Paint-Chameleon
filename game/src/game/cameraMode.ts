@@ -45,7 +45,10 @@ export function cameraModeFor({
   // a detached camera nor first person may take the view away from it.
   if (paintMode) return "paint";
   if (charLocked && !isSeeker) return "freeFly";
-  if (isSeeker && phase === "seeking") return "firstPerson";
+  // The seeker sees through their own eyes both while waiting in the holding
+  // cell and while hunting. Paint remains above this branch because painting
+  // their body requires the third-person orbit.
+  if (isSeeker && (phase === "hiding" || phase === "seeking")) return "firstPerson";
   return "follow";
 }
 

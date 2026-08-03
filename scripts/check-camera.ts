@@ -44,8 +44,12 @@ check(
   cameraModeFor({ ...base, isSeeker: true, phase: "seeking" }) === "firstPerson"
 );
 check(
-  "the seeker waiting out the hiding phase is not",
-  cameraModeFor({ ...base, isSeeker: true, phase: "hiding" }) === "follow"
+  "the seeker waits in the holding cell in first person",
+  cameraModeFor({ ...base, isSeeker: true, phase: "hiding" }) === "firstPerson"
+);
+check(
+  "painting in the holding cell switches the seeker back to third person",
+  cameraModeFor({ ...base, paintMode: true, isSeeker: true, phase: "hiding" }) === "paint"
 );
 check("a pinned hider flies free", cameraModeFor({ ...base, charLocked: true }) === "freeFly");
 check("normal frozen play disables mouse look", !pointerLookEnabled(false, true, false));
