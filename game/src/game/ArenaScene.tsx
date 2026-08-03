@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { ThreeEvent, useLoader, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { ARENA, FLOOR_COLOR, MAP_BOXES, WALL_COLOR } from "./map";
 import { instancingPlan, modelDrawn } from "./instancing";
 import { meshParts, placeModel, useProps, type ModelId } from "./props";
+import { useCameraOccluders } from "./cameraOcclusion";
 
 /**
  * The arena, drawn.
@@ -68,6 +69,8 @@ interface Props {
 }
 
 export function Arena({ onPickColor }: Props) {
+  const occluders = useRef<THREE.Group>(null);
+  useCameraOccluders(occluders);
   const maxAnisotropy = useThree((s) => s.gl.capabilities.getMaxAnisotropy());
   const anisotropy = Math.min(8, maxAnisotropy);
 
@@ -201,12 +204,12 @@ export function Arena({ onPickColor }: Props) {
   };
 
   return (
-    <group>
+    <group ref={occluders}>
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, 0, 0]}
         receiveShadow
-        userData={{ pickColor: FLOOR_COLOR }}
+        userData={{ pickColor: FLOOR_COLOR, cameraOccluder: false }}
         onClick={pick(FLOOR_COLOR)}
       >
         <planeGeometry args={[ARENA.size, ARENA.size]} />

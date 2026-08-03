@@ -1,4 +1,7 @@
+import { useRef } from "react";
+import * as THREE from "three";
 import { CELL_BOXES } from "./cell";
+import { useCameraOccluders } from "./cameraOcclusion";
 
 /**
  * The holding cell, drawn.
@@ -19,8 +22,10 @@ function hex(c: number): string {
 }
 
 export function CellScene() {
+  const occluders = useRef<THREE.Group>(null);
+  useCameraOccluders(occluders);
   return (
-    <group>
+    <group ref={occluders}>
       {CELL_BOXES.map((b, i) => (
         <mesh key={i} position={b.p} receiveShadow>
           <boxGeometry args={b.s} />

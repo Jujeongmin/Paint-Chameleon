@@ -15,6 +15,8 @@ import { MAP_BOXES } from "../game/src/game/map";
 import { ARENA, type MapBox } from "../game/src/game/arena";
 import { CELL_BOXES } from "../game/src/game/cell";
 import { CAMERA, MOVE } from "../game/src/game/constants";
+import * as THREE from "three";
+import { createFollowScratch, updateFollowCamera } from "../game/src/game/followCamera";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = ""): void {
@@ -188,6 +190,31 @@ check(
   cameraBoxesFor(false, true) === CELL_BOXES,
   `${cameraBoxesFor(false, true).length} boxes`
 );
+
+console.log("\nthird-person wall orbit\n");
+{
+  const camera = new THREE.PerspectiveCamera();
+  const scratch = createFollowScratch(CAMERA.playDistance);
+  updateFollowCamera(camera, scratch, {
+    pos: [0, 0, wallInner - MOVE.playerRadius],
+    yaw: 0,
+    pitch: 0.15,
+    desired: CAMERA.playDistance,
+    minDistance: CAMERA.minDistance,
+    boxes: MAP_BOXES,
+    dt: 1 / 60,
+    shoulderHeight: CAMERA.shoulderHeight,
+    eyeHeight: CAMERA.eyeHeight,
+    fadeEnd: CAMERA.fadeEnd,
+    fadeStart: CAMERA.fadeStart,
+    allowFade: true,
+  });
+  check(
+    "a wall no longer shortens the authored camera distance",
+    Math.abs(scratch.distance - CAMERA.playDistance) < 1e-6,
+    `${scratch.distance.toFixed(2)} vs ${CAMERA.playDistance.toFixed(2)}`
+  );
+}
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall good");
 process.exit(failures ? 1 : 0);

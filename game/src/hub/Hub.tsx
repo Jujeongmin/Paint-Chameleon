@@ -9,6 +9,7 @@ import { GUIDE_ZONE, HUB, HUB_BOXES, PORTALS, SHOP, STAND, STANDS, type Portal, 
 import { HubPlayer, type PortalProgress } from "./HubPlayer";
 import { LeaderboardBoard } from "./LeaderboardBoard";
 import type { LeaderboardResult, PlayerState } from "../net/types";
+import { useCameraOccluders } from "../game/cameraOcclusion";
 
 function hex(c: number): string {
   return "#" + c.toString(16).padStart(6, "0");
@@ -163,17 +164,21 @@ export function Hub({
   leaderboard,
   joining,
 }: Props) {
+  const occluders = useRef<THREE.Group>(null);
+  useCameraOccluders(occluders);
   return (
     <>
       <HubLighting />
 
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <group ref={occluders}>
+
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow userData={{ cameraOccluder: false }}>
         <planeGeometry args={[HUB.size, HUB.size]} />
         <meshStandardMaterial color={hex(HUB.floorColor)} roughness={0.95} />
       </mesh>
 
       {/* Carpet leading from the spawn point to the portals. */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} receiveShadow userData={{ cameraOccluder: false }}>
         <planeGeometry args={[9, 24]} />
         <meshStandardMaterial color={hex(HUB.carpetColor)} roughness={0.9} />
       </mesh>
@@ -189,7 +194,9 @@ export function Hub({
         <PortalArch key={p.id} portal={p} />
       ))}
 
-      <ShopStand equippedBody={body} />
+      <group userData={{ cameraOccluder: false }}>
+        <ShopStand equippedBody={body} />
+      </group>
 
       <LeaderboardBoard data={leaderboard} account={account} />
 
@@ -199,6 +206,7 @@ export function Hub({
           <meshStandardMaterial color={hex(GUIDE_ZONE.color)} transparent opacity={0.38} roughness={1} />
         </mesh>
         <NameTag text={t("guide.zone")} y={0.35} height={0.34} color={hex(GUIDE_ZONE.color)} />
+      </group>
       </group>
 
       <HubPlayer

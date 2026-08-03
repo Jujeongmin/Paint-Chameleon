@@ -26,6 +26,7 @@ import {
 } from "./constants";
 import { canTogglePin, createMotionState, stepMotion } from "./movement";
 import { createFollowScratch, updateFollowCamera } from "./followCamera";
+import { clearCameraOcclusion } from "./cameraOcclusion";
 import { surfaceFor, type PaintDab } from "./paint";
 import { playBrushTick, playShot, shotGainFor } from "../audio/sound";
 import { useBrush, type Tool } from "./useBrush";
@@ -357,6 +358,7 @@ export function LocalPlayer({
     const firstPerson = mode === "firstPerson";
 
     if (mode === "freeFly") {
+      clearCameraOcclusion();
       // Seeded from wherever the follow camera had got to, so pinning the body
       // does not jump the view; after that the camera owns its own position.
       if (!freeFly.current) {
