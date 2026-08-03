@@ -540,6 +540,40 @@ console.log("\nwall hold");
 }
 
 {
+  const boxes = [
+    {
+      p: [0, 10, 0] as [number, number, number],
+      s: [1, 20, 8] as [number, number, number],
+      c: 0,
+    },
+    {
+      p: [-1, 5.5, 0] as [number, number, number],
+      s: [4, 1, 8] as [number, number, number],
+      c: 0,
+    },
+  ];
+  const state = createMotionState([-(0.5 + MOVE.playerRadius), 0, 0]);
+  const dt = 1 / 60;
+  for (let i = 0; i < 300; i++) {
+    stepMotion(state, { forward: 0, strafe: 0, jump: true }, 0, {
+      boxes,
+      dt,
+      now: i * dt * 1000,
+      speed: MOVE.hiderSpeed,
+      radius: MOVE.playerRadius,
+      worldHalfSize: 20,
+    });
+  }
+  // Ceiling underside is y=5 and the normal body is 1.8u tall.
+  check(
+    "wall climbing stops with the head below a ceiling",
+    close(state.pos[1], 3.2),
+    `feet y=${state.pos[1].toFixed(3)}`
+  );
+  check("ceiling contact cancels upward velocity", state.vy === 0);
+}
+
+{
   // Simulate a real jump from open ground. The rig reads `grounded` and `vy` to
   // decide tuck vs reach, so the airborne window has to last long enough to see
   // and vy has to actually change sign partway through.

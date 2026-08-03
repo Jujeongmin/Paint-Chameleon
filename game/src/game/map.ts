@@ -149,7 +149,10 @@ function isWallAt(b: MapBox, feetY: number): boolean {
   const top = b.p[1] + b.s[1] / 2;
   const bottom = b.p[1] - b.s[1] / 2;
   if (top <= feetY + STEP_HEIGHT) return false;
-  if (bottom > feetY + 1.8) return false;
+  // Flush head contact is overhead clearance, not a horizontal wall. Keep an
+  // epsilon here so floating-point rounding cannot make a ceiling suddenly
+  // shove the player sideways on the frame after vertical collision clamps it.
+  if (bottom >= feetY + 1.8 - 1e-6) return false;
   return true;
 }
 
@@ -229,6 +232,31 @@ export function playerTouchingWall(
     playerBlockedAt(x, z + probe, feetY, radius, boxes) ||
     playerBlockedAt(x, z - probe, feetY, radius, boxes)
   );
+}
+
+/**
+ * Highest feet position allowed before the player's head reaches an overhead
+ * box. Infinity means there is no ceiling above the current position.
+ */
+export function ceilingFeetLimitAt(
+  x: number,
+  z: number,
+  feetY: number,
+  radius: number,
+  bodyHeight: number,
+  boxes: MapBox[] = MAP_BOXES
+): number {
+  let limit = Infinity;
+  const headY = feetY + bodyHeight;
+  for (const b of near(x, z, radius, boxes)) {
+    if (!overlapsXZ(b, x, z, radius)) continue;
+    const bottom = b.p[1] - b.s[1] / 2;
+    // Boxes starting below the head are walls beside the body, not ceilings
+    // above it. A tiny tolerance keeps flush contact stable frame to frame.
+    if (bottom < headY - 1e-6) continue;
+    limit = Math.min(limit, bottom - bodyHeight);
+  }
+  return limit;
 }
 
 /**
