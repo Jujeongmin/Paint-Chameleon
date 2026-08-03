@@ -37,6 +37,8 @@ export interface MotionState {
   grounded: boolean;
   lastGroundedAt: number;
   jumpHeld: boolean;
+  /** Stays set after Space is released so an idle player remains attached. */
+  wallLatched: boolean;
   moving: boolean;
 }
 
@@ -48,6 +50,7 @@ export function createMotionState(pos: [number, number, number]): MotionState {
     grounded: true,
     lastGroundedAt: 0,
     jumpHeld: false,
+    wallLatched: false,
     moving: false,
   };
 }
@@ -93,6 +96,7 @@ export function stepMotion(
     s.vy = 0;
     s.moving = false;
     s.jumpHeld = input.jump;
+    s.wallLatched = false;
     return false;
   }
 
@@ -105,7 +109,8 @@ export function stepMotion(
   s.vel[1] += (wishZ * speed - s.vel[1]) * k;
 
   let jumped = false;
-  if (input.jump && !s.jumpHeld) {
+  const wasJumpHeld = s.jumpHeld;
+  if (input.jump && !wasJumpHeld) {
     const coyote = now - s.lastGroundedAt < MOVE.coyoteMs;
     if (s.grounded || coyote) {
       s.vy = MOVE.jumpSpeed;
@@ -117,19 +122,22 @@ export function stepMotion(
 
   const next = moveXZ(s.pos, s.vel[0] * dt, s.vel[1] * dt, radius, boxes, opts.worldHalfSize);
 
-  s.vy -= MOVE.gravity * dt;
+  const touchingWall =
+    !s.grounded && playerTouchingWall(next[0], next[2], next[1], radius, boxes);
+  const movingInput = input.forward !== 0 || input.strafe !== 0;
 
-  // Let either role hang from arena geometry by holding jump. A jump still
-  // gets its full upward arc; the hold begins at the apex (or whenever a
-  // falling player reaches a wall), avoiding a tiny ground-level hover when
-  // Space is pressed while already touching one. Releasing Space or moving
-  // away makes this condition false and gravity resumes on the same frame.
-  const wallHolding =
-    input.jump &&
-    !s.grounded &&
-    s.vy <= 0 &&
-    playerTouchingWall(next[0], next[2], next[1], radius, boxes);
-  if (wallHolding) s.vy = 0;
+  // Space climbs continuously while the body touches arena geometry. Letting
+  // go leaves the player latched at that exact height, but only while idle:
+  // moving after release, or losing contact with the wall, drops immediately.
+  if (touchingWall && input.jump && wasJumpHeld) {
+    s.wallLatched = true;
+    s.vy = MOVE.wallClimbSpeed;
+  } else if (touchingWall && s.wallLatched && !movingInput) {
+    s.vy = 0;
+  } else {
+    s.wallLatched = false;
+    s.vy -= MOVE.gravity * dt;
+  }
   next[1] += s.vy * dt;
 
   const ground = groundHeightAt(next[0], next[2], next[1], boxes, opts.floorY ?? 0);
@@ -137,6 +145,7 @@ export function stepMotion(
     next[1] = ground;
     s.vy = 0;
     s.grounded = true;
+    s.wallLatched = false;
     s.lastGroundedAt = now;
   } else {
     s.grounded = false;

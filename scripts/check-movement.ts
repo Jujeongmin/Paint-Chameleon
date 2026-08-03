@@ -488,16 +488,15 @@ console.log("\nwall hold");
 
 {
   const wall = [{
-    p: [0, 2, 0] as [number, number, number],
-    s: [1, 4, 8] as [number, number, number],
+    p: [0, 10, 0] as [number, number, number],
+    s: [1, 20, 8] as [number, number, number],
     c: 0,
   }];
   const state = createMotionState([-(0.5 + MOVE.playerRadius), 0, 0]);
   const dt = 1 / 60;
 
-  // Keep Space held: the player rises normally, then stays at the apex while
-  // their collision body remains flush with the wall.
-  for (let i = 0; i < 180; i++) {
+  // Holding Space continuously climbs rather than merely cancelling gravity.
+  for (let i = 0; i < 60; i++) {
     stepMotion(state, { forward: 0, strafe: 0, jump: true }, 0, {
       boxes: wall,
       dt,
@@ -507,22 +506,37 @@ console.log("\nwall hold");
       worldHalfSize: 20,
     });
   }
-  const heldY = state.pos[1];
-  check("holding jump against a wall keeps the player airborne", !state.grounded && heldY > 0.8);
-  check("wall hold cancels vertical velocity", state.vy === 0);
+  const climbedY = state.pos[1];
+  check("holding jump against a wall climbs continuously", !state.grounded && climbedY > 2);
+  check("wall climb uses its configured upward speed", state.vy === MOVE.wallClimbSpeed);
 
-  // Let go and ensure the hold is not sticky.
-  for (let i = 0; i < 120 && !state.grounded; i++) {
+  // Let go without moving: remain fixed at the release height.
+  for (let i = 0; i < 60; i++) {
     stepMotion(state, { forward: 0, strafe: 0, jump: false }, 0, {
       boxes: wall,
       dt,
-      now: (180 + i) * dt * 1000,
+      now: (60 + i) * dt * 1000,
       speed: MOVE.hiderSpeed,
       radius: MOVE.playerRadius,
       worldHalfSize: 20,
     });
   }
-  check("releasing jump resumes gravity and lands", state.grounded && state.pos[1] === 0);
+  check("releasing jump while idle holds the exact height", close(state.pos[1], climbedY));
+  check("the released wall latch has no vertical drift", state.vy === 0);
+
+  // Movement after release breaks the latch even when that movement runs
+  // along the same wall and therefore does not itself lose contact.
+  for (let i = 0; i < 120 && !state.grounded; i++) {
+    stepMotion(state, { forward: 1, strafe: 0, jump: false }, 0, {
+      boxes: wall,
+      dt,
+      now: (120 + i) * dt * 1000,
+      speed: MOVE.hiderSpeed,
+      radius: MOVE.playerRadius,
+      worldHalfSize: 20,
+    });
+  }
+  check("moving after release breaks the latch and lands", state.grounded && state.pos[1] === 0);
 }
 
 {

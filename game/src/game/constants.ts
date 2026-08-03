@@ -116,6 +116,8 @@ export const MOVE = {
   airAccel: 3.5,
   gravity: 22,
   jumpSpeed: 7.4,
+  /** Vertical speed while Space is held against a wall or structure. */
+  wallClimbSpeed: 2.4,
   /** Grace period after walking off a ledge where a jump still registers. */
   coyoteMs: 110,
 };
