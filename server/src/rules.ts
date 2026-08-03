@@ -412,7 +412,7 @@ export function applyEquip(
 // first.
 
 export const AD_REWARD = {
-  coins: 200,
+  coins: 0,
   /**
    * Minimum server-measured time between start and claim. Deliberately a
    * little under the panel's own countdown so a slow round trip on the start

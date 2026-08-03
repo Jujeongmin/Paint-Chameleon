@@ -2,8 +2,8 @@
 
 ## Recent activity
 
-- **Ad SDK integration**: wired `@verse8/ads` (v0.4.0) into `game/src/ui/adProvider.ts`. `showAd` now plays a real rewarded ad (`placementId: "shop-coins"`) in deployed builds; offline rehearsal (`VITE_AGENT8_VERSE` unset) skips the SDK entirely and uses the existing countdown panel, because the SDK would hang on a 30s timeout in a hostless page. Server enforcement unchanged (`claimAd` server-clock rules).
-- **Test coins**: ad reward `AD_REWARD.coins` raised 25 → 200 on both sides (`server/src/rules.ts` and `game/src/game/coins.ts`, held together by `check:sync`). Updated the shop balance check: it now asserts one ad funds the most expensive avatar (tank 90) instead of the old "a day of ads stays under 4 tanks" guard.
+- **Ad SDK removed (reverted)**: the `@verse8/ads` integration added earlier was removed at the builder's request. `showAd` in `game/src/ui/adProvider.ts` is back to the placeholder-only countdown panel; the package dependency is gone. The server-side ad-reward rules were left intact (server clock enforcement, provider-agnostic) — only the provider seam reverted.
+- **Ad reward coins reset**: `AD_REWARD.coins` set to **0** (both `server/src/rules.ts` and `game/src/game/coins.ts`, held by `check:sync`). The shop balance check in `check-shop.ts` was restored to its original form ("a full day's worth of ads is worth less than 4 tanks").
 - `npm run check` passes (18 check scripts + 28 server tests); `npm run build` succeeds.
 
 ## Verification
@@ -14,7 +14,6 @@
 
 ## Next steps / open items
 
-- Confirm the real rewarded ad actually renders in the Verse8 host (deploy via editor **Launch**; watch a shop ad, verify coins +200 after completing, nothing on skip).
-- Decide placement id naming/registration with the ad network if `"shop-coins"` needs a console entry.
+- Decide whether the ad-for-coins feature should ship at all: the provider seam is a placeholder and `AD_REWARD.coins` is 0, so watching the panel currently grants nothing.
 - Verify wallet/leaderboard persistence across server restarts in production.
 - Git repo is absent (`.git` removed); re-init + set remote if commit history is wanted.
