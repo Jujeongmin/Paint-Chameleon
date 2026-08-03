@@ -30,6 +30,10 @@ export type { LeaderboardResult, PlayerState, RoomInfo, RankedLeaderboardEntry, 
  * fixed for the lifetime of the page.
  */
 const OFFLINE = !import.meta.env.VITE_AGENT8_VERSE;
+/** A broken socket response must return control to the join button. */
+export const REMOTE_CALL_TIMEOUT_MS = 12_000;
+/** Room subscriptions can fail independently after the join RPC succeeds. */
+export const ROOM_STATE_TIMEOUT_MS = 12_000;
 
 /** Picks the real Agent8-backed game or the local rehearsal rig. */
 export function useGame() {
@@ -149,6 +153,22 @@ function useOnlineGame() {
   }, [rawAll, rawRoom?.bots, rawRoom?.kind]);
 
   const me: PlayerState | null = (rawMine as PlayerState) ?? null;
+  const roomReady = !!rawRoom?.roomId && !!rawMine?.account;
+
+  useEffect(() => {
+    if (roomReady) {
+      setJoined(true);
+      setError(null);
+      return;
+    }
+    if (!joined) return;
+
+    const timeout = setTimeout(() => {
+      setJoined(false);
+      setError(t("error.join"));
+    }, ROOM_STATE_TIMEOUT_MS);
+    return () => clearTimeout(timeout);
+  }, [joined, roomReady]);
 
   const secondsLeft = room?.phaseEndsAt
     ? Math.max(0, Math.ceil((room.phaseEndsAt - (Date.now() + clockOffset.current)) / 1000))
@@ -159,12 +179,19 @@ function useOnlineGame() {
       if (!connected || joining) return;
       setJoining(true);
       setError(null);
+      let timeout: ReturnType<typeof setTimeout> | null = null;
       try {
-        await server.remoteFunction(fn, Array.isArray(args) ? args : [args]);
+        await Promise.race([
+          server.remoteFunction(fn, Array.isArray(args) ? args : [args]),
+          new Promise<never>((_, reject) => {
+            timeout = setTimeout(() => reject(new Error(failure)), REMOTE_CALL_TIMEOUT_MS);
+          }),
+        ]);
         setJoined(true);
       } catch (e: any) {
         setError(e?.message ?? failure);
       } finally {
+        if (timeout) clearTimeout(timeout);
         setJoining(false);
       }
     },

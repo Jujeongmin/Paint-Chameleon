@@ -39,6 +39,8 @@ interface Step {
   run: () => Promise<void> | void;
 }
 
+export const ASSET_TIMEOUT_MS = 8_000;
+
 /**
  * Fetch a URL into the browser's HTTP cache and report bytes as they arrive.
  *
@@ -48,24 +50,30 @@ interface Step {
  * finish because one texture 404'd is worse than a missing texture.
  */
 async function prefetch(url: string): Promise<void> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ASSET_TIMEOUT_MS);
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
     await response.arrayBuffer();
   } catch {
     // Deliberately swallowed — see above.
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
 function steps(): Step[] {
   const out: Step[] = [];
 
-  for (const url of MODEL_URLS) {
-    out.push({ label: t("load.models"), run: () => prefetch(url) });
-  }
-  for (const url of ARENA_TEXTURE_URLS) {
-    out.push({ label: t("load.textures"), run: () => prefetch(url) });
-  }
-  out.push({ label: t("load.weapon"), run: () => prefetch(GUN_URL) });
+  out.push({
+    label: t("load.models"),
+    run: async () =>
+      void (await Promise.all([
+        ...MODEL_URLS.map(prefetch),
+        ...ARENA_TEXTURE_URLS.map(prefetch),
+        prefetch(GUN_URL),
+      ])),
+  });
 
   // Now hand the same URLs to the loaders React will use, so that by the time a
   // component asks for them there is nothing left to suspend on. The arrays

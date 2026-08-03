@@ -49,6 +49,7 @@ const CLIPS = {
 type ClipName = keyof typeof CLIPS;
 
 const buffers = new Map<ClipName, AudioBuffer>();
+const SOUND_TIMEOUT_MS = 8_000;
 
 /**
  * Fetch and decode every clip. Called from the loading screen's warmup.
@@ -63,12 +64,16 @@ export async function loadSounds(): Promise<void> {
   await Promise.all(
     (Object.keys(CLIPS) as ClipName[]).map(async (name) => {
       if (buffers.has(name)) return;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), SOUND_TIMEOUT_MS);
       try {
-        const response = await fetch(CLIPS[name]);
+        const response = await fetch(CLIPS[name], { signal: controller.signal });
         const bytes = await response.arrayBuffer();
         buffers.set(name, await ctx!.decodeAudioData(bytes));
       } catch {
         // See above.
+      } finally {
+        clearTimeout(timeout);
       }
     })
   );
