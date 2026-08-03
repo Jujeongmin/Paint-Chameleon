@@ -18,7 +18,7 @@ import {
   STAND_POSE,
   type Phase,
 } from "./constants";
-import { createMotionState, stepMotion } from "./movement";
+import { canTogglePin, createMotionState, stepMotion } from "./movement";
 import { createFollowScratch, updateFollowCamera } from "./followCamera";
 import { surfaceFor, type PaintDab } from "./paint";
 import { playBrushTick, playShot, shotGainFor } from "../audio/sound";
@@ -127,12 +127,12 @@ export function LocalPlayer({
   const { read } = useKeyboard((code) => {
     // Hiders only — the seeker's reported facing is what the server checks when
     // resolving a shot, so freezing their body would desync the facing cone.
-    // Only pin while standing on something; locking mid-air would leave you hovering.
+    // Ground and a deliberate wall latch are both valid support. Arbitrary
+    // mid-air pinning remains disallowed.
     if (
       code === "KeyR" &&
       !paintMode &&
-      me.role !== "seeker" &&
-      (motion.current.grounded || charLocked)
+      canTogglePin(me.role, motion.current.grounded, motion.current.wallLatched, charLocked)
     ) {
       onToggleLock();
     }

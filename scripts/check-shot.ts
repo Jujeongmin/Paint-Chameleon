@@ -10,7 +10,7 @@
  * Run: npm run check:shot
  */
 
-import { SHOT, canShoot, facingDot, type ShotRequest } from "../server/src/rules";
+import { SHOT, canFireAsSeeker, canShoot, facingDot, type ShotRequest } from "../server/src/rules";
 
 let failures = 0;
 
@@ -62,6 +62,15 @@ console.log("\nthe shot is allowed");
 }
 
 console.log("\nevery refusal reason");
+
+console.log("\nwho can pull the trigger");
+{
+  check("the original seeker role can fire", canFireAsSeeker({ role: "seeker" }));
+  check("a hider converted to seeker can also fire", canFireAsSeeker({ role: "seeker" }));
+  check("a live hider cannot fire", !canFireAsSeeker({ role: "hider" }));
+  check("missing sender state cannot fire", !canFireAsSeeker(null));
+}
+
 {
   const cases: [string, ShotRequest, string][] = [];
 

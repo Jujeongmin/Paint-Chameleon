@@ -209,6 +209,11 @@ export interface ShotRequest {
   lastShotAt: number;
 }
 
+/** Every current seeker may fire, including hiders converted during tag. */
+export function canFireAsSeeker(sender: { role?: string } | null | undefined): boolean {
+  return sender?.role === "seeker";
+}
+
 /** Coerce anything off the wire to a real number. */
 function n(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? v : 0;

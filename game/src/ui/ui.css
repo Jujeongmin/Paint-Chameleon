@@ -671,7 +671,8 @@ body.hide-cursor canvas {
 }
 
 .paint-right {
-  right: 250px;
+  /* Leave room for the caption and the colour panel's shadow. */
+  right: 282px;
   top: 50%;
   transform: translateY(-50%);
   text-align: center;
