@@ -67,6 +67,16 @@ export interface MotionInput {
   jump: boolean;
 }
 
+/** Whether R may toggle the hider's position lock at this instant. */
+export function canTogglePin(
+  role: string | undefined,
+  grounded: boolean,
+  wallLatched: boolean,
+  alreadyPinned: boolean
+): boolean {
+  return role !== "seeker" && (grounded || wallLatched || alreadyPinned);
+}
+
 /**
  * One physics step. Shared by the match and the hub so the walk, the gravity and
  * the step-up behaviour can't drift apart between them.

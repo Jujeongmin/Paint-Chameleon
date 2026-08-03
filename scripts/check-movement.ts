@@ -9,6 +9,7 @@
  */
 
 import {
+  canTogglePin,
   createMotionState,
   forwardVector,
   rightVector,
@@ -483,6 +484,15 @@ console.log("\nfirst-person handoff");
 }
 
 console.log("\njump shape (drives the airborne animation)");
+
+console.log("\nposition pin");
+{
+  check("a grounded hider can pin", canTogglePin("hider", true, false, false));
+  check("a wall-latched hider can pin", canTogglePin("hider", false, true, false));
+  check("unsupported mid-air pinning stays disabled", !canTogglePin("hider", false, false, false));
+  check("an existing pin can always be released", canTogglePin("hider", false, false, true));
+  check("a seeker can never pin", !canTogglePin("seeker", true, true, false));
+}
 
 console.log("\nwall hold");
 

@@ -16,6 +16,7 @@ import {
   POSE_COUNT,
   PHASE_SECONDS,
   canShoot,
+  canFireAsSeeker,
   type ShotFailure,
   SCORE,
   PAINT_LIMITS,
@@ -660,7 +661,9 @@ export class Server {
 
     const verdict = canShoot({
       phase: String(state.phase ?? "lobby"),
-      senderIsSeeker: state.seeker === $sender.account,
+      // state.seeker names only the original seeker. Tag conversions must be
+      // authorized from the sender's current room role instead.
+      senderIsSeeker: canFireAsSeeker(me),
       senderMissing: !me,
       target,
       seekerPos: myPos,
