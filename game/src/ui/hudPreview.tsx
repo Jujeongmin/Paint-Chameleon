@@ -92,6 +92,7 @@ function fakeWallet(over: Partial<Wallet> = {}): Wallet {
     equipped: "classic",
     message: null,
     busy: false,
+    refresh: async () => {},
     buy: () => {},
     equip: () => {},
     adsLeft: 7,

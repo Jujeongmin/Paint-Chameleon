@@ -212,6 +212,29 @@ export default function App() {
     if (phase === "lobby") setReady(false);
   }, [phase]);
 
+  // endRound publishes the results phase before it grants persistent coins to
+  // each player. Refreshing once on the transition can therefore win that race
+  // and read the old balance. Poll sequentially for a few seconds: the first
+  // successful post-grant read updates the UI immediately, and later reads are
+  // harmless confirmations rather than out-of-order stale responses.
+  useEffect(() => {
+    if (inHub || phase !== "results") return;
+    let cancelled = false;
+    const delays = [250, 600, 1200, 2400];
+
+    const syncRoundCoins = async () => {
+      for (const delay of delays) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        if (cancelled) return;
+        await wallet.refresh();
+      }
+    };
+    void syncRoundCoins();
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, inHub, wallet.refresh]);
+
   // Being caught, or becoming the seeker, releases the pin.
   useEffect(() => {
     if (me?.caught || isSeeker) setCharLocked(false);

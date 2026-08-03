@@ -53,6 +53,8 @@ export interface Wallet {
   message: string | null;
   /** True while a write is in flight; the prompt uses it to ignore repeat keys. */
   busy: boolean;
+  /** Re-read persistent coins after an out-of-band server reward. */
+  refresh: () => Promise<void>;
   buy: (id: string) => void;
   equip: (id: string) => void;
   /** Rewards left today by the client's own reckoning; display only. */
@@ -145,6 +147,21 @@ export function useWallet(api: Api): Wallet {
     setMessage(text);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setMessage(null), MESSAGE_MS);
+  }, []);
+
+  // Round rewards are written by endRound rather than by a wallet action from
+  // this client, so none of buy/equip/watchAd's returned-wallet paths sees
+  // them. App calls this after the results phase arrives. It returns a promise
+  // so those calls can be kept sequential: an older, slower response must not
+  // land after a newer one and put the displayed balance backwards.
+  const refresh = useCallback(async () => {
+    if (!apiRef.current.connected) return;
+    try {
+      setWallet(await apiRef.current.fetchWallet());
+    } catch {
+      // The results screen remains usable if a refresh loses the connection;
+      // App retries this call while the server finishes the payout loop.
+    }
   }, []);
 
   const buy = useCallback(
@@ -252,6 +269,7 @@ export function useWallet(api: Api): Wallet {
     equipped: wallet?.equipped ?? DEFAULT_BODY_ID,
     message,
     busy,
+    refresh,
     buy,
     equip,
     adsLeft: left,
