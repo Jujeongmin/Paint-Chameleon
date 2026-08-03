@@ -6,9 +6,14 @@ const enabled = { value: 0 };
 const targetUniform = { value: targetView };
 const radiusUniform = { value: 0.72 };
 
-export function setCameraOcclusion(camera: THREE.Camera, target: THREE.Vector3, active: boolean): void {
+export function cameraOcclusionRadius(paintMode: boolean, scale = 1): number {
+  return paintMode ? 1.35 : 0.72 * scale;
+}
+
+export function setCameraOcclusion(camera: THREE.Camera, target: THREE.Vector3, active: boolean, radius = 0.72): void {
   enabled.value = active ? 1 : 0;
   if (!active) return;
+  radiusUniform.value = radius;
   camera.updateMatrixWorld();
   targetView.copy(target).applyMatrix4(camera.matrixWorldInverse);
 }

@@ -226,7 +226,7 @@ export function Hud({
         </div>
       )}
 
-      {canLeave && !paintMode && (
+      {canLeave && room.phase !== "results" && !paintMode && (
         // Deliberately its own control rather than a line in the results panel:
         // it is live during play too, for a spectator whose round is already
         // over, and it should not move between those two moments.

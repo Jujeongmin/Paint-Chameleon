@@ -17,6 +17,7 @@ import { CELL_BOXES } from "../game/src/game/cell";
 import { CAMERA, MOVE } from "../game/src/game/constants";
 import * as THREE from "three";
 import { createFollowScratch, updateFollowCamera } from "../game/src/game/followCamera";
+import { cameraOcclusionRadius } from "../game/src/game/cameraOcclusion";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = ""): void {
@@ -192,6 +193,10 @@ check(
 );
 
 console.log("\nthird-person wall orbit\n");
+check(
+  "paint mode opens a wider visibility corridor around the whole body",
+  cameraOcclusionRadius(true) > cameraOcclusionRadius(false)
+);
 {
   const camera = new THREE.PerspectiveCamera();
   const scratch = createFollowScratch(CAMERA.playDistance);

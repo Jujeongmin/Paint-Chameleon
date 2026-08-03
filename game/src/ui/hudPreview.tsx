@@ -271,6 +271,7 @@ function Preview() {
           players={PLAYERS}
           account={ACCOUNT}
           secondsLeft={21}
+          onLeave={() => {}}
         />
       </Frame>
 

@@ -1445,6 +1445,24 @@ body.hide-cursor canvas {
   font-weight: 600;
 }
 
+.results-leave {
+  width: 100%;
+  margin-top: 12px;
+  padding: 9px 12px;
+  border: 1px solid rgba(228, 88, 79, 0.55);
+  border-radius: 9px;
+  background: rgba(228, 88, 79, 0.14);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.results-leave kbd { margin-left: 7px; }
+.results-leave:hover { background: rgba(228, 88, 79, 0.25); }
+
 /* The guide is deliberately a reading panel, opened by a physical marker in
    the hub. It stays centred and narrow enough to leave the world visible. */
 .guide-panel {

@@ -32,6 +32,8 @@ export interface FollowOptions {
   fadeEnd: number;
   fadeStart: number;
   allowFade: boolean;
+  /** Width of the visibility corridor; paint orbit needs the whole body clear. */
+  occlusionRadius?: number;
   floorY?: number;
 }
 
@@ -57,6 +59,6 @@ export function updateFollowCamera(
   const target = scratch.target.set(px, py + opts.shoulderHeight, pz);
   camera.position.copy(target).addScaledVector(back, scratch.distance);
   camera.lookAt(scratch.look.copy(camera.position).addScaledVector(back, -1));
-  setCameraOcclusion(camera, target, opts.desired > 0.1);
+  setCameraOcclusion(camera, target, opts.desired > 0.1, opts.occlusionRadius);
   return 1;
 }

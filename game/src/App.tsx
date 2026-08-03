@@ -659,6 +659,7 @@ export default function App() {
               players={players}
               account={account}
               secondsLeft={secondsLeft}
+              onLeave={leave}
             />
           )}
 

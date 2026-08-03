@@ -26,7 +26,7 @@ import {
 } from "./constants";
 import { canTogglePin, createMotionState, stepMotion } from "./movement";
 import { createFollowScratch, updateFollowCamera } from "./followCamera";
-import { clearCameraOcclusion } from "./cameraOcclusion";
+import { cameraOcclusionRadius, clearCameraOcclusion } from "./cameraOcclusion";
 import { surfaceFor, type PaintDab } from "./paint";
 import { playBrushTick, playShot, shotGainFor } from "../audio/sound";
 import { useBrush, type Tool } from "./useBrush";
@@ -429,6 +429,7 @@ export function LocalPlayer({
       // into the body. At a distance of zero chosen on purpose it would simply
       // delete the body — and the gun in its hand with it.
       allowFade: !paintMode && !firstPerson,
+      occlusionRadius: cameraOcclusionRadius(paintMode, scale),
       floorY: inCell ? CELL_FLOOR_Y : 0,
     });
 

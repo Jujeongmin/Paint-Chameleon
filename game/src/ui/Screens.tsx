@@ -88,11 +88,13 @@ export function ResultsOverlay({
   players,
   account,
   secondsLeft,
+  onLeave,
 }: {
   room: RoomInfo;
   players: PlayerState[];
   account: string;
   secondsLeft: number;
+  onLeave: () => void;
 }) {
   const results = room.lastResults ?? [];
   // The server sends an empty nick for the seeker's row, so the player list is
@@ -157,6 +159,10 @@ export function ResultsOverlay({
         </table>
 
         <div className="results-next">{t("results.next", { n: secondsLeft })}</div>
+        <button className="results-leave" onClick={onLeave}>
+          <span>{t("hud.leave")}</span>
+          <kbd>Enter</kbd>
+        </button>
       </div>
     </div>
   );
