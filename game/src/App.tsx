@@ -55,7 +55,6 @@ export default function App() {
   const [poseMenuOpen, setPoseMenuOpen] = useState(false);
   const [paintMode, setPaintMode] = useState(false);
   const [charLocked, setCharLocked] = useState(false);
-  const [ready, setReady] = useState(false);
   const [pointerLocked, setPointerLocked] = useState(false);
   /**
    * The account's remembered nick, once we have asked for it.
@@ -209,10 +208,6 @@ export default function App() {
       prevCaught.current.set(p.account, !!p.caught);
     }
   }, [me?.caught, players, inHub, account]);
-
-  useEffect(() => {
-    if (phase === "lobby") setReady(false);
-  }, [phase]);
 
   // endRound publishes the results phase before it grants persistent coins to
   // each player. Refreshing once on the transition can therefore win that race
@@ -398,10 +393,9 @@ export default function App() {
   }, [game, nick, me?.nick]);
 
   const toggleReady = useCallback(() => {
-    const next = !ready;
-    setReady(next);
-    game.setReady(next);
-  }, [ready, game]);
+    if (me?.ready) return;
+    game.setReady(true);
+  }, [me?.ready, game]);
 
   toggleReadyRef.current = toggleReady;
   leaveRef.current = leave;
@@ -596,7 +590,7 @@ export default function App() {
             paintMode={paintMode}
             canPaint={canPaint}
             charLocked={charLocked}
-            ready={ready}
+            ready={!!me.ready}
             onToggleReady={toggleReady}
             showControls={!controlsLearned}
             canPose={canPose}

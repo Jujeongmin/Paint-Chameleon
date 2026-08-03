@@ -166,7 +166,7 @@ export function Hud({
             {room.phase === "lobby" && (
               // The key is on the button rather than in a hint somewhere else:
               // the button is where you look when you are deciding to press it.
-              <button className="btn ready-btn" style={{ marginTop: 10 }} onClick={onToggleReady}>
+              <button className="btn ready-btn" style={{ marginTop: 10 }} onClick={onToggleReady} disabled={ready}>
                 <span>{ready ? t("hud.unready") : t("hud.ready")}</span>
                 <kbd>Enter</kbd>
               </button>

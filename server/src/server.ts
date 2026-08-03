@@ -298,6 +298,9 @@ export class Server {
    * a portal inside it.
    */
   async joinHub(nick: string): Promise<{ roomId: string }> {
+    // Collection storage is the slowest dependency here. Start it before
+    // matchmaking so network waits overlap instead of stacking up.
+    const walletPromise = readWallet($sender.account);
     const roomId = await $lock("matchmaking", async () => {
       const states = await $global.getAllRoomStates();
       let target: string | undefined;
@@ -311,14 +314,15 @@ export class Server {
       return await $global.joinRoom(target);
     });
 
-    const state = await $global.getRoomState(roomId);
+    const [state, { wallet }] = await Promise.all([
+      $global.getRoomState(roomId),
+      walletPromise,
+    ]);
+    const writes: Promise<unknown>[] = [];
     if (state.kind !== "hub") {
-      await $global.updateRoomState(roomId, { kind: "hub" as RoomKind, phase: null });
+      writes.push($global.updateRoomState(roomId, { kind: "hub" as RoomKind, phase: null }));
     }
-
-    const { wallet } = await readWallet($sender.account);
-
-    await $global.updateRoomUserState(roomId, $sender.account, {
+    writes.push($global.updateRoomUserState(roomId, $sender.account, {
       nick: sanitizeNick(nick),
       body: wallet.equipped,
       pos: [(Math.random() - 0.5) * 6, 0, 8 + Math.random() * 3],
@@ -326,7 +330,8 @@ export class Server {
       pose: 0,
       moving: false,
       lastMoveAt: Date.now(),
-    });
+    }));
+    await Promise.all(writes);
 
     return { roomId };
   }
@@ -334,6 +339,7 @@ export class Server {
   /** Join an open lobby, or open a new one. Returns the room id. */
   async joinGame(nick: string, requestedMode?: string): Promise<{ roomId: string }> {
     const mode: GameMode = isGameMode(requestedMode) ? requestedMode : DEFAULT_MODE;
+    const walletPromise = readWallet($sender.account);
     // Leave the hub first — a player is only ever in one room.
     if ($sender.roomId) await $global.leaveRoom();
 
@@ -359,9 +365,14 @@ export class Server {
       return await $global.joinRoom(target);
     });
 
-    const state = await $global.getRoomState(roomId);
-    if (!state.phase) {
-      await $global.updateRoomState(roomId, {
+    const [state, { wallet }] = await Promise.all([
+      $global.getRoomState(roomId),
+      walletPromise,
+    ]);
+    const humanCount = Array.isArray(state.$users) ? state.$users.length : 1;
+    const bots = syncRoomBots(state.bots, humanCount, !state.phase);
+    const roomPatch = !state.phase
+      ? {
         kind: "game" as RoomKind,
         mode,
         phase: "lobby" as Phase,
@@ -371,13 +382,13 @@ export class Server {
         scores: {},
         phaseEndsAt: 0,
         lastResults: null,
-        bots: syncRoomBots([], 1, true),
-      });
-    }
+        bots,
+      }
+      : { bots };
 
-    const { wallet } = await readWallet($sender.account);
-
-    await $global.updateRoomUserState(roomId, $sender.account, {
+    await Promise.all([
+      $global.updateRoomState(roomId, roomPatch),
+      $global.updateRoomUserState(roomId, $sender.account, {
       nick: sanitizeNick(nick),
       body: wallet.equipped,
       ready: false,
@@ -392,15 +403,8 @@ export class Server {
       lastMoveAt: Date.now(),
       convertedAt: null,
       spectating: false,
-    });
-
-    // A human takes one of the ten public seats immediately. $roomTick also
-    // repairs this after disconnects, where there is no leave callback.
-    const joinedState = await $global.getRoomState(roomId);
-    const humanAccounts = await $global.getRoomUserAccounts(roomId);
-    await $global.updateRoomState(roomId, {
-      bots: syncRoomBots(joinedState.bots, humanAccounts.length),
-    });
+      }),
+    ]);
 
     return { roomId };
   }
@@ -428,7 +432,12 @@ export class Server {
   }
 
   async setReady(ready: boolean): Promise<void> {
-    await $room.updateMyState({ ready: !!ready });
+    // Ready is a commitment for this lobby. startRound resets it for the next
+    // round; clients cannot hold everyone hostage by toggling it back off.
+    if (!ready) return;
+    const mine = await $room.getMyState();
+    if (mine.ready) return;
+    await $room.updateMyState({ ready: true });
   }
 
   /** Own room-user state. Clients get this via useRoomMyState(); handy for tests. */

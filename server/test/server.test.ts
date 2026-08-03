@@ -34,6 +34,18 @@ describe("matchmaking", () => {
     expect(room.bots.length).toBe(8);
     expect(room.bots[0].account).toBe("bot-0");
   });
+
+  test("ready cannot be cancelled once committed", async (server) => {
+    server.connect({ account: "user-ready-a" });
+    await server.joinGame("ready-a");
+    server.connect({ account: "user-ready-b" });
+    await server.joinGame("ready-b");
+
+    await server.setReady(true);
+    expect((await server.getMyState()).ready).toBe(true);
+    await server.setReady(false);
+    expect((await server.getMyState()).ready).toBe(true);
+  });
 });
 
 describe("hub", () => {
