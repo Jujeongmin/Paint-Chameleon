@@ -12,11 +12,13 @@
 import {
   HUB,
   HUB_BOXES,
+  GUIDE_ZONE,
   LEADERBOARD,
   PORTALS,
   STAND,
   STANDS,
   portalAt,
+  guideZoneAt,
   standAt,
 } from "../game/src/hub/hubMap";
 import { createMotionState, stepMotion } from "../game/src/game/movement";
@@ -157,6 +159,14 @@ for (const s of STANDS) {
 
 check("the spawn point is not a stand", standAt(HUB.spawn[0], HUB.spawn[2]) === null);
 
+console.log("\nguide zone detection");
+check("standing on the guide marker is detected", guideZoneAt(GUIDE_ZONE.x, GUIDE_ZONE.z));
+check(
+  "a step past the guide marker is not detected",
+  !guideZoneAt(GUIDE_ZONE.x, GUIDE_ZONE.z + GUIDE_ZONE.triggerRadius + 0.5)
+);
+check("the spawn point does not open the guide", !guideZoneAt(HUB.spawn[0], HUB.spawn[2]));
+
 console.log("\nreachability (walking the real physics from spawn)");
 
 for (const p of PORTALS) {
@@ -186,6 +196,20 @@ for (const s of STANDS) {
     `stand ${s.id}: reachable on foot (got within ${closest.toFixed(2)}u)`,
     closest <= STAND.triggerRadius,
     `never got closer than ${closest.toFixed(2)}u, trigger radius is ${STAND.triggerRadius}`
+  );
+}
+
+{
+  check(
+    "guide zone: the marker is standable",
+    !occupied(GUIDE_ZONE.x, GUIDE_ZONE.z),
+    "the leaderboard or a prop covers the guide marker"
+  );
+  const closest = walkTo([GUIDE_ZONE.x, GUIDE_ZONE.z]);
+  check(
+    `guide zone: reachable on foot (got within ${closest.toFixed(2)}u)`,
+    closest <= GUIDE_ZONE.triggerRadius,
+    `never got closer than ${closest.toFixed(2)}u`
   );
 }
 

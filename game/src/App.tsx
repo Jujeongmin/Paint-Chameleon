@@ -117,6 +117,8 @@ export default function App() {
   const portalRef = useRef<PortalProgress>({ portal: null, progress: 0 });
   /** Likewise: the shop stand the player is standing at, or null. */
   const standRef = useRef<Stand | null>(null);
+  /** True while HubPlayer is standing in the how-to-play zone. */
+  const guideRef = useRef(false);
   /** Sound: last phase seen, so a transition sound fires exactly once. */
   const prevPhase = useRef<string | null>(null);
   /** Sound: last known caught flag per account, so a catch sound fires once per catch. */
@@ -522,6 +524,7 @@ export default function App() {
             }
             onTransform={onHubTransform}
             standRef={standRef}
+            guideRef={guideRef}
             leaderboard={leaderboard}
             joining={joining}
           />
@@ -575,6 +578,7 @@ export default function App() {
         <HubHud
           portalRef={portalRef}
           standRef={standRef}
+          guideRef={guideRef}
           players={players}
           account={account}
           joining={joining}

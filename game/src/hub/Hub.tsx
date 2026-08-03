@@ -5,7 +5,7 @@ import { NameTag } from "../game/NameTag";
 import { t } from "../ui/i18n";
 import { RemotePlayers } from "../game/RemotePlayers";
 import { Humanoid, IDLE_MOTION } from "../game/Humanoid";
-import { HUB, HUB_BOXES, PORTALS, SHOP, STAND, STANDS, type Portal, type Stand } from "./hubMap";
+import { GUIDE_ZONE, HUB, HUB_BOXES, PORTALS, SHOP, STAND, STANDS, type Portal, type Stand } from "./hubMap";
 import { HubPlayer, type PortalProgress } from "./HubPlayer";
 import { LeaderboardBoard } from "./LeaderboardBoard";
 import type { LeaderboardResult, PlayerState } from "../net/types";
@@ -144,6 +144,7 @@ interface Props {
   onTransform: (pos: [number, number, number], rotY: number, moving: boolean) => void;
   /** Written every frame by HubPlayer with the shop stand underfoot. */
   standRef: React.MutableRefObject<Stand | null>;
+  guideRef: React.MutableRefObject<boolean>;
   /** All-time scores, painted onto the monument. Null until the first fetch lands. */
   leaderboard: LeaderboardResult | null;
   joining: boolean;
@@ -158,6 +159,7 @@ export function Hub({
   onEnterPortal,
   onTransform,
   standRef,
+  guideRef,
   leaderboard,
   joining,
 }: Props) {
@@ -191,6 +193,14 @@ export function Hub({
 
       <LeaderboardBoard data={leaderboard} account={account} />
 
+      <group position={[GUIDE_ZONE.x, 0, GUIDE_ZONE.z]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.025, 0]} receiveShadow>
+          <circleGeometry args={[GUIDE_ZONE.triggerRadius, 32]} />
+          <meshStandardMaterial color={hex(GUIDE_ZONE.color)} transparent opacity={0.38} roughness={1} />
+        </mesh>
+        <NameTag text={t("guide.zone")} y={0.35} height={0.34} color={hex(GUIDE_ZONE.color)} />
+      </group>
+
       <HubPlayer
         account={account}
         nick={nick}
@@ -199,6 +209,7 @@ export function Hub({
         onEnterPortal={onEnterPortal}
         onTransform={onTransform}
         standRef={standRef}
+        guideRef={guideRef}
         frozen={joining}
       />
       <RemotePlayers players={players} selfAccount={account} boxes={HUB_BOXES} showNames />

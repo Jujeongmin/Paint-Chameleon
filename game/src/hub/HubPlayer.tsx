@@ -7,7 +7,7 @@ import { CAMERA, MOVE, NET_EPSILON, NET_THROTTLE_MS } from "../game/constants";
 import { createMotionState, stepMotion } from "../game/movement";
 import { createFollowScratch, updateFollowCamera } from "../game/followCamera";
 import { NameTag } from "../game/NameTag";
-import { HUB, HUB_BOXES, portalAt, standAt, type Portal, type Stand } from "./hubMap";
+import { HUB, HUB_BOXES, guideZoneAt, portalAt, standAt, type Portal, type Stand } from "./hubMap";
 
 /** How long you must stand in an arch before it takes you into a match. */
 export const PORTAL_DWELL_MS = 1200;
@@ -29,6 +29,8 @@ interface Props {
   onTransform: (pos: [number, number, number], rotY: number, moving: boolean) => void;
   /** Written every frame with the shop stand underfoot; polled, same as `portalRef`. */
   standRef: React.MutableRefObject<Stand | null>;
+  /** True while the player stands on the guide marker behind the leaderboard. */
+  guideRef: React.MutableRefObject<boolean>;
   /** Suppresses input while a match is being joined. */
   frozen: boolean;
 }
@@ -41,6 +43,7 @@ export function HubPlayer({
   onEnterPortal,
   onTransform,
   standRef,
+  guideRef,
   frozen,
 }: Props) {
   const group = useRef<THREE.Group>(null);
@@ -116,6 +119,7 @@ export function HubPlayer({
     // The shop prompt is non-modal and never freezes anyone, so this is the
     // same polled-ref pattern as the portal above rather than a callback.
     standRef.current = frozen ? null : standAt(px, pz);
+    guideRef.current = !frozen && guideZoneAt(px, pz);
 
     if (standing?.available) {
       dwell.current += step * 1000;

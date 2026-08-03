@@ -10,6 +10,7 @@ interface Props {
   portalRef: React.MutableRefObject<PortalProgress>;
   /** Written every frame by HubPlayer; polled here alongside `portalRef`. */
   standRef: React.MutableRefObject<Stand | null>;
+  guideRef: React.MutableRefObject<boolean>;
   players: PlayerState[];
   account: string;
   joining: boolean;
@@ -19,6 +20,7 @@ interface Props {
 export function HubHud({
   portalRef,
   standRef,
+  guideRef,
   players,
   account,
   joining,
@@ -28,6 +30,7 @@ export function HubHud({
   // poll it a few times a second, which is plenty for a progress ring.
   const [state, setState] = useState<PortalProgress>({ portal: null, progress: 0 });
   const [stand, setStand] = useState<Stand | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
   const last = useRef("");
 
   useEffect(() => {
@@ -41,9 +44,10 @@ export function HubHud({
       // Identity comparison is enough: STANDS is a module-level array, so the
       // same stand is always the same object.
       setStand((prev) => (prev === standRef.current ? prev : standRef.current));
+      setShowGuide((prev) => (prev === guideRef.current ? prev : guideRef.current));
     }, 60);
     return () => clearInterval(id);
-  }, [portalRef, standRef]);
+  }, [portalRef, standRef, guideRef]);
 
   const { portal, progress } = state;
 
@@ -77,6 +81,22 @@ export function HubHud({
       </div>
 
       {!joining && <ShopPrompt stand={stand} wallet={wallet} />}
+
+      {!joining && showGuide && (
+        <section className="guide-panel">
+          <div className="guide-eyebrow">{t("guide.eyebrow")}</div>
+          <h2>{t("guide.title")}</h2>
+          <p className="guide-intro">{t("guide.intro")}</p>
+          <div className="guide-grid">
+            <div><strong>{t("guide.hideTitle")}</strong><span>{t("guide.hideBody")}</span></div>
+            <div><strong>{t("guide.seekTitle")}</strong><span>{t("guide.seekBody")}</span></div>
+            <div><strong>{t("guide.tagTitle")}</strong><span>{t("guide.tagBody")}</span></div>
+            <div><strong>{t("guide.huntTitle")}</strong><span>{t("guide.huntBody")}</span></div>
+          </div>
+          <div className="guide-controls">{t("guide.controls")}</div>
+          <div className="guide-exit">{t("guide.exit")}</div>
+        </section>
+      )}
 
       {/* The cursor is hidden out here too, so the aim point has to be visible. */}
       <div className="crosshair" />

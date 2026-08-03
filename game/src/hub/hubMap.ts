@@ -167,6 +167,18 @@ export const LEADERBOARD = {
 /** World z of the readable face — the board's front surface, plus a hair. */
 export const LEADERBOARD_FACE_Z = LEADERBOARD.z - 1.0 + LEADERBOARD.half + 0.02;
 
+/** A floor marker behind the leaderboard that opens the how-to-play panel. */
+export const GUIDE_ZONE = {
+  x: LEADERBOARD.x,
+  z: 6.2,
+  triggerRadius: 1.35,
+  color: 0x7357b5,
+};
+
+export function guideZoneAt(x: number, z: number): boolean {
+  return Math.hypot(x - GUIDE_ZONE.x, z - GUIDE_ZONE.z) <= GUIDE_ZONE.triggerRadius;
+}
+
 /** Pillars and lintel for one archway. The opening itself stays walkable. */
 function archBoxes(p: Portal): MapBox[] {
   const halfWidth = 2.1;

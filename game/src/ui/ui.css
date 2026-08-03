@@ -1444,3 +1444,37 @@ body.hide-cursor canvas {
   color: var(--muted);
   font-weight: 600;
 }
+
+/* The guide is deliberately a reading panel, opened by a physical marker in
+   the hub. It stays centred and narrow enough to leave the world visible. */
+.guide-panel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(680px, calc(100vw - 40px));
+  transform: translate(-50%, -50%);
+  padding: 24px 26px 18px;
+  color: var(--text);
+  background: rgba(17, 19, 27, 0.94);
+  border: 1px solid rgba(151, 124, 221, 0.55);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+
+.guide-eyebrow { color: #a98ce8; font-size: 11px; font-weight: 900; letter-spacing: 0.18em; }
+.guide-panel h2 { margin: 5px 0 6px; font-size: 25px; }
+.guide-intro { margin: 0 0 17px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.guide-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.guide-grid > div { padding: 12px; background: rgba(255, 255, 255, 0.045); border: 1px solid var(--line); border-radius: 11px; }
+.guide-grid strong { display: block; margin-bottom: 5px; color: #c4acef; font-size: 12px; letter-spacing: 0.06em; }
+.guide-grid span { display: block; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.guide-controls { margin-top: 14px; padding: 10px 12px; color: var(--accent); background: rgba(111, 191, 92, 0.08); border-radius: 10px; font-size: 12px; font-weight: 700; text-align: center; }
+.guide-exit { margin-top: 10px; color: var(--muted); font-size: 11px; text-align: center; }
+
+@media (max-width: 620px) {
+  .guide-panel { padding: 18px; }
+  .guide-grid { grid-template-columns: 1fr; }
+  .guide-panel h2 { font-size: 21px; }
+}

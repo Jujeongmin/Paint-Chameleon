@@ -304,6 +304,7 @@ function Preview() {
         <HubHud
           portalRef={{ current: { portal: null, progress: 0 } } as any}
           standRef={{ current: null } as any}
+          guideRef={{ current: false } as any}
           players={[
             { account: ACCOUNT, nick: "나" },
             { account: "b", nick: "지민" },
