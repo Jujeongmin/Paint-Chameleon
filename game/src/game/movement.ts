@@ -13,7 +13,13 @@
  *   right   = (-cos yaw, sin yaw)     // forward x up
  */
 
-import { groundHeightAt, moveXZ, playerTouchingWall, type MapBox } from "./map";
+import {
+  ceilingFeetLimitAt,
+  groundHeightAt,
+  moveXZ,
+  playerTouchingWall,
+  type MapBox,
+} from "./map";
 import { MOVE } from "./constants";
 
 export function forwardVector(yaw: number): [number, number] {
@@ -138,7 +144,21 @@ export function stepMotion(
     s.wallLatched = false;
     s.vy -= MOVE.gravity * dt;
   }
-  next[1] += s.vy * dt;
+  const proposedY = next[1] + s.vy * dt;
+  if (s.vy > 0) {
+    // Radius scales with the role in LocalPlayer, so deriving height from the
+    // same scale keeps the giant seeker's head collision proportional too.
+    const bodyHeight = 1.8 * (radius / MOVE.playerRadius);
+    const ceiling = ceilingFeetLimitAt(next[0], next[2], next[1], radius, bodyHeight, boxes);
+    if (proposedY >= ceiling) {
+      next[1] = ceiling;
+      s.vy = 0;
+    } else {
+      next[1] = proposedY;
+    }
+  } else {
+    next[1] = proposedY;
+  }
 
   const ground = groundHeightAt(next[0], next[2], next[1], boxes, opts.floorY ?? 0);
   if (next[1] <= ground) {
