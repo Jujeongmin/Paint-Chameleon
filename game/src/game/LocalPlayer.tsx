@@ -5,7 +5,13 @@ import { Humanoid, IDLE_MOTION, type BodyMotion } from "./Humanoid";
 import { Gun, Tracer } from "./Gun";
 import { aimHandOffset } from "./aim";
 import { profileFor } from "./bodies";
-import { FREE_FLY, cameraBoxesFor, cameraModeFor, clampFreeCamera } from "./cameraMode";
+import {
+  FREE_FLY,
+  cameraBoxesFor,
+  cameraModeFor,
+  clampFreeCamera,
+  pointerLookEnabled,
+} from "./cameraMode";
 import { useKeyboard, usePointerLook } from "./input";
 import { MAP_BOXES } from "./map";
 import { CELL_BOXES, CELL_FLOOR_Y, CELL_HALF, CELL_SPAWN, HUNT_START } from "./cell";
@@ -138,7 +144,12 @@ export function LocalPlayer({
     }
   });
 
-  const look = usePointerLook(!paintMode && !frozen, MOVE.mouseSensitivity, yaw, pitch);
+  const look = usePointerLook(
+    pointerLookEnabled(paintMode, frozen, spectating),
+    MOVE.mouseSensitivity,
+    yaw,
+    pitch
+  );
 
   // Which camera is driving. Read in the render below and in the frame loop —
   // one value, because R3F re-registers the useFrame callback every render, so

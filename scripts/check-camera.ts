@@ -7,6 +7,7 @@ import {
   cameraBoxesFor,
   cameraModeFor,
   clampFreeCamera,
+  pointerLookEnabled,
   type CameraModeInput,
 } from "../game/src/game/cameraMode";
 import { CAMERA_RADIUS, clearCameraDistance } from "../game/src/game/camera";
@@ -44,6 +45,9 @@ check(
   cameraModeFor({ ...base, isSeeker: true, phase: "hiding" }) === "follow"
 );
 check("a pinned hider flies free", cameraModeFor({ ...base, charLocked: true }) === "freeFly");
+check("normal frozen play disables mouse look", !pointerLookEnabled(false, true, false));
+check("a frozen spectator keeps mouse look", pointerLookEnabled(false, true, true));
+check("paint mode still owns its own orbit input", !pointerLookEnabled(true, false, true));
 
 // The exclusions the design leans on. Each of these is unreachable through the
 // UI today; they are here so that a change which makes one reachable shows up

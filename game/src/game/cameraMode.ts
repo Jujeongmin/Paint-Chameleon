@@ -49,6 +49,15 @@ export function cameraModeFor({
   return "follow";
 }
 
+/** Whether mouse movement is allowed to turn the active camera. */
+export function pointerLookEnabled(
+  paintMode: boolean,
+  frozen: boolean,
+  spectating: boolean | undefined
+): boolean {
+  return !paintMode && (!frozen || !!spectating);
+}
+
 /**
  * The box a free-flying camera may move in.
  *

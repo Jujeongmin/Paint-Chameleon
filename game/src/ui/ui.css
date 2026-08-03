@@ -1122,8 +1122,19 @@ body.hide-cursor canvas {
   border-color: var(--seeker);
 }
 
+.spectator-banner {
+  padding: 12px 22px;
+  border-radius: 12px;
+}
+
 .spectator-banner h2 {
   color: var(--muted);
+  margin-bottom: 3px;
+  font-size: 18px;
+}
+
+.spectator-banner p {
+  font-size: 11px;
 }
 
 /* The ready button carries its own shortcut. The keycap borrows the button's
