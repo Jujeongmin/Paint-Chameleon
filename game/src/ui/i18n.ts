@@ -134,6 +134,18 @@ const EN = {
   "shop.cannotEquip": "Can't equip that",
   "shop.tryAgain": "Try again in a moment",
 
+  "ad.watchFor": "Watch an ad for {n} coins",
+  "ad.unavailable": "No ad available yet",
+  "ad.tag": "Advertisement",
+  "ad.house": "Paint Chameleon",
+  "ad.remaining": "{n}s",
+  "ad.escape": "Esc to skip — no reward",
+  "ad.earned": "+{n} coins",
+  "ad.cooldown": "Another ad shortly",
+  "ad.capReached": "That's every ad for today",
+  "ad.tooSoon": "Watch it through to earn the coins",
+  "ad.tryAgain": "Ad didn't start — press F again",
+
   // --- paint
   "paint.picker": "Pick a colour from a wall, the floor, or your own body",
   "paint.fill": "Flood the whole body with the current colour",
@@ -274,6 +286,18 @@ const KO: Record<Key, string> = {
   "shop.notForSale": "판매하지 않는 아바타입니다",
   "shop.cannotEquip": "장착할 수 없습니다",
   "shop.tryAgain": "잠시 후 다시 시도해주세요",
+
+  "ad.watchFor": "광고 보고 {n} 코인 받기",
+  "ad.unavailable": "지금은 볼 광고가 없습니다",
+  "ad.tag": "광고",
+  "ad.house": "페인트 카멜레온",
+  "ad.remaining": "{n}초",
+  "ad.escape": "Esc로 건너뛰기 — 보상 없음",
+  "ad.earned": "+{n} 코인",
+  "ad.cooldown": "잠시 뒤에 다시 볼 수 있습니다",
+  "ad.capReached": "오늘 볼 수 있는 광고를 다 봤습니다",
+  "ad.tooSoon": "끝까지 봐야 코인을 받습니다",
+  "ad.tryAgain": "광고가 시작되지 않았습니다 — F를 다시 누르세요",
 
   "paint.picker": "주변 벽·바닥이나 자기 몸에서 색을 뽑습니다",
   "paint.fill": "전체를 현재 색으로",

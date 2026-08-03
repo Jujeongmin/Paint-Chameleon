@@ -15,6 +15,8 @@ export const MIN_PLAYERS = 2;
  * many such places. Raising it past the number of spawn points goes red.
  */
 export const MAX_PLAYERS = 10;
+/** Public match roster is always this large; vacant seats are hider bots. */
+export const MATCH_ROSTER_SIZE = 10;
 /** Must match src/game/constants.ts POSES.length — check:sync enforces it. */
 export const POSE_COUNT = 4;
 
@@ -94,6 +96,52 @@ export const SPAWN_POINTS: [number, number][] = [
 export function randomSpawn(): [number, number, number] {
   const p = SPAWN_POINTS[Math.floor(Math.random() * SPAWN_POINTS.length)];
   return [p[0], 0, p[1]];
+}
+
+export interface RoomBot {
+  account: string;
+  nameKey: string;
+  ready: true;
+  role: "hider";
+  caught: boolean;
+  caughtAt: number | null;
+  spectating: boolean;
+  pos: [number, number, number];
+  rotY: number;
+  pose: number;
+  moving: false;
+  body: "classic";
+}
+
+/** Number of AI hiders needed after real people take their seats. */
+export function botSeatsFor(humanCount: number): number {
+  return Math.max(0, MATCH_ROSTER_SIZE - Math.max(0, Math.floor(humanCount)));
+}
+
+/**
+ * Stable bot seats for a room. Keeping the lowest ids means one person joining
+ * removes exactly one bot without making every remaining body remount.
+ */
+export function syncRoomBots(existing: unknown, humanCount: number, reset = false): RoomBot[] {
+  const old = Array.isArray(existing) ? existing : [];
+  return Array.from({ length: botSeatsFor(humanCount) }, (_, i) => {
+    const previous = old.find((b: any) => b?.account === `bot-${i}`) as RoomBot | undefined;
+    const spawn = SPAWN_POINTS[(i + 2) % SPAWN_POINTS.length];
+    return {
+      account: `bot-${i}`,
+      nameKey: `bot.${i % 7}`,
+      ready: true,
+      role: "hider",
+      caught: reset ? false : !!previous?.caught,
+      caughtAt: reset ? null : previous?.caughtAt ?? null,
+      spectating: reset ? false : !!previous?.spectating,
+      pos: reset || !previous?.pos ? [spawn[0], 0, spawn[1]] : previous.pos,
+      rotY: previous?.rotY ?? 0,
+      pose: reset ? i % POSE_COUNT : previous?.pose ?? i % POSE_COUNT,
+      moving: false,
+      body: "classic",
+    };
+  });
 }
 
 /**
@@ -247,6 +295,19 @@ export interface WalletState {
   coins: number;
   owned: string[];
   equipped: string;
+  /**
+   * Ad bookkeeping. All four are server clock readings, never client ones —
+   * the client never sends a timestamp for any of this, because a reward that
+   * trusts client time is a reward you type into the console.
+   */
+  /** When the open ad started, or 0 when none is open. */
+  adOpenedAt: number;
+  /** When the last reward was granted. */
+  adClaimedAt: number;
+  /** Whole days since the epoch on the day of the last claim. */
+  adDay: number;
+  /** Claims made on `adDay`. Meaningless once the day has rolled. */
+  adCount: number;
 }
 
 /** What an account looks like before it has ever finished a round. */
@@ -254,6 +315,10 @@ export const DEFAULT_WALLET: WalletState = {
   coins: 0,
   owned: [DEFAULT_AVATAR],
   equipped: DEFAULT_AVATAR,
+  adOpenedAt: 0,
+  adClaimedAt: 0,
+  adDay: 0,
+  adCount: 0,
 };
 
 /**
@@ -308,9 +373,12 @@ export function applyPurchase(
   // let it through.
   if (!Number.isFinite(w.coins) || w.coins < price) return { ok: false, reason: "broke" };
 
+  // Spread, not a fresh literal. These two used to name every field, and the
+  // moment the wallet grew ad bookkeeping that became a way to buy the cheapest
+  // avatar and have the daily ad cap and cooldown reset as a side effect.
   return {
     ok: true,
-    wallet: { coins: w.coins - price, owned: [...w.owned, id], equipped: w.equipped },
+    wallet: { ...w, coins: w.coins - price, owned: [...w.owned, id] },
   };
 }
 
@@ -320,7 +388,130 @@ export function applyEquip(
 ): { ok: true; wallet: WalletState } | { ok: false } {
   if (!has(id)) return { ok: false };
   if (!w.owned.includes(id)) return { ok: false };
-  return { ok: true, wallet: { coins: w.coins, owned: [...w.owned], equipped: id } };
+  return { ok: true, wallet: { ...w, owned: [...w.owned], equipped: id } };
+}
+
+// ------------------------------------------------------------ ads for coins
+//
+// Watch an ad, get coins. The reward is granted by the server and only by the
+// server, which is the whole reason this is not three lines in the shop panel:
+// the client is the one place the "did they really watch it" question cannot be
+// answered. So the client never sends a duration, never sends a timestamp, and
+// never sends an amount — it says "starting" and later "done", and every number
+// in between is read off the server clock.
+//
+// A watch is one row's worth of state rather than a ticket table. `adOpenedAt`
+// IS the ticket: startAd stamps it, claimAd consumes it and zeroes it, and both
+// run inside the same per-account $lock the shop already uses. Two claims
+// racing one start therefore cannot both win — the second finds a zero.
+//
+// WHERE THE REAL AD GOES: there is no ad network wired up. `showAd` in
+// game/src/ui/adBreak.ts is the seam, and it currently counts down a panel. The
+// server side below does not care which it is, and that is deliberate — the
+// enforcement is the part that is expensive to add afterwards, so it is here
+// first.
+
+export const AD_REWARD = {
+  coins: 200,
+  /**
+   * Minimum server-measured time between start and claim. Deliberately a
+   * little under the panel's own countdown so a slow round trip on the start
+   * call cannot make an honest full watch land short.
+   */
+  minWatchMs: 14_000,
+  /** Wait after a granted reward before another can start. */
+  cooldownMs: 90_000,
+  /** Rewards per day. A day is UTC — see dayIndex. */
+  dailyCap: 10,
+  /**
+   * A start this old is abandoned, not paused. Without it, opening an ad and
+   * leaving would let you come back a week later and claim instantly, forever,
+   * one free reward per session.
+   */
+  ticketMs: 300_000,
+};
+
+export type AdFailure = "cooldown" | "cap" | "tooSoon" | "noAd" | "stale";
+
+/**
+ * Whole days since the epoch. UTC on purpose: the alternative is the server's
+ * local zone, which makes "today" depend on where the machine happens to be
+ * and moves the daily reset when it is redeployed elsewhere.
+ */
+export function dayIndex(now: number): number {
+  return Math.floor(now / 86_400_000);
+}
+
+/** Claims already made today — zero once the day has rolled past `adDay`. */
+export function adsToday(w: WalletState, now: number): number {
+  return dayIndex(now) === w.adDay ? Math.max(0, Math.floor(w.adCount) || 0) : 0;
+}
+
+export function adsLeft(w: WalletState, now: number): number {
+  return Math.max(0, AD_REWARD.dailyCap - adsToday(w, now));
+}
+
+/** When the next ad may start; in the past means now. */
+export function adReadyAt(w: WalletState, now: number): number {
+  void now;
+  return (Number.isFinite(w.adClaimedAt) ? w.adClaimedAt : 0) + AD_REWARD.cooldownMs;
+}
+
+/**
+ * Pure, like applyPurchase: returns a NEW wallet, so a refused start cannot
+ * leave a half-opened ad behind.
+ */
+export function startAd(
+  w: WalletState,
+  now: number
+): { ok: true; wallet: WalletState } | { ok: false; reason: AdFailure } {
+  if (adsLeft(w, now) <= 0) return { ok: false, reason: "cap" };
+  if (now < adReadyAt(w, now)) return { ok: false, reason: "cooldown" };
+  return { ok: true, wallet: { ...w, owned: [...w.owned], adOpenedAt: now } };
+}
+
+/**
+ * The cap and cooldown are checked AGAIN here, not only in startAd. A start is
+ * cheap and unlimited, so anything that only guards the start guards nothing:
+ * open eleven ads while the cap still allows one, and eleven claims arrive
+ * later. Re-checking at grant time is what actually holds the cap.
+ */
+export function claimAd(
+  w: WalletState,
+  now: number
+): { ok: true; wallet: WalletState; coins: number } | { ok: false; reason: AdFailure; wallet?: WalletState } {
+  const opened = Number.isFinite(w.adOpenedAt) ? w.adOpenedAt : 0;
+  if (opened <= 0) return { ok: false, reason: "noAd" };
+
+  // Clock went backwards, or the row was written by a different machine. Treat
+  // it as abandoned rather than as an instantly-satisfied watch.
+  const watched = now - opened;
+  if (watched > AD_REWARD.ticketMs || watched < 0) {
+    return { ok: false, reason: "stale", wallet: { ...w, owned: [...w.owned], adOpenedAt: 0 } };
+  }
+  if (watched < AD_REWARD.minWatchMs) return { ok: false, reason: "tooSoon" };
+
+  if (adsLeft(w, now) <= 0) {
+    return { ok: false, reason: "cap", wallet: { ...w, owned: [...w.owned], adOpenedAt: 0 } };
+  }
+  if (now < adReadyAt(w, now)) {
+    return { ok: false, reason: "cooldown", wallet: { ...w, owned: [...w.owned], adOpenedAt: 0 } };
+  }
+
+  const today = dayIndex(now);
+  return {
+    ok: true,
+    coins: AD_REWARD.coins,
+    wallet: {
+      ...w,
+      owned: [...w.owned],
+      coins: (Number.isFinite(w.coins) ? w.coins : 0) + AD_REWARD.coins,
+      adOpenedAt: 0,
+      adClaimedAt: now,
+      adDay: today,
+      adCount: adsToday(w, now) + 1,
+    },
+  };
 }
 
 // ----------------------------------------------------------------- game modes

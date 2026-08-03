@@ -75,6 +75,37 @@ export function roundFreezes(phase: string, isSeeker: boolean): boolean {
   return phase === "results" && !isSeeker;
 }
 
+export interface PoseGate {
+  /** In the social hub rather than a match. */
+  inHub: boolean;
+  isSeeker: boolean;
+  phase: string;
+  caught: boolean;
+}
+
+/**
+ * Whether a player may change pose or repaint right now.
+ *
+ * Open for the whole round up to the results, seeking included. It used to stop
+ * the moment the seeker was let out, which made the disguise something you
+ * committed to in the first thirty seconds and then could only watch fail. Being
+ * able to re-pose when you hear footsteps, or match a colour you only noticed
+ * once you were pressed against it, is the game the paint is for.
+ *
+ * The costs are real and are the point: painting freezes you and puts a panel
+ * over the screen (App's `frozen`), so you are choosing to stop looking around
+ * in exchange for a better disguise, in the phase where someone is hunting you.
+ *
+ * Not the seeker — the disguise is a hider's tool, and the seeker's stint in
+ * the holding cell is handled separately (App's `canPaint` adds `inCell`).
+ * Not the results phase, where hiders are pinned so the reveal keeps marking
+ * where they actually hid. Not while caught.
+ */
+export function canPoseNow({ inHub, isSeeker, phase, caught }: PoseGate): boolean {
+  if (inHub || isSeeker || caught) return false;
+  return phase !== "results";
+}
+
 /**
  * When leaving is offered.
  *

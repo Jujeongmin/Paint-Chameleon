@@ -8,9 +8,9 @@
  * Run: npm run check:bodies
  */
 
-import { CAMERA, MOVE, STAND_POSE } from "../game/src/game/constants";
+import { CAMERA, MOVE, POSES, STAND_POSE } from "../game/src/game/constants";
 import { aimHandOffset } from "../game/src/game/aim";
-import { poseBounds, poseSize } from "../game/src/game/poseBounds";
+import { groundedLift, poseBounds, poseSize } from "../game/src/game/poseBounds";
 import {
   BODIES,
   DEFAULT_BODY_ID,
@@ -225,6 +225,48 @@ console.log("\nfirst person");
     );
   }
 }
+
+console.log("\nevery pose stands on the floor");
+{
+  // Careful what is asserted here. poseBounds now applies groundedLift itself,
+  // so "the bottom equals FOOT_Y" is true by construction and would pass no
+  // matter how wrong the transform maths were. This repo has shipped a check
+  // like that before — one asserted `coverage <= 100%`, true of every number —
+  // so the tautology is worth naming rather than writing again.
+  //
+  // What has content is that STANDING needs no correction. FOOT_Y reaches
+  // poseBounds through the rotation, scale and capsule-extent maths, and
+  // reaches derive() through the leg construction: two independent routes. Get
+  // the transform wrong and standing would suddenly need a nonzero lift.
+  for (const b of BODIES) {
+    const lift = groundedLift(b, STAND_POSE);
+    check(
+      `${b.id} standing needs no correction to reach the floor`,
+      Math.abs(lift) < EPS,
+      `lift ${lift.toFixed(6)}`
+    );
+  }
+
+  // The other poses used to carry a hand-set offset and not one of them landed:
+  // lying hovered between 7.5cm and 9.3cm depending on the body, crouching sank
+  // 2.3cm in. One number cannot ground three sets of radii once they are
+  // rotated, which is why the offset is gone rather than retuned.
+  //
+  // So what is left worth checking is that the correction really does differ
+  // per body. If the three ever agreed, a constant would have been adequate all
+  // along and this machinery would be dead weight worth deleting.
+  for (let i = 0; i < POSES.length; i++) {
+    if (i === STAND_POSE) continue;
+    const lifts = BODIES.map((b) => groundedLift(b, i));
+    const spread = Math.max(...lifts) - Math.min(...lifts);
+    check(
+      `${POSES[i].id} needs a per-body height, not one constant`,
+      spread > EPS,
+      `${lifts.map((v) => v.toFixed(4)).join(", ")} — spread ${spread.toFixed(4)}`
+    );
+  }
+}
+
 
 if (failures === 0) {
   console.log(`\n✅ ${BODIES.length} body profiles are cosmetic-only\n`);

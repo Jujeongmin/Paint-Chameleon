@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { Stand } from "../hub/hubMap";
 import { standAction } from "./standAction";
 import type { Wallet } from "./useWallet";
+import { AD_REWARD } from "../game/coins";
 import { t } from "./i18n";
 
 interface Props {
@@ -28,11 +29,23 @@ const LABEL = {
 export function ShopPrompt({ stand, wallet }: Props) {
   const action = stand ? standAction(stand, wallet.wallet) : null;
 
+  // The E half needs a buyable or equippable stand; the F half does not, so
+  // the listener is bound whenever the player is at a stand at all. Without
+  // this, standing at an avatar you cannot afford — the exact moment the ad is
+  // for — is the one place F would have done nothing.
   useEffect(() => {
-    if (!stand || (action !== "buy" && action !== "equip")) return;
+    if (!stand) return;
     const onKey = (e: KeyboardEvent) => {
       // `repeat` guard: holding E down would otherwise fire once per key-repeat
       // tick, and this action has no confirmation step to stop it.
+      // F is the ad and is offered at every stand, including ones you already
+      // own — you come to the shop to afford something, not only to buy the
+      // thing you happen to be facing.
+      if (e.code === "KeyF" && !e.repeat && !wallet.busy) {
+        e.preventDefault();
+        wallet.watchAd();
+        return;
+      }
       if (e.code !== "KeyE" || e.repeat || wallet.busy) return;
       e.preventDefault();
       if (action === "equip") wallet.equip(stand.id);
@@ -55,6 +68,15 @@ export function ShopPrompt({ stand, wallet }: Props) {
           </>
         ) : (
           LABEL[action]
+        )}
+      </div>
+      <div className={"stand-ad" + (wallet.adReady ? "" : " denied")}>
+        {wallet.adReady ? (
+          <>
+            <kbd>F</kbd> {t("ad.watchFor", { n: AD_REWARD.coins })}
+          </>
+        ) : (
+          t("ad.unavailable")
         )}
       </div>
       {wallet.message && <div className="stand-message">{wallet.message}</div>}

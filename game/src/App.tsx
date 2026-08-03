@@ -19,7 +19,7 @@ import { hsvToRgb, rgbToHsv } from "./ui/ColorWheel";
 import { ConnectingScreen, LoadingScreen, NickScreen, ResultsOverlay, WaitingBanner } from "./ui/Screens";
 import { runWarmup, type WarmupProgress } from "./game/warmup";
 import { fetchSavedNick, saveNick } from "./net/profile";
-import { DEFAULT_MODE, canLeaveNow, caughtIsOut, roundFreezes } from "./game/modes";
+import { DEFAULT_MODE, canLeaveNow, canPoseNow, caughtIsOut, roundFreezes } from "./game/modes";
 import {
   BRUSH,
   NET_THROTTLE_MS,
@@ -142,7 +142,7 @@ export default function App() {
   // during the hunt starts, never once caught. The seeker's own facing has to
   // track their camera exactly for the server's shot facing check, so their pose is
   // fixed and the menu stays closed for them.
-  const canPose = !inHub && !isSeeker && (phase === "hiding" || phase === "lobby") && !me?.caught;
+  const canPose = canPoseNow({ inHub, isSeeker, phase, caught: !!me?.caught });
   const canPaint = canPose || inCell;
 
   const mode = room?.mode ?? DEFAULT_MODE;
@@ -641,12 +641,11 @@ export default function App() {
             />
           )}
 
-          {phase === "lobby" && players.length < room.minPlayers && (
-            <WaitingBanner count={players.length} needed={room.minPlayers} />
+          {phase === "lobby" && players.filter((p) => !p.bot).length < room.minPlayers && (
+            <WaitingBanner count={players.filter((p) => !p.bot).length} needed={room.minPlayers} />
           )}
         </>
       )}
     </>
   );
 }
-

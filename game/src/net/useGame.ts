@@ -9,9 +9,18 @@ import { MIN_PLAYERS, type Phase } from "../game/constants";
 import { DEFAULT_MODE, modeOf, type GameMode } from "../game/modes";
 import { surfaceFor } from "../game/paint";
 import { playShot, shotGainFor } from "../audio/sound";
-import type { LeaderboardResult, PlayerState, RoomInfo, WireDab, WalletView, BuyResult } from "./types";
+import type {
+  AdClaimResult,
+  AdStartResult,
+  LeaderboardResult,
+  PlayerState,
+  RoomInfo,
+  WireDab,
+  WalletView,
+  BuyResult,
+} from "./types";
 import { useOfflineGame } from "./offline";
-import { t } from "../ui/i18n";
+import { t, type Key } from "../ui/i18n";
 
 export type { LeaderboardResult, PlayerState, RoomInfo, RankedLeaderboardEntry, WireDab, WalletView, BuyResult, BuyFailure } from "./types";
 
@@ -120,15 +129,24 @@ function useOnlineGame() {
       seeker: rawRoom.seeker ?? null,
       scores: rawRoom.scores || {},
       lastResults: rawRoom.lastResults ?? null,
+      bots: Array.isArray(rawRoom.bots) ? rawRoom.bots : [],
       // The live server won't start a round below MIN_PLAYERS — see RoomInfo.
       minPlayers: MIN_PLAYERS,
     };
   }, [rawRoom]);
 
-  const players: PlayerState[] = useMemo(
-    () => (Array.isArray(rawAll) ? (rawAll as PlayerState[]).filter((p) => p && p.account) : []),
-    [rawAll]
-  );
+  const players: PlayerState[] = useMemo(() => {
+    const humans = Array.isArray(rawAll) ? (rawAll as PlayerState[]).filter((p) => p && p.account) : [];
+    if (rawRoom?.kind === "hub") return humans;
+    const bots = Array.isArray(rawRoom?.bots)
+      ? rawRoom.bots.map((b: PlayerState) => ({
+          ...b,
+          bot: true,
+          nick: b.nameKey ? t(b.nameKey as Key) : b.nick,
+        }))
+      : [];
+    return [...humans, ...bots];
+  }, [rawAll, rawRoom?.bots, rawRoom?.kind]);
 
   const me: PlayerState | null = (rawMine as PlayerState) ?? null;
 
@@ -212,6 +230,18 @@ function useOnlineGame() {
     [server]
   );
 
+  // No arguments on either, and that is the design: the client has nothing to
+  // say about an ad that the server would be willing to believe.
+  const startAdWatch = useCallback(
+    async (): Promise<AdStartResult> => await server.remoteFunction("startAdWatch", []),
+    [server]
+  );
+
+  const claimAdReward = useCallback(
+    async (): Promise<AdClaimResult> => await server.remoteFunction("claimAdReward", []),
+    [server]
+  );
+
   return {
     server,
     account,
@@ -234,5 +264,7 @@ function useOnlineGame() {
     fetchWallet,
     buyAvatar,
     equipAvatar,
+    startAdWatch,
+    claimAdReward,
   };
 }

@@ -21,7 +21,8 @@
     "check:shot": "tsx scripts/check-shot.ts",
     "check:paint": "tsx scripts/check-paint.ts",
     "check:camera": "tsx scripts/check-camera.ts",
-    "check": "tsc --noEmit && npm run check:sync && npm run check:bodies && npm run check:shop && npm run check:shot && npm run check:paint && npm run check:camera && npm run check:bot && npm run check:modes && npm run check:i18n && npm run check:movement && npm run check:hub && npm run check:map && npm run check:balance && npm run check:perf && npm run check:cell && npm run check:audio && npm run check:leaderboard && npm run server:test",
+    "check:pose-floor": "tsx scripts/check-pose-floor.ts",
+    "check": "tsc --noEmit && npm run check:sync && npm run check:bodies && npm run check:shop && npm run check:shot && npm run check:paint && npm run check:camera && npm run check:pose-floor && npm run check:bot && npm run check:modes && npm run check:i18n && npm run check:movement && npm run check:hub && npm run check:map && npm run check:balance && npm run check:perf && npm run check:cell && npm run check:audio && npm run check:leaderboard && npm run server:test",
     "deploy": "npx -y @agent8/deploy",
     "check:bot": "tsx scripts/check-bot.ts",
     "check:balance": "tsx scripts/check-balance.ts",
@@ -33,6 +34,7 @@
     "@agent8/gameserver": "^1.10.2",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
+    "@verse8/ads": "^0.4.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.169.0"
@@ -42,7 +44,7 @@
     "@types/react-dom": "^18.3.7",
     "@types/three": "^0.169.0",
     "@vitejs/plugin-react": "^4.7.0",
-    "tsx": "^4.23.1",
+    "tsx": "^4.23.5",
     "typescript": "^5.9.3",
     "vite": "^5.4.21"
   }

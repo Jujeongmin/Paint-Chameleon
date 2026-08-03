@@ -4,12 +4,16 @@
  */
 import {
   FREE_FLY,
+  cameraBoxesFor,
   cameraModeFor,
   clampFreeCamera,
   type CameraModeInput,
 } from "../game/src/game/cameraMode";
-import { CAMERA_RADIUS } from "../game/src/game/camera";
+import { CAMERA_RADIUS, clearCameraDistance } from "../game/src/game/camera";
 import { MAP_BOXES } from "../game/src/game/map";
+import { ARENA, type MapBox } from "../game/src/game/arena";
+import { CELL_BOXES } from "../game/src/game/cell";
+import { CAMERA, MOVE } from "../game/src/game/constants";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = ""): void {
@@ -114,6 +118,71 @@ check(
   "nothing standing on the floor reaches the roof",
   tallestUnderRoof <= roofUnderside,
   `tallest ${tallestUnderRoof.toFixed(1)} vs underside ${roofUnderside}`
+);
+
+
+// --- Paint mode against a wall -------------------------------------------
+//
+// The bug this pins: a hider paints where they mean to hide, and that is
+// against a wall. Orbiting to the far side put the wall between camera and
+// pivot, and clearCameraDistance answers a blocked ray with the blocked
+// distance — `paintMinDistance` reads like a floor in the signature and is not
+// one. The camera ended up inside the head and that side stayed unpainted.
+//
+// Both halves are asserted. The second is the fix; the FIRST is the reason the
+// fix has to exist, and if it ever goes green on its own the exception in
+// cameraBoxesFor is no longer earning its keep and should go.
+
+const wallInner = ARENA.size / 2 - ARENA.wallThickness;
+// Standing as close to the north wall as a body can get.
+const pivot = { x: 0, y: 0.95, z: wallInner - MOVE.playerRadius };
+const desired = CAMERA.paintFar;
+
+/** Worst distance the camera gets over a full turn around the body. */
+function worstOrbit(boxes: MapBox[]): number {
+  let worst = Infinity;
+  for (let i = 0; i < 64; i++) {
+    const a = (i / 64) * Math.PI * 2;
+    // Same construction as the follow rig: yaw around, pitched slightly down.
+    const pitch = 0.15;
+    const dir = {
+      x: Math.sin(a) * Math.cos(pitch),
+      y: Math.sin(pitch),
+      z: Math.cos(a) * Math.cos(pitch),
+    };
+    worst = Math.min(
+      worst,
+      clearCameraDistance(pivot, dir, desired, CAMERA.paintMinDistance, boxes, 0)
+    );
+  }
+  return worst;
+}
+
+const collided = worstOrbit(MAP_BOXES);
+check(
+  "colliding with the map DOES strand the camera beside a wall — the reason paint mode opts out",
+  collided < CAMERA.paintMinDistance,
+  `worst ${collided.toFixed(2)} < paintMinDistance ${CAMERA.paintMinDistance}`
+);
+
+const painting = worstOrbit(cameraBoxesFor(true, false));
+check(
+  "paint mode keeps the full distance all the way round, so every side is reachable",
+  painting >= desired - 1e-6,
+  `worst ${painting.toFixed(2)} vs desired ${desired}`
+);
+
+// The exception is paint mode's alone. Play and the holding cell must still
+// collide, or the follow camera would sit outside the world.
+check(
+  "play still collides with the map",
+  cameraBoxesFor(false, false) === MAP_BOXES,
+  `${cameraBoxesFor(false, false).length} boxes`
+);
+check(
+  "the holding cell still collides with its own boxes",
+  cameraBoxesFor(false, true) === CELL_BOXES,
+  `${cameraBoxesFor(false, true).length} boxes`
 );
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall good");

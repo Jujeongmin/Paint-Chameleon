@@ -43,8 +43,12 @@ import {
   huntOver,
   isGameMode,
   type GameMode,
+  startAd,
+  claimAd,
+  syncRoomBots,
   type WalletState,
   type PurchaseFailure,
+  type AdFailure,
 } from "./rules";
 
 type Phase = "lobby" | "hiding" | "seeking" | "results";
@@ -123,6 +127,7 @@ async function startRound(roomId: string, users: Array<Record<string, any>>, sta
     seekerHistory: [...history, seeker].slice(-12),
     phaseEndsAt: now + PHASE_SECONDS.hiding * 1000,
     lastResults: null,
+    bots: syncRoomBots(state.bots, users.length, true),
   });
 
   // Everyone starts each round unpainted.
@@ -164,6 +169,12 @@ async function endRound(roomId: string, users: Array<Record<string, any>>, state
     });
   }
 
+  for (const bot of syncRoomBots(state.bots, users.length)) {
+    if (bot.caught) catches++;
+    const gained = bot.caught ? 0 : SCORE.hiderSurvived;
+    results.push({ account: bot.account, nick: bot.nameKey, nameKey: bot.nameKey, caught: bot.caught, gained, bot: true });
+  }
+
   if (state.seeker) {
     const gained = catches * SCORE.seekerPerCatch;
     scores[state.seeker] = (scores[state.seeker] || 0) + gained;
@@ -187,6 +198,7 @@ async function endRound(roomId: string, users: Array<Record<string, any>>, state
   // non-critical panel that re-polls on its own; a dropped coin grant is lost
   // rather than retried (see grantCoins below for why retrying is worse).
   for (const r of results) {
+    if (r.bot) continue;
     const nick = r.seeker ? users.find((u) => u.account === r.account)?.nick ?? "" : r.nick;
     try {
       await upsertLeaderboard(r.account, nick, r.gained);
@@ -242,6 +254,13 @@ async function readWallet(account: string): Promise<{ wallet: WalletState; __id:
       // the free avatar, or the player loses the body they're standing in.
       owned: owned.length ? owned : [...DEFAULT_WALLET.owned],
       equipped: row.equipped || DEFAULT_WALLET.equipped,
+      // Rows written before ads existed have none of these columns, and num()
+      // turns the resulting undefined into 0 — which is exactly "never watched
+      // one", so an old account starts with a full daily allowance.
+      adOpenedAt: num(row.adOpenedAt),
+      adClaimedAt: num(row.adClaimedAt),
+      adDay: num(row.adDay),
+      adCount: num(row.adCount),
     },
     __id: row.__id,
   };
@@ -252,6 +271,10 @@ async function writeWallet(account: string, __id: string | null, wallet: WalletS
     coins: wallet.coins,
     owned: serializeOwned(wallet.owned),
     equipped: wallet.equipped,
+    adOpenedAt: wallet.adOpenedAt,
+    adClaimedAt: wallet.adClaimedAt,
+    adDay: wallet.adDay,
+    adCount: wallet.adCount,
   };
   if (__id) await $global.updateCollectionItem(WALLET_COLLECTION, { __id, ...fields });
   else await $global.addCollectionItem(WALLET_COLLECTION, { account, ...fields });
@@ -347,6 +370,7 @@ export class Server {
         scores: {},
         phaseEndsAt: 0,
         lastResults: null,
+        bots: syncRoomBots([], 1, true),
       });
     }
 
@@ -369,6 +393,14 @@ export class Server {
       spectating: false,
     });
 
+    // A human takes one of the ten public seats immediately. $roomTick also
+    // repairs this after disconnects, where there is no leave callback.
+    const joinedState = await $global.getRoomState(roomId);
+    const humanAccounts = await $global.getRoomUserAccounts(roomId);
+    await $global.updateRoomState(roomId, {
+      bots: syncRoomBots(joinedState.bots, humanAccounts.length),
+    });
+
     return { roomId };
   }
 
@@ -380,6 +412,7 @@ export class Server {
       kind: s.kind ?? null,
       phase: s.phase ?? null,
       users: Array.isArray(s.$users) ? s.$users.length : 0,
+      bots: Array.isArray(s.bots) ? s.bots : [],
     }));
   }
 
@@ -456,6 +489,54 @@ export class Server {
 
       await writeWallet(account, __id, result.wallet);
       return { ok: true as const, wallet: result.wallet };
+    });
+  }
+
+  /**
+   * Open an ad. Returns the wallet so the client can show the remaining count
+   * without a second round trip, and `startedAt` so it knows the server agreed
+   * — the client's own clock is never the one that decides anything here.
+   *
+   * Under the same wallet lock as buying: a start writes the row, and a start
+   * racing a claim would otherwise read a wallet the claim is about to replace.
+   */
+  async startAdWatch(): Promise<
+    { ok: true; wallet: WalletState } | { ok: false; reason: AdFailure; wallet: WalletState }
+  > {
+    const account = $sender.account;
+    return await $lock("wallet:" + account, async () => {
+      const { wallet, __id } = await readWallet(account);
+      const result = startAd(wallet, Date.now());
+      if (!result.ok) return { ok: false as const, reason: result.reason, wallet };
+
+      await writeWallet(account, __id, result.wallet);
+      return { ok: true as const, wallet: result.wallet };
+    });
+  }
+
+  /**
+   * Claim the reward. Every check that matters lives in claimAd and runs on
+   * this side of the wire; the client sends nothing but the request itself.
+   *
+   * A refusal can still carry a wallet to write — a stale or over-cap ticket
+   * has to be cleared, or it sits in the row and gets retried forever.
+   */
+  async claimAdReward(): Promise<
+    | { ok: true; wallet: WalletState; coins: number }
+    | { ok: false; reason: AdFailure; wallet: WalletState }
+  > {
+    const account = $sender.account;
+    return await $lock("wallet:" + account, async () => {
+      const { wallet, __id } = await readWallet(account);
+      const result = claimAd(wallet, Date.now());
+
+      if (!result.ok) {
+        if (result.wallet) await writeWallet(account, __id, result.wallet);
+        return { ok: false as const, reason: result.reason, wallet: result.wallet ?? wallet };
+      }
+
+      await writeWallet(account, __id, result.wallet);
+      return { ok: true as const, wallet: result.wallet, coins: result.coins };
     });
   }
 
@@ -562,7 +643,9 @@ export class Server {
 
     const users = await $room.getAllUserStates();
     const me = users.find((u) => u.account === $sender.account);
-    const target = users.find((u) => u.account === targetAccount) ?? null;
+    const bots = syncRoomBots(state.bots, users.length);
+    const botTarget = bots.find((b) => b.account === targetAccount) ?? null;
+    const target = users.find((u) => u.account === targetAccount) ?? botTarget;
     const now = Date.now();
 
     // `me` can be legitimately missing right after joinGame (see the "shot is
@@ -604,7 +687,14 @@ export class Server {
     // What a catch DOES is the difference between the two rooms, and it is
     // decided in one place so the two can never drift into a third behaviour.
     const mode: GameMode = isGameMode(state.mode) ? state.mode : DEFAULT_MODE;
-    await $room.updateUserState(targetAccount, catchPatch(mode, now));
+    if (botTarget) {
+      const nextBots = bots.map((b) =>
+        b.account === targetAccount ? { ...b, caught: true, caughtAt: now, spectating: true } : b
+      );
+      await $global.updateRoomState($sender.roomId, { bots: nextBots });
+    } else {
+      await $room.updateUserState(targetAccount, catchPatch(mode, now));
+    }
     await $room.broadcastToRoom("caught", {
       account: targetAccount,
       by: $sender.account,
@@ -632,6 +722,11 @@ export class Server {
     for (const account of users) {
       const s = await $global.getRoomUserState(roomId, account);
       userStates.push({ ...s, account });
+    }
+
+    const bots = syncRoomBots(state.bots, users.length);
+    if (JSON.stringify(bots) !== JSON.stringify(state.bots ?? [])) {
+      await $global.updateRoomState(roomId, { bots });
     }
 
     switch (phase) {
@@ -676,7 +771,7 @@ export class Server {
         // precisely because a caught player there changes ROLE rather than
         // setting a flag, so "nobody left to find" is the same sentence.
         const seekerGone = !!state.seeker && !users.includes(state.seeker);
-        if (now >= num(state.phaseEndsAt) || huntOver(userStates) || seekerGone) {
+        if (now >= num(state.phaseEndsAt) || huntOver([...userStates, ...bots]) || seekerGone) {
           await endRound(roomId, userStates, state);
         }
         break;

@@ -19,6 +19,8 @@ import {
   catchPatch,
   huntOver,
   isGameMode,
+  botSeatsFor,
+  syncRoomBots,
   type GameMode,
   type RoundUser,
 } from "../server/src/rules";
@@ -28,6 +30,7 @@ import {
   canLeaveNow,
   caughtIsOut,
   modeOf,
+  canPoseNow,
   roundFreezes,
 } from "../game/src/game/modes";
 import { MIN_PLAYERS, MAX_PLAYERS } from "../server/src/rules";
@@ -210,6 +213,55 @@ console.log("\nthe hub's doors lead where they claim");
     "closed doors promise nothing",
     PORTALS.filter((p) => !p.available).every((p) => !p.mode)
   );
+}
+
+console.log("\nposing and painting during a round");
+{
+  const base = { inHub: false, isSeeker: false, caught: false };
+
+  // The change this pins: seeking used to be closed, which made the disguise a
+  // thing you committed to in the first thirty seconds and then watched fail.
+  check("a hider can re-pose while the seeker is hunting", canPoseNow({ ...base, phase: "seeking" }));
+  check("and while still hiding", canPoseNow({ ...base, phase: "hiding" }));
+  check("and in the lobby before the round", canPoseNow({ ...base, phase: "lobby" }));
+
+  // Results keeps hiders pinned so the reveal marks where they actually hid —
+  // roundFreezes says the same thing about movement, and the two must agree or
+  // a hider could re-pose while frozen in place.
+  check("but not once the round is over", !canPoseNow({ ...base, phase: "results" }));
+  check(
+    "...which is the same call roundFreezes makes",
+    roundFreezes("results", false) === !canPoseNow({ ...base, phase: "results" })
+  );
+
+  check("the seeker never poses", !canPoseNow({ ...base, isSeeker: true, phase: "seeking" }));
+  check("a caught player never poses", !canPoseNow({ ...base, caught: true, phase: "seeking" }));
+  check("nobody poses in the hub", !canPoseNow({ ...base, inHub: true, phase: "lobby" }));
+
+  // Every phase, so a new one cannot quietly default to open.
+  for (const phase of ["lobby", "hiding", "seeking", "results"]) {
+    const open = canPoseNow({ ...base, phase });
+    check(`${phase}: ${open ? "open" : "closed"} to a live hider`, open === (phase !== "results"));
+  }
+}
+
+console.log("\nten seats, with AI hiders filling every vacancy");
+{
+  check("one human sees nine bots", botSeatsFor(1) === 9);
+  check("two humans see eight bots", botSeatsFor(2) === 8);
+  check("ten humans leave no bot seat", botSeatsFor(10) === 0);
+
+  const before = syncRoomBots([], 1, true);
+  const after = syncRoomBots(before, 2);
+  check("the lobby roster is already ten", 1 + before.length === 10);
+  check("a joining human replaces exactly one bot", 2 + after.length === 10 && after.length === before.length - 1);
+  check("remaining bot identities stay stable", after.every((b, i) => b.account === before[i].account));
+  check("every bot is a ready hider", before.every((b) => b.ready && b.role === "hider"));
+
+  before[0].caught = true;
+  before[0].spectating = true;
+  const reset = syncRoomBots(before, 1, true);
+  check("a new round revives bots", reset.every((b) => !b.caught && !b.spectating));
 }
 
 if (failures === 0) {

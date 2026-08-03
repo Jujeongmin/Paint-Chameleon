@@ -18,6 +18,22 @@ describe("matchmaking", () => {
 
     expect(b.roomId).toBe(a.roomId);
   });
+
+  test("AI hiders fill the lobby to ten and yield seats to humans", async (server) => {
+    server.connect({ account: "user-roster-a" });
+    const a = await server.joinGame("roster-a");
+    let room = (await server.__rooms()).find((r: any) => r.roomId === a.roomId);
+    expect(room.users + room.bots.length).toBe(10);
+    expect(room.bots.length).toBe(9);
+    expect(room.bots.every((b: any) => b.ready && b.role === "hider")).toBe(true);
+
+    server.connect({ account: "user-roster-b" });
+    await server.joinGame("roster-b");
+    room = (await server.__rooms()).find((r: any) => r.roomId === a.roomId);
+    expect(room.users + room.bots.length).toBe(10);
+    expect(room.bots.length).toBe(8);
+    expect(room.bots[0].account).toBe("bot-0");
+  });
 });
 
 describe("hub", () => {
@@ -266,5 +282,72 @@ describe("avatar shop", () => {
     const w = await server.getWallet();
     expect(w.coins).toBe(0);
     expect(w.owned.length).toBe(1);
+  });
+});
+
+describe("ads for coins", () => {
+  // These are the only ad tests that touch storage. The decision logic is
+  // covered exhaustively by scripts/check-shop.ts against the pure functions;
+  // what those cannot reach is the round trip — four new columns that have to
+  // survive being written to the wallet collection and read back, and a
+  // default-wallet path for rows written before ads existed.
+  test("a brand new account has watched no ads", async (server) => {
+    server.connect({ account: "user-ad-fresh" });
+    await server.joinHub("adfresh");
+
+    const w = await server.getWallet();
+    expect(w.adOpenedAt).toBe(0);
+    expect(w.adClaimedAt).toBe(0);
+    expect(w.adCount).toBe(0);
+  });
+
+  test("starting an ad is allowed and persists the open ticket", async (server) => {
+    server.connect({ account: "user-ad-start" });
+    await server.joinHub("adstart");
+
+    const res = await server.startAdWatch();
+    expect(res.ok).toBe(true);
+
+    // Read back through a separate call: this is the part that proves the
+    // column was written, not just returned.
+    const w = await server.getWallet();
+    expect(w.adOpenedAt > 0).toBe(true);
+    expect(w.coins).toBe(0);
+  });
+
+  test("claiming immediately pays nothing", async (server) => {
+    server.connect({ account: "user-ad-instant" });
+    await server.joinHub("adinstant");
+
+    await server.startAdWatch();
+    const res = await server.claimAdReward();
+    expect(res.ok).toBe(false);
+    expect(res.reason).toBe("tooSoon");
+
+    const w = await server.getWallet();
+    expect(w.coins).toBe(0);
+  });
+
+  test("claiming without starting is refused", async (server) => {
+    server.connect({ account: "user-ad-noticket" });
+    await server.joinHub("adnoticket");
+
+    const res = await server.claimAdReward();
+    expect(res.ok).toBe(false);
+    expect(res.reason).toBe("noAd");
+  });
+
+  // The open ticket must survive a purchase. applyPurchase used to rebuild the
+  // wallet field by field, which dropped it — and dropping it here would mean
+  // a player who buys something mid-ad loses the reward they earned.
+  test("an open ad survives an unrelated wallet write", async (server) => {
+    server.connect({ account: "user-ad-through-buy" });
+    await server.joinHub("adbuy");
+
+    await server.startAdWatch();
+    await server.buyAvatar("tank"); // refused — no coins. The write still runs.
+
+    const w = await server.getWallet();
+    expect(w.adOpenedAt > 0).toBe(true);
   });
 });

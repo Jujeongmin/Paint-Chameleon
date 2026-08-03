@@ -30,7 +30,14 @@ import {
   SHOT as CLIENT_SHOT,
 } from "../game/src/game/constants";
 import { CELL_SPAWN as CLIENT_CELL, HUNT_START as CLIENT_HUNT_START } from "../game/src/game/cell";
-import { COINS as CLIENT_COINS, coinsFor as clientCoinsFor } from "../game/src/game/coins";
+import {
+  AD_REWARD as CLIENT_AD,
+  AD_PANEL_MS,
+  COINS as CLIENT_COINS,
+  WALLET_FIELDS,
+  coinsFor as clientCoinsFor,
+} from "../game/src/game/coins";
+import { claimAd as clientClaimAd, startAd as clientStartAd } from "../game/src/game/adRules";
 import {
   ARENA as SERVER_ARENA,
   SPAWN_POINTS as SERVER_SPAWNS,
@@ -39,6 +46,10 @@ import {
   POSE_COUNT as SERVER_POSE_COUNT,
   MOVE_SPEED_CAP,
   AVATAR_PRICES,
+  AD_REWARD as SERVER_AD,
+  DEFAULT_WALLET,
+  claimAd as serverClaimAd,
+  startAd as serverStartAd,
   SHOT as SERVER_SHOT,
   PAINT_LIMITS as SERVER_PAINT,
   PHASE_SECONDS as SERVER_PHASES,
@@ -325,6 +336,81 @@ console.log("\nspawn safety");
     pass(`all ${SERVER_SPAWNS.length} server spawns are clear of client collision`);
   }
 }
+
+console.log("\nads for coins");
+{
+  const keys = (Object.keys(DEFAULT_WALLET) as string[]).slice().sort();
+  const mirrored = WALLET_FIELDS.slice().sort();
+  // tsc already holds WALLET_FIELDS against the WalletView type (see coins.ts).
+  // This is the other half: that type is the CLIENT's idea of a wallet, and
+  // DEFAULT_WALLET is the server's. A field added on the server alone reaches
+  // neither the type nor the list, so only this comparison would notice.
+  if (JSON.stringify(keys) === JSON.stringify(mirrored)) {
+    pass(`wallet has the same ${keys.length} fields on both sides`);
+  } else {
+    fail(`wallet fields differ: client ${JSON.stringify(mirrored)} vs server ${JSON.stringify(keys)}`);
+  }
+
+  const sameTerms = (Object.keys(SERVER_AD) as Array<keyof typeof SERVER_AD>).every(
+    (k) => CLIENT_AD[k] === SERVER_AD[k]
+  );
+  if (sameTerms) pass(`ad terms match (${JSON.stringify(SERVER_AD)})`);
+  else fail(`ad terms differ: ${JSON.stringify(CLIENT_AD)} vs ${JSON.stringify(SERVER_AD)}`);
+
+  // The panel is client-only, but it decides when claimAd gets called, so it
+  // has to clear the server's floor. Below it, every honest watch is refused.
+  if (AD_PANEL_MS >= SERVER_AD.minWatchMs) {
+    pass(`the panel runs ${AD_PANEL_MS}ms, at or above the server's ${SERVER_AD.minWatchMs}ms floor`);
+  } else {
+    fail(`the panel finishes at ${AD_PANEL_MS}ms but the server wants ${SERVER_AD.minWatchMs}ms`);
+  }
+
+  // Equal constants are not equal answers — same argument as coins above. The
+  // rehearsal rig runs the client copy and real players hit the server copy, so
+  // a difference in the REFUSALS is a difference in the only thing the rig is
+  // there to rehearse.
+  const NOON = Math.floor(1_700_000_000_000 / 86_400_000) * 86_400_000 + 43_200_000;
+  const today = Math.floor(NOON / 86_400_000);
+  const base = { ...DEFAULT_WALLET, owned: [...DEFAULT_WALLET.owned] };
+  const wallets = [
+    base,
+    { ...base, adOpenedAt: NOON },
+    { ...base, adOpenedAt: NOON, adClaimedAt: NOON },
+    { ...base, adClaimedAt: NOON },
+    { ...base, adDay: today, adCount: SERVER_AD.dailyCap },
+    { ...base, adDay: today, adCount: SERVER_AD.dailyCap, adOpenedAt: NOON },
+    { ...base, adOpenedAt: NOON + 5_000 },
+    { ...base, coins: NaN, adOpenedAt: NOON },
+  ];
+  const clocks = [
+    NOON,
+    NOON + SERVER_AD.minWatchMs - 1,
+    NOON + SERVER_AD.minWatchMs,
+    NOON + SERVER_AD.cooldownMs,
+    NOON + SERVER_AD.ticketMs + 1,
+    NOON + 86_400_000,
+  ];
+
+  let drift = 0;
+  for (const w of wallets) {
+    for (const now of clocks) {
+      const a = JSON.stringify(serverStartAd(w, now));
+      const b = JSON.stringify(clientStartAd(w, now));
+      if (a !== b) {
+        drift++;
+        fail(`startAd disagrees at +${now - NOON}ms: server ${a}, client ${b}`);
+      }
+      const c = JSON.stringify(serverClaimAd(w, now));
+      const d = JSON.stringify(clientClaimAd(w, now));
+      if (c !== d) {
+        drift++;
+        fail(`claimAd disagrees at +${now - NOON}ms: server ${c}, client ${d}`);
+      }
+    }
+  }
+  if (drift === 0) pass(`startAd and claimAd agree across ${wallets.length * clocks.length * 2} cases`);
+}
+
 
 if (failures === 0) {
   console.log("\n✅ client and server agree\n");
