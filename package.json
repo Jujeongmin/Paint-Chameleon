@@ -34,6 +34,7 @@
     "@agent8/gameserver": "^1.10.2",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
+    "@verse8/ads": "^0.4.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.169.0"
@@ -43,7 +44,7 @@
     "@types/react-dom": "^18.3.7",
     "@types/three": "^0.169.0",
     "@vitejs/plugin-react": "^4.7.0",
-    "tsx": "^4.23.1",
+    "tsx": "^4.23.5",
     "typescript": "^5.9.3",
     "vite": "^5.4.21"
   }

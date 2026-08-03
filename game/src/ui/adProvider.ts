@@ -1,14 +1,15 @@
 /**
- * The seam where a real ad goes.
+ * Where the real ad goes.
  *
- * There is no ad network wired into this build. `showAd` is what the shop
- * calls, and today it resolves after `AD_PANEL_MS` while <AdBreak/> draws a
- * countdown. Swapping in a real one means replacing this function and nothing
- * else — the server's reward rules never learn which it was, on purpose. They
- * measure elapsed time on their own clock either way (see `claimAd` in
- * server/src/rules.ts), so a provider change cannot weaken them.
+ * In a deployed Verse8 build `showAd` hands the watch to @verse8/ads and maps
+ * the result onto the same `{ completed }` contract the server's reward rules
+ * expect. Where no ad host exists — offline rehearsal, a plain browser — it
+ * falls back to the in-app countdown panel so the rig still rehearses the
+ * whole flow. Either way the server never learns which provider it was, on
+ * purpose: it measures elapsed time on its own clock (see `claimAd` in
+ * server/src/rules.ts), so a provider change cannot weaken it.
  *
- * The contract a real provider has to keep:
+ * The contract any provider has to keep:
  *
  * - Resolve `{ completed: true }` only when the ad was watched to the end.
  *   Resolving early costs nothing — the server refuses the claim with
@@ -20,14 +21,26 @@
  * - Return control to the page. Pointer lock is already released by the shop
  *   before this is called.
  */
+import { Verse8Ads } from "@verse8/ads";
 import { AD_PANEL_MS } from "../game/coins";
 
 export interface AdOutcome {
   completed: boolean;
 }
 
-/** Progress of the placeholder ad, 0..1. Null when no ad is on screen. */
+/** Progress of the fallback ad, 0..1. Null when no ad is on screen. */
 export type AdProgress = ((p: number) => void) | null;
+
+/** Ad placement registered for the shop's coin reward. */
+const AD_PLACEMENT_ID = "shop-coins";
+
+/**
+ * True when running a deployed build rather than the local rehearsal rig.
+ * Mirrors useGame.ts's OFFLINE switch: the real ad can only play inside a
+ * Verse8 host, and `showRewarded` in a hostless page can hang for its full
+ * 30s timeout instead of failing fast, so offline mode never calls it.
+ */
+const OFFLINE = !import.meta.env.VITE_AGENT8_VERSE;
 
 /**
  * A frame gap longer than this is not time the player spent watching.
@@ -42,7 +55,29 @@ export type AdProgress = ((p: number) => void) | null;
 const MAX_FRAME_MS = 100;
 
 /**
- * Runs the placeholder ad. Resolves completed:true unless `signal` aborts first.
+ * Plays a real rewarded ad when a Verse8 host is present.
+ *
+ * `showRewarded` never rejects — every outcome is a status. `rewarded` is the
+ * only one worth coins; dismissed, busy, timeout and platform errors all come
+ * back as `completed: false`. An `unsupported_env` result means this page is
+ * not running inside an ad-capable host after all, so we fall back to the
+ * in-app countdown rather than refusing the player.
+ */
+async function runRealAd(
+  onProgress: (p: number) => void,
+  signal: AbortSignal
+): Promise<AdOutcome> {
+  const result = await Verse8Ads.showRewarded({ placementId: AD_PLACEMENT_ID });
+  if (signal.aborted) return { completed: false };
+  if (result.status === "rewarded") return { completed: true };
+  if (result.status === "failed" && result.error?.code === "unsupported_env") {
+    return runPlaceholderAd(onProgress, signal);
+  }
+  return { completed: false };
+}
+
+/**
+ * Runs the fallback ad. Resolves completed:true unless `signal` aborts first.
  *
  * Counts time the panel was actually on screen, not wall-clock time since the
  * start. Those differ by however long the tab was hidden, and only one of them
@@ -52,7 +87,10 @@ const MAX_FRAME_MS = 100;
  * put the player in front of a finished bar and a server that says "tooSoon" —
  * the server measures the same window on its own clock and its floor is lower.
  */
-export function showAd(onProgress: (p: number) => void, signal: AbortSignal): Promise<AdOutcome> {
+function runPlaceholderAd(
+  onProgress: (p: number) => void,
+  signal: AbortSignal
+): Promise<AdOutcome> {
   return new Promise<AdOutcome>((resolve) => {
     let watched = 0;
     let last = Date.now();
@@ -85,4 +123,15 @@ export function showAd(onProgress: (p: number) => void, signal: AbortSignal): Pr
     };
     frame = requestAnimationFrame(step);
   });
+}
+
+/**
+ * The seam. In a deployed build a real rewarded ad plays; offline rehearsal
+ * skips the SDK entirely and uses the countdown panel (the SDK has no host to
+ * talk to there, and would time out rather than fail fast).
+ */
+export function showAd(onProgress: (p: number) => void, signal: AbortSignal): Promise<AdOutcome> {
+  return (OFFLINE ? runPlaceholderAd(onProgress, signal) : runRealAd(onProgress, signal)).catch(() =>
+    runPlaceholderAd(onProgress, signal)
+  );
 }

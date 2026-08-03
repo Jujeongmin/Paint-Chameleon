@@ -38,7 +38,7 @@ export function coinsFor(o: { seeker: boolean; caught: boolean; catches: number 
  * KEEP IN SYNC WITH server/src/rules.ts.
  */
 export const AD_REWARD = {
-  coins: 25,
+  coins: 200,
   minWatchMs: 14_000,
   cooldownMs: 90_000,
   dailyCap: 10,

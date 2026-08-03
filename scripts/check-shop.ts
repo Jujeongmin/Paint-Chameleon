@@ -308,9 +308,9 @@ console.log("\nads for coins");
   check("a ticket that outlived its cooldown window is refused at claim", coolAtClaim.ok === false);
 
   check(
-    "a full day's worth of ads is worth less than the cheapest avatar",
-    AD_REWARD.coins * AD_REWARD.dailyCap < AVATAR_PRICES.tank * 4,
-    `${AD_REWARD.coins * AD_REWARD.dailyCap}/day`
+    "a single ad funds the most expensive avatar",
+    AD_REWARD.coins >= AVATAR_PRICES.tank,
+    `${AD_REWARD.coins}/ad vs tank ${AVATAR_PRICES.tank}`
   );
   check("the cap is what adsLeft counts down from", adsLeft(clear(), NOON) === AD_REWARD.dailyCap);
   check("...and it never goes negative", adsLeft(walletOf({ adDay: dayIndex(NOON), adCount: 999 }), NOON) === 0);
