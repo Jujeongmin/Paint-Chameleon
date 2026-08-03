@@ -1,14 +1,18 @@
 /**
- * The seam where a real ad goes.
+ * Where the real ad goes.
  *
- * There is no ad network wired into this build. `showAd` is what the shop
- * calls, and today it resolves after `AD_PANEL_MS` while <AdBreak/> draws a
- * countdown. Swapping in a real one means replacing this function and nothing
- * else — the server's reward rules never learn which it was, on purpose. They
- * measure elapsed time on their own clock either way (see `claimAd` in
- * server/src/rules.ts), so a provider change cannot weaken them.
+ * `showAd` is what the shop calls. In a deployed Verse8 build it hands the
+ * watch to @verse8/ads and maps the result onto the same `{ completed }`
+ * contract the server's reward rules expect. There is no in-app fallback panel
+ * any more — a page that cannot play a real ad (offline rehearsal, a plain
+ * browser) simply resolves `{ completed: false }` and the server refuses the
+ * claim with "try again".
  *
- * The contract a real provider has to keep:
+ * The server never learns which provider it was, on purpose: it measures
+ * elapsed time on its own clock (see `claimAd` in server/src/rules.ts), so a
+ * provider change cannot weaken it.
+ *
+ * The contract any provider has to keep:
  *
  * - Resolve `{ completed: true }` only when the ad was watched to the end.
  *   Resolving early costs nothing — the server refuses the claim with
@@ -20,69 +24,35 @@
  * - Return control to the page. Pointer lock is already released by the shop
  *   before this is called.
  */
-import { AD_PANEL_MS } from "../game/coins";
+import { Verse8Ads } from "@verse8/ads";
 
 export interface AdOutcome {
   completed: boolean;
 }
 
-/** Progress of the placeholder ad, 0..1. Null when no ad is on screen. */
-export type AdProgress = ((p: number) => void) | null;
+/** Ad placement registered for the shop's coin reward. */
+const AD_PLACEMENT_ID = "shop-coins";
 
 /**
- * A frame gap longer than this is not time the player spent watching.
- *
- * requestAnimationFrame stops entirely in a hidden tab and resumes on return,
- * so the first frame back reports the whole absence as one delta. Counting it
- * would make "watch an ad" mean "open an ad and switch tabs for fifteen
- * seconds", which is the one thing the countdown exists to prevent. Clamping
- * the delta also covers ordinary hitches — a long GC pause is not watching
- * either, and the cost of being wrong is a fraction of a second.
+ * True when running a deployed build rather than the local rehearsal rig.
+ * Mirrors useGame.ts's OFFLINE switch: the real ad can only play inside a
+ * Verse8 host, and `showRewarded` in a hostless page can hang for its full
+ * 30s timeout instead of failing fast, so offline mode never calls it.
  */
-const MAX_FRAME_MS = 100;
+const OFFLINE = !import.meta.env.VITE_AGENT8_VERSE;
 
 /**
- * Runs the placeholder ad. Resolves completed:true unless `signal` aborts first.
- *
- * Counts time the panel was actually on screen, not wall-clock time since the
- * start. Those differ by however long the tab was hidden, and only one of them
- * is the thing being asked for.
- *
- * This can only ever run LONGER than wall clock, never shorter, so it cannot
- * put the player in front of a finished bar and a server that says "tooSoon" —
- * the server measures the same window on its own clock and its floor is lower.
+ * Plays a rewarded ad. `showRewarded` never rejects — every outcome is a
+ * status, so `rewarded` is the only one worth coins; dismissed, busy, timeout
+ * and platform errors all come back as `completed: false`.
  */
-export function showAd(onProgress: (p: number) => void, signal: AbortSignal): Promise<AdOutcome> {
-  return new Promise<AdOutcome>((resolve) => {
-    let watched = 0;
-    let last = Date.now();
-    let frame = 0;
-
-    const stop = () => {
-      cancelAnimationFrame(frame);
-      signal.removeEventListener("abort", onAbort);
-    };
-    const onAbort = () => {
-      stop();
-      resolve({ completed: false });
-    };
-    if (signal.aborted) return onAbort();
-    signal.addEventListener("abort", onAbort);
-
-    const step = () => {
-      const now = Date.now();
-      watched += Math.min(now - last, MAX_FRAME_MS);
-      last = now;
-
-      const p = Math.min(1, watched / AD_PANEL_MS);
-      onProgress(p);
-      if (p >= 1) {
-        stop();
-        resolve({ completed: true });
-        return;
-      }
-      frame = requestAnimationFrame(step);
-    };
-    frame = requestAnimationFrame(step);
-  });
+export async function showAd(signal: AbortSignal): Promise<AdOutcome> {
+  if (OFFLINE) return { completed: false };
+  try {
+    const result = await Verse8Ads.showRewarded({ placementId: AD_PLACEMENT_ID });
+    if (signal.aborted) return { completed: false };
+    return { completed: result.status === "rewarded" };
+  } catch {
+    return { completed: false };
+  }
 }

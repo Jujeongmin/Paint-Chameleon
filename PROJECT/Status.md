@@ -2,8 +2,8 @@
 
 ## Recent activity
 
-- **Ad SDK removed (reverted)**: the `@verse8/ads` integration added earlier was removed at the builder's request. `showAd` in `game/src/ui/adProvider.ts` is back to the placeholder-only countdown panel; the package dependency is gone. The server-side ad-reward rules were left intact (server clock enforcement, provider-agnostic) — only the provider seam reverted.
-- **Ad reward coins reset**: `AD_REWARD.coins` set to **0** (both `server/src/rules.ts` and `game/src/game/coins.ts`, held by `check:sync`). The shop balance check in `check-shop.ts` was restored to its original form ("a full day's worth of ads is worth less than 4 tanks").
+- **Fake ad panel removed, real SDK attached**: the in-app "Paint Chameleon" ad countdown panel (`AdBreak.tsx`) is gone. `showAd` in `game/src/ui/adProvider.ts` now calls `@verse8/ads` (`Verse8Ads.showRewarded`, placement `"shop-coins"`) directly. A page that cannot play a real ad (offline rehearsal, plain browser) resolves `{ completed: false }` and the server refuses the claim — no fallback panel. Removed the now-dead `AdBreak` component, `adProgress` state in `useWallet`, the panel-only i18n keys (`ad.tag`/`ad.house`/`ad.remaining`/`ad.escape`), the `AD_PANEL_MS` constant, and the `check:sync` panel check.
+- **Ad reward coins**: `AD_REWARD.coins` stays at **0** (both `server/src/rules.ts` and `game/src/game/coins.ts`, held by `check:sync`).
 - `npm run check` passes (18 check scripts + 28 server tests); `npm run build` succeeds.
 
 ## Verification

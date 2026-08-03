@@ -55,8 +55,6 @@ export interface Wallet {
   busy: boolean;
   buy: (id: string) => void;
   equip: (id: string) => void;
-  /** 0..1 while an ad is on screen, null when none is. Drives <AdBreak/>. */
-  adProgress: number | null;
   /** Rewards left today by the client's own reckoning; display only. */
   adsLeft: number;
   /** True when an ad can be started right now. */
@@ -77,7 +75,6 @@ export function useWallet(api: Api): Wallet {
   const [wallet, setWallet] = useState<WalletView | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [adProgress, setAdProgress] = useState<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The remote functions are read through a ref and never used as dependencies.
@@ -207,11 +204,9 @@ export function useWallet(api: Api): Wallet {
     const run = new AbortController();
     adRun.current = run;
     setBusy(true);
-    setAdProgress(0);
 
     const finish = () => {
       if (adRun.current === run) adRun.current = null;
-      setAdProgress(null);
       setBusy(false);
     };
 
@@ -228,7 +223,7 @@ export function useWallet(api: Api): Wallet {
         }
         if (run.signal.aborted) return;
 
-        const outcome = await showAd(setAdProgress, run.signal);
+        const outcome = await showAd(run.signal);
         // Silent on cancel. The player closed it; they know.
         if (!outcome.completed || run.signal.aborted) return;
 
@@ -245,8 +240,8 @@ export function useWallet(api: Api): Wallet {
     adRun.current?.abort();
   }, []);
 
-  // Leaving the hub mid-ad has to abort, or showAd keeps a rAF loop alive
-  // against a component nobody is looking at.
+  // Leaving the hub mid-ad has to abort, so a claim is never sent after the
+  // player is gone and the server's open ticket ages out on its own.
   useEffect(() => () => adRun.current?.abort(), []);
 
   const now = Date.now();
@@ -259,7 +254,6 @@ export function useWallet(api: Api): Wallet {
     busy,
     buy,
     equip,
-    adProgress,
     adsLeft: left,
     // Both halves are the client's guess and neither is trusted: the server
     // re-decides on every start. This only picks the wording on the prompt.

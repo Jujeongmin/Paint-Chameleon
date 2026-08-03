@@ -32,7 +32,6 @@ import {
 import { CELL_SPAWN as CLIENT_CELL, HUNT_START as CLIENT_HUNT_START } from "../game/src/game/cell";
 import {
   AD_REWARD as CLIENT_AD,
-  AD_PANEL_MS,
   COINS as CLIENT_COINS,
   WALLET_FIELDS,
   coinsFor as clientCoinsFor,
@@ -356,14 +355,6 @@ console.log("\nads for coins");
   );
   if (sameTerms) pass(`ad terms match (${JSON.stringify(SERVER_AD)})`);
   else fail(`ad terms differ: ${JSON.stringify(CLIENT_AD)} vs ${JSON.stringify(SERVER_AD)}`);
-
-  // The panel is client-only, but it decides when claimAd gets called, so it
-  // has to clear the server's floor. Below it, every honest watch is refused.
-  if (AD_PANEL_MS >= SERVER_AD.minWatchMs) {
-    pass(`the panel runs ${AD_PANEL_MS}ms, at or above the server's ${SERVER_AD.minWatchMs}ms floor`);
-  } else {
-    fail(`the panel finishes at ${AD_PANEL_MS}ms but the server wants ${SERVER_AD.minWatchMs}ms`);
-  }
 
   // Equal constants are not equal answers — same argument as coins above. The
   // rehearsal rig runs the client copy and real players hit the server copy, so
