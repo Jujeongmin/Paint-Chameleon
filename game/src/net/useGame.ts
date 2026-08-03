@@ -54,6 +54,7 @@ function useOnlineGame() {
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const clockOffset = useRef(0);
+  const hasReceivedRoom = useRef(false);
 
   // Re-render once a second so the phase countdown ticks down smoothly.
   const [, forceTick] = useState(0);
@@ -157,11 +158,15 @@ function useOnlineGame() {
 
   useEffect(() => {
     if (roomReady) {
+      hasReceivedRoom.current = true;
       setJoined(true);
       setError(null);
       return;
     }
-    if (!joined) return;
+    // Room state can briefly disappear while the server replaces one round
+    // with the next. Once this client has entered a real room, that transition
+    // is not a failed join and must never send the player back to NickScreen.
+    if (!joined || hasReceivedRoom.current) return;
 
     const timeout = setTimeout(() => {
       setJoined(false);
