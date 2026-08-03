@@ -38,21 +38,12 @@ export function coinsFor(o: { seeker: boolean; caught: boolean; catches: number 
  * KEEP IN SYNC WITH server/src/rules.ts.
  */
 export const AD_REWARD = {
-  coins: 200,
+  coins: 25,
   minWatchMs: 14_000,
   cooldownMs: 90_000,
   dailyCap: 10,
   ticketMs: 300_000,
 };
-
-/**
- * How long the panel actually counts down for.
- *
- * Client-only — the server has `minWatchMs` and does not care what this is. It
- * sits above minWatchMs so an honest watch always clears the server's bar even
- * when the start call took a moment to land.
- */
-export const AD_PANEL_MS = 15_000;
 
 /**
  * The wallet's field names, as a value.

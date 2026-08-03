@@ -2,8 +2,8 @@
 
 ## Recent activity
 
-- **Ad SDK integration**: wired `@verse8/ads` (v0.4.0) into `game/src/ui/adProvider.ts`. `showAd` now plays a real rewarded ad (`placementId: "shop-coins"`) in deployed builds; offline rehearsal (`VITE_AGENT8_VERSE` unset) skips the SDK entirely and uses the existing countdown panel, because the SDK would hang on a 30s timeout in a hostless page. Server enforcement unchanged (`claimAd` server-clock rules).
-- **Test coins**: ad reward `AD_REWARD.coins` raised 25 → 200 on both sides (`server/src/rules.ts` and `game/src/game/coins.ts`, held together by `check:sync`). Updated the shop balance check: it now asserts one ad funds the most expensive avatar (tank 90) instead of the old "a day of ads stays under 4 tanks" guard.
+- **Fake ad panel removed, real SDK attached**: the in-app "Paint Chameleon" ad countdown panel (`AdBreak.tsx`) is gone. `showAd` in `game/src/ui/adProvider.ts` now calls `@verse8/ads` (`Verse8Ads.showRewarded`, placement `"shop-coins"`) directly. A page that cannot play a real ad (offline rehearsal, plain browser) resolves `{ completed: false }` and the server refuses the claim — no fallback panel. Removed the now-dead `AdBreak` component, `adProgress` state in `useWallet`, the panel-only i18n keys (`ad.tag`/`ad.house`/`ad.remaining`/`ad.escape`), the `AD_PANEL_MS` constant, and the `check:sync` panel check.
+- **Ad reward coins**: restored `AD_REWARD.coins` to its original **25** (both `server/src/rules.ts` and `game/src/game/coins.ts`, held by `check:sync`). Watching an ad to the end now grants +25 coins again.
 - `npm run check` passes (18 check scripts + 28 server tests); `npm run build` succeeds.
 
 ## Verification
@@ -14,7 +14,6 @@
 
 ## Next steps / open items
 
-- Confirm the real rewarded ad actually renders in the Verse8 host (deploy via editor **Launch**; watch a shop ad, verify coins +200 after completing, nothing on skip).
-- Decide placement id naming/registration with the ad network if `"shop-coins"` needs a console entry.
+- Decide whether the ad-for-coins feature should ship at all: the provider seam is a placeholder and `AD_REWARD.coins` is 0, so watching the panel currently grants nothing.
 - Verify wallet/leaderboard persistence across server restarts in production.
 - Git repo is absent (`.git` removed); re-init + set remote if commit history is wanted.

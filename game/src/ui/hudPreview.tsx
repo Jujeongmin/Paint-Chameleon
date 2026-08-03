@@ -1,7 +1,6 @@
 import { createRoot } from "react-dom/client";
 import { Hud } from "./Hud";
 import { HubHud } from "./HubHud";
-import { AdBreak } from "./AdBreak";
 import { PaintTools } from "./PaintTools";
 import { ShopPrompt } from "./ShopPrompt";
 import { STANDS } from "../hub/hubMap";
@@ -95,7 +94,6 @@ function fakeWallet(over: Partial<Wallet> = {}): Wallet {
     busy: false,
     buy: () => {},
     equip: () => {},
-    adProgress: null,
     adsLeft: 7,
     adReady: true,
     watchAd: () => {},
@@ -346,10 +344,6 @@ function Preview() {
 
       <Frame id="shop-ad-off" title="아바타 스탠드 · 광고 없음" note="쿨다운이거나 오늘 다 봤을 때. 회색이고 F는 안내되지 않습니다">
         <ShopPrompt stand={STANDS[1]} wallet={fakeWallet({ adReady: false })} />
-      </Frame>
-
-      <Frame id="ad-break" title="광고 화면" note="허브를 완전히 가립니다. 막대는 절반, 남은 시간과 Esc 안내가 보여야 합니다">
-        <AdBreak wallet={fakeWallet({ adProgress: 0.5 })} />
       </Frame>
 
     </>
