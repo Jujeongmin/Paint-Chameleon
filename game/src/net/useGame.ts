@@ -20,6 +20,12 @@ import type {
   BuyResult,
 } from "./types";
 import { useOfflineGame } from "./offline";
+import {
+  REMOTE_CALL_TIMEOUT_MS,
+  ROOM_LOST_GRACE_MS,
+  ROOM_STATE_TIMEOUT_MS,
+  shouldReplayJoin,
+} from "./rejoin";
 import { t, type Key } from "../ui/i18n";
 
 export type { LeaderboardResult, PlayerState, RoomInfo, RankedLeaderboardEntry, WireDab, WalletView, BuyResult, BuyFailure } from "./types";
@@ -30,24 +36,12 @@ export type { LeaderboardResult, PlayerState, RoomInfo, RankedLeaderboardEntry, 
  * fixed for the lifetime of the page.
  */
 const OFFLINE = !import.meta.env.VITE_AGENT8_VERSE;
-/** A broken socket response must return control to the join button. */
-export const REMOTE_CALL_TIMEOUT_MS = 12_000;
-/** Room subscriptions can fail independently after the join RPC succeeds. */
-export const ROOM_STATE_TIMEOUT_MS = 12_000;
-/**
- * How long the room may be missing AFTER we have been in one before the client
- * treats it as lost rather than as a gap.
- *
- * Both things happen. The server replaces the room state between rounds, which
- * blinks for a tick or two and is not a problem. A dropped socket also empties
- * it — the SDK reconnects on its own (useGameServer re-runs connect whenever
- * `connected` goes false) and re-subscribes, but nobody re-joins the ROOM,
- * because only this client knows which room it wanted to be in.
- *
- * This is the line between the two. Long enough that a round transition never
- * trips it, short enough that a player is not left reading a loading screen.
- */
-export const ROOM_LOST_GRACE_MS = 5_000;
+
+export {
+  REMOTE_CALL_TIMEOUT_MS,
+  ROOM_STATE_TIMEOUT_MS,
+  ROOM_LOST_GRACE_MS,
+} from "./rejoin";
 
 /** Picks the real Agent8-backed game or the local rehearsal rig. */
 export function useGame() {
@@ -82,6 +76,16 @@ function useOnlineGame() {
    * is now, not as it was when the player first pressed Play.
    */
   const rejoinRef = useRef<{ fn: string; args: unknown[]; failure: string } | null>(null);
+  /**
+   * How many joins we have issued that have not answered yet.
+   *
+   * Deliberately not `joining`. That flag drops when the timeout below wins the
+   * race, but the RPC underneath keeps running and the server keeps working on
+   * it — a room switch takes about eighteen seconds against the live verse — so
+   * `joining` says "not waiting any more" while a room is still on its way.
+   * Recovery has to ask the second question, not the first.
+   */
+  const changeInFlight = useRef(0);
 
   // Re-render once a second so the phase countdown ticks down smoothly.
   const [, forceTick] = useState(0);
@@ -89,6 +93,14 @@ function useOnlineGame() {
     const id = setInterval(() => forceTick((n) => n + 1), 250);
     return () => clearInterval(id);
   }, []);
+
+  // A call pending on a socket that has gone will never answer, so it must not
+  // be left counting. Without this the counter would still be standing after
+  // the SDK reconnects, and it would hold off the recovery timer for good —
+  // which is the one situation recovery is actually for.
+  useEffect(() => {
+    if (!connected) changeInFlight.current = 0;
+  }, [connected]);
 
   useEffect(() => {
     if (typeof rawRoom?.tickAt === "number" && rawRoom.tickAt > 0) {
@@ -213,14 +225,31 @@ function useOnlineGame() {
     // So: wait out the gap, then re-join. An interval rather than a timeout
     // because the first attempt can fail too — the socket may still be down,
     // in which case `call` refuses and the next tick tries again.
+    //
+    // The gap is not the whole test, though, and taking it for one moved
+    // players out of rooms they were sitting in. A room the player asked to
+    // change also empties the room state, for about eighteen seconds, so this
+    // timer used to fire three times into a healthy join — and every firing
+    // went back through matchmaking, which hands out whatever lobby is open
+    // rather than the one being waited in. shouldReplayJoin holds the rule.
     const retry = setInterval(() => {
       const last = rejoinRef.current;
       if (!last) return;
+      if (
+        !shouldReplayJoin({
+          connected,
+          roomReady,
+          hasReceivedRoom: hasReceivedRoom.current,
+          changeInFlight: changeInFlight.current > 0,
+        })
+      ) {
+        return;
+      }
       setRecovering(true);
       callRef.current(last.fn, last.args, last.failure);
     }, ROOM_LOST_GRACE_MS);
     return () => clearInterval(retry);
-  }, [joined, roomReady]);
+  }, [joined, roomReady, connected]);
 
   const secondsLeft = room?.phaseEndsAt
     ? Math.max(0, Math.ceil((room.phaseEndsAt - (Date.now() + clockOffset.current)) / 1000))
@@ -232,9 +261,17 @@ function useOnlineGame() {
       setJoining(true);
       setError(null);
       let timeout: ReturnType<typeof setTimeout> | null = null;
+      // Held separately from the race, because losing the race does not stop
+      // the call: the server is still going to put us somewhere. The counter
+      // comes down when the RPC itself answers, not when we stop waiting.
+      const rpc = server.remoteFunction(fn, Array.isArray(args) ? args : [args]);
+      changeInFlight.current += 1;
+      rpc.catch(() => {}).finally(() => {
+        changeInFlight.current = Math.max(0, changeInFlight.current - 1);
+      });
       try {
         await Promise.race([
-          server.remoteFunction(fn, Array.isArray(args) ? args : [args]),
+          rpc,
           new Promise<never>((_, reject) => {
             timeout = setTimeout(() => reject(new Error(failure)), REMOTE_CALL_TIMEOUT_MS);
           }),
