@@ -737,13 +737,24 @@ body.hide-cursor canvas {
 .control-shortcut { padding: 5px 7px; }
 
 .vslider-track {
-  display: grid;
-  place-items: center;
+  position: relative;
   width: 34px;
 }
 
+/* The input is laid out horizontally at full track length and only then
+   rotated, so its box is 200px wide inside a 34px column. Centring it by
+   layout does not work — an overflowing grid item gets pinned to the start
+   edge instead — which put the bar 85px to the right of its own label and
+   readout, and pushed the brush rail to within 9px of the colour panel.
+   Absolute centring puts the box's midpoint on the column's midpoint, and
+   rotation keeps a box's centre where it was, so the bar lands on the same
+   vertical line as the text above and below it. */
 .vslider-track input[type="range"] {
-  transform: rotate(-90deg);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin: 0;
+  transform: translate(-50%, -50%) rotate(-90deg);
   accent-color: #f0e2b8;
   cursor: pointer;
 }
