@@ -35,6 +35,36 @@ describe("matchmaking", () => {
     expect(room.bots[0].account).toBe("bot-0");
   });
 
+  test("AI hiders stand in hiding slots, not on spawn points", async (server) => {
+    server.connect({ account: "user-roster-hide" });
+    const a = await server.joinGame("roster-hide");
+    const room = (await server.__rooms()).find((r: any) => r.roomId === a.roomId);
+
+    // A bot on a spawn point is a bot standing in the open for the whole
+    // round, which is the one thing a hider never does. The list is repeated
+    // here rather than read off the room: this harness cannot import from
+    // server/src, and an earlier version of this test compared against a
+    // `room.spawnPoints` that does not exist — so it passed no matter where
+    // the bots were standing. check:sync is what holds this copy honest.
+    const SPAWNS = [
+      [-34, -34], [-34, 0], [-34, 38], [0, -34], [0, 34], [34, -34],
+      [34, 0], [32, 34], [-14, -38], [16, -38], [-24, 38], [16, 38],
+    ];
+    const onSpawn = room.bots.filter((b: any) =>
+      SPAWNS.some((s) => s[0] === b.pos[0] && s[1] === b.pos[2])
+    );
+    expect(onSpawn.length).toBe(0);
+
+    // Every bot somewhere different, and none of them left at the origin —
+    // where the seeker starts the hunt.
+    const places = new Set(room.bots.map((b: any) => `${b.pos[0]},${b.pos[2]}`));
+    expect(places.size).toBe(room.bots.length);
+    expect(room.bots.some((b: any) => b.pos[0] === 0 && b.pos[2] === 0)).toBe(false);
+
+    // Facing is spread too: all-zero rotY is the row-of-mannequins tell.
+    expect(new Set(room.bots.map((b: any) => b.rotY)).size > 1).toBe(true);
+  });
+
   test("ready cannot be cancelled once committed", async (server) => {
     server.connect({ account: "user-ready-a" });
     await server.joinGame("ready-a");

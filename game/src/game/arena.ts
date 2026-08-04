@@ -526,6 +526,45 @@ export function slotOf(c: Cluster): [number, number] {
   return c.axis === "x" ? [c.at[0] + d, c.at[1]] : [c.at[0], c.at[1] + d];
 }
 
+/**
+ * Where the AI hiders stand, in the order they are handed out.
+ *
+ * These are the designed empty slots — the one enterable spot in each row —
+ * because that is where a person who understood the map would go, and a bot
+ * standing in open floor advertises itself as a bot from across the arena.
+ *
+ * Derived rather than written down, so moving a cluster moves its bot too.
+ *
+ * Ordered by taking one slot from each zone in turn, which is what spreads
+ * nine bots over four quadrants instead of crowding two. Zones are grouped by
+ * family here — one family per quadrant, see CLUSTERS — rather than by a
+ * hardcoded stride: an earlier version stepped through the list 7 at a time on
+ * the assumption that would rotate the quadrants, and check:map found it
+ * leaving one zone with a single bot in it.
+ *
+ * KEEP IN SYNC WITH BOT_HIDES in server/src/rules.ts — the server owns bot
+ * positions because canShoot measures its facing cone against them, and
+ * check:sync compares the two lists element by element.
+ */
+export const BOT_HIDES: [number, number][] = (() => {
+  const byZone = new Map<string, [number, number][]>();
+  for (const c of CLUSTERS) {
+    const list = byZone.get(c.family) ?? [];
+    list.push(slotOf(c));
+    byZone.set(c.family, list);
+  }
+
+  const zones = [...byZone.values()];
+  const deepest = Math.max(...zones.map((z) => z.length));
+  const out: [number, number][] = [];
+  for (let rank = 0; rank < deepest; rank++) {
+    for (const zone of zones) {
+      if (rank < zone.length) out.push(zone[rank]);
+    }
+  }
+  return out;
+})();
+
 function familyOf(id: string): Family {
   const f = FAMILIES.find((x) => x.id === id);
   if (!f) throw new Error(`unknown family: ${id}`);

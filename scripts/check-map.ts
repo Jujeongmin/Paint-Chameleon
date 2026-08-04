@@ -15,6 +15,7 @@ import {
   SPAWN_POINTS,
   ARENA,
   CLUSTERS,
+  BOT_HIDES,
   CLUTTER_TARGET,
   PLATFORMS,
   climbRoute,
@@ -338,6 +339,45 @@ console.log("\nthe clutter target is actually reached");
   check(
     `${loose} pieces of clutter placed, target ${CLUTTER_TARGET}`,
     loose >= CLUTTER_TARGET && loose < CLUTTER_TARGET + 3
+  );
+}
+
+console.log("\nthe AI hiders have somewhere to stand");
+{
+  // A room of MAX_PLAYERS with one human seats MAX_PLAYERS - 1 bots, so those
+  // are the entries a full lobby uses; the rest only matter if the roster grows.
+  const used = BOT_HIDES.slice(0, MAX_PLAYERS - 1);
+
+  for (const [x, z] of used) {
+    check(
+      `a bot at (${x}, ${z}) is not standing inside geometry`,
+      !playerBlockedAt(x, z, 0, MOVE.playerRadius, MAP_BOXES)
+    );
+  }
+
+  // Two bodies in one slot is one body from outside, and the seeker would
+  // shoot a hider they cannot see standing behind the one they can.
+  let overlapping = 0;
+  for (let i = 0; i < used.length; i++) {
+    for (let j = i + 1; j < used.length; j++) {
+      const gap = Math.hypot(used[i][0] - used[j][0], used[i][1] - used[j][1]);
+      if (gap < MOVE.playerRadius * 2) overlapping++;
+    }
+  }
+  check(`no two bots share a slot (${used.length} in play)`, overlapping === 0);
+
+  // Spread, not a queue: the interleave in arena.ts exists so a full lobby of
+  // bots does not fill one quadrant while another has nobody in it. Quadrant
+  // by sign of x and z; nine bots over four quadrants means at least two each
+  // once one of them takes the extra.
+  const quadrants = new Map<string, number>();
+  for (const [x, z] of used) {
+    const key = `${x < 0 ? "-" : "+"}${z < 0 ? "-" : "+"}`;
+    quadrants.set(key, (quadrants.get(key) ?? 0) + 1);
+  }
+  check(
+    `bots reach all four zones (${[...quadrants.entries()].map(([k, n]) => `${k}:${n}`).join(" ")})`,
+    quadrants.size === 4 && [...quadrants.values()].every((n) => n >= 2)
   );
 }
 

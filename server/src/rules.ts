@@ -98,6 +98,29 @@ export function randomSpawn(): [number, number, number] {
   return [p[0], 0, p[1]];
 }
 
+/**
+ * Where the AI hiders stand.
+ *
+ * The designed empty slots of the prop rows, in an order that walks the four
+ * zones rather than filling one — a person who understood the map would go to
+ * a slot, and nine bots clustered in one quadrant would read as scenery
+ * arranged by a script.
+ *
+ * The server owns these because canShoot measures its facing cone against a
+ * target's `pos`, so a bot's position has to be a server fact rather than a
+ * client's opinion. The client derives the same list from CLUSTERS
+ * (`BOT_HIDES` in game/src/game/arena.ts) and check:sync compares them element
+ * by element — the same contract SPAWN_POINTS has.
+ */
+export const BOT_HIDES: [number, number][] = [
+  [-30.1, -32], [21.8, -32], [-28.6, 20], [21.2, 20],
+  [-36, -25.4], [34, -28.1], [-34, 26.7], [35, 26.6],
+  [-19, -35.7], [23.8, -18], [-20, 29.4], [20, 30.2],
+  [-23.4, -20], [25.8, -24], [-20.6, 14], [27.2, 14],
+  [-20, -24.7], [32, -14.1], [-16, 21.7], [16, 23.6],
+  [-27.4, -14], [19.8, -12], [-26.6, 12], [33.2, 18],
+];
+
 export interface RoomBot {
   account: string;
   nameKey: string;
@@ -126,7 +149,10 @@ export function syncRoomBots(existing: unknown, humanCount: number, reset = fals
   const old = Array.isArray(existing) ? existing : [];
   return Array.from({ length: botSeatsFor(humanCount) }, (_, i) => {
     const previous = old.find((b: any) => b?.account === `bot-${i}`) as RoomBot | undefined;
-    const spawn = SPAWN_POINTS[(i + 2) % SPAWN_POINTS.length];
+    // A hiding slot, not a spawn point: spawns are where a round begins, in
+    // the open, and a bot that never moves would spend the whole hunt standing
+    // on one.
+    const hide = BOT_HIDES[i % BOT_HIDES.length];
     return {
       account: `bot-${i}`,
       nameKey: `bot.${i % 7}`,
@@ -135,8 +161,10 @@ export function syncRoomBots(existing: unknown, humanCount: number, reset = fals
       caught: reset ? false : !!previous?.caught,
       caughtAt: reset ? null : previous?.caughtAt ?? null,
       spectating: reset ? false : !!previous?.spectating,
-      pos: reset || !previous?.pos ? [spawn[0], 0, spawn[1]] : previous.pos,
-      rotY: previous?.rotY ?? 0,
+      pos: reset || !previous?.pos ? [hide[0], 0, hide[1]] : previous.pos,
+      // Facing is derived from the slot rather than left at zero: a row of
+      // bodies all pointing down +Z is the tell that gives them away first.
+      rotY: previous?.rotY ?? ((i * 2 * Math.PI) / BOT_HIDES.length),
       pose: reset ? i % POSE_COUNT : previous?.pose ?? i % POSE_COUNT,
       moving: false,
       body: "classic",

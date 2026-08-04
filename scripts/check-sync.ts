@@ -17,6 +17,7 @@ import {
   MAP_BOXES as CLIENT_BOXES,
   ARENA as CLIENT_ARENA,
   SPAWN_POINTS as CLIENT_SPAWNS,
+  BOT_HIDES as CLIENT_HIDES,
 } from "../game/src/game/arena";
 import { playerBlockedAt } from "../game/src/game/map";
 import { BODIES } from "../game/src/game/bodies";
@@ -40,6 +41,7 @@ import { claimAd as clientClaimAd, startAd as clientStartAd } from "../game/src/
 import {
   ARENA as SERVER_ARENA,
   SPAWN_POINTS as SERVER_SPAWNS,
+  BOT_HIDES as SERVER_HIDES,
   CELL_SPAWN as SERVER_CELL,
   HUNT_START as SERVER_HUNT_START,
   POSE_COUNT as SERVER_POSE_COUNT,
@@ -123,6 +125,28 @@ if (CLIENT_SPAWNS.length !== SERVER_SPAWNS.length) {
   }
   if (bad === 0) pass(`${CLIENT_SPAWNS.length} spawn points identical on both sides`);
   else fail(`${bad} spawn points differ in total`);
+}
+
+console.log("\nAI hider positions");
+
+// The server places the bots and canShoot measures its facing cone against
+// their `pos`, so these are server facts. The client derives the same list
+// from CLUSTERS; a drift means a bot drawn somewhere it cannot be shot, or
+// shot somewhere it is not drawn.
+if (CLIENT_HIDES.length !== SERVER_HIDES.length) {
+  fail(`bot hide count differs: client ${CLIENT_HIDES.length}, server ${SERVER_HIDES.length}`);
+} else {
+  let bad = 0;
+  for (let i = 0; i < CLIENT_HIDES.length; i++) {
+    if (CLIENT_HIDES[i][0] !== SERVER_HIDES[i][0] || CLIENT_HIDES[i][1] !== SERVER_HIDES[i][1]) {
+      if (bad < 3) {
+        fail(`bot hide ${i} differs: client [${CLIENT_HIDES[i]}], server [${SERVER_HIDES[i]}]`);
+      }
+      bad++;
+    }
+  }
+  if (bad === 0) pass(`${CLIENT_HIDES.length} bot hiding spots identical on both sides`);
+  else fail(`${bad} bot hiding spots differ in total`);
 }
 
 console.log("\nholding cell");

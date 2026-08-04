@@ -18,7 +18,9 @@ import {
 } from "../game/src/game/paint";
 import { buildPartGeometries } from "../game/src/game/bodyGeometry";
 import { BODIES } from "../game/src/game/bodies";
-import { BRUSH, PAINT } from "../game/src/game/constants";
+import { BRUSH, MAX_PLAYERS, PAINT } from "../game/src/game/constants";
+import { botPaintColor } from "../game/src/game/botPaint";
+import { FAMILIES, FLOOR_COLOR, WALL_COLOR } from "../game/src/game/arena";
 
 let failures = 0;
 function check(ok: boolean, label: string, detail = ""): void {
@@ -230,6 +232,49 @@ check(
   near.every((p) => cellOf(p.u, p.v) === cellKey("armL")),
   "and every dab of it lands on that part"
 );
+
+/* ------------------------------------------------------- the AI hiders' coat */
+
+/**
+ * Bots paint themselves client-side, deterministically, so every client draws
+ * the same body without a byte on the wire. That only works if the colour is
+ * genuinely a function of the account — and it is only camouflage if the
+ * colour is one the arena actually contains.
+ */
+console.log("\nAI hiders paint themselves the same way on every client\n");
+{
+  const accounts = Array.from({ length: MAX_PLAYERS - 1 }, (_, i) => `bot-${i}`);
+
+  check(
+    botPaintColor("bot-3") === botPaintColor("bot-3"),
+    "the same bot gets the same colour every time it is asked"
+  );
+
+  // A hider paints with the eyedropper, so a bot's colour has to be something
+  // the eyedropper could have returned: the floor, a wall, or a prop family.
+  const arenaColours = new Set<number>([FLOOR_COLOR, WALL_COLOR, ...FAMILIES.flatMap((f) => f.colors)]);
+  check(
+    accounts.every((a) => arenaColours.has(botPaintColor(a))),
+    "every bot's colour appears somewhere in the arena",
+    `${arenaColours.size} colours in the palette`
+  );
+
+  // Nine identical bodies would read as a row of clones. Not all-distinct —
+  // the palette is smaller than that would need — but most of it in play.
+  const distinct = new Set(accounts.map(botPaintColor));
+  check(
+    distinct.size >= Math.min(accounts.length, arenaColours.size) - 1,
+    "a full lobby of bots is not one repeated colour",
+    `${distinct.size} distinct across ${accounts.length} bots`
+  );
+
+  // An id the naming scheme never mints must still produce a colour rather
+  // than an undefined the fill would draw as black.
+  check(
+    Number.isFinite(botPaintColor("not-a-bot")) && botPaintColor("") >= 0,
+    "an unexpected account id still resolves to a real colour"
+  );
+}
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall good");
 process.exit(failures ? 1 : 0);

@@ -28,6 +28,7 @@ import {
   STAND_POSE,
 } from "./game/constants";
 import { clearAllSurfaces, surfaceFor, type PaintDab } from "./game/paint";
+import { botPaintColor } from "./game/botPaint";
 import { useControlsLearned } from "./game/input";
 import type { Tool } from "./game/useBrush";
 import type { ShotResult } from "./game/useShoot";
@@ -173,6 +174,17 @@ export default function App() {
     clearAllSurfaces();
     pending.current = [];
   }, [phase, inHub]);
+
+  // ...and the AI hiders paint themselves again, because the wipe above just
+  // took last round's coat off them too. Keyed on the roster as well as the
+  // phase: bots appear and disappear as people join and leave, and one that
+  // arrives mid-lobby has never been painted at all.
+  useEffect(() => {
+    if (inHub) return;
+    for (const p of players) {
+      if (p.bot) surfaceFor(p.account).fill(botPaintColor(p.account));
+    }
+  }, [players, phase, inHub]);
 
   // Round-transition stingers. Skipped in the hub, which has no rounds.
   useEffect(() => {
