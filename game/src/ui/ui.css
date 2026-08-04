@@ -668,6 +668,9 @@ body.hide-cursor canvas {
   left: 18px;
   top: 50%;
   transform: translateY(-50%);
+  /* Both rails centre their own text. Only the right one used to, which put
+     ZOOM's label and value on a different vertical line from the brush's. */
+  text-align: center;
 }
 
 .paint-right {
@@ -697,13 +700,16 @@ body.hide-cursor canvas {
   gap: 8px;
 }
 
-.vslider-label,
-.brush-caption {
+.vslider-label {
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.1em;
   color: #fff;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  /* Reserve the line even when a slider is given no label. Without this an
+     empty label collapses to nothing and that rail rides a text line higher
+     than its neighbour — which is exactly how these two came to be offset. */
+  min-height: 1em;
 }
 
 .vslider-readout {
@@ -740,11 +746,6 @@ body.hide-cursor canvas {
   transform: rotate(-90deg);
   accent-color: #f0e2b8;
   cursor: pointer;
-}
-
-.brush-caption {
-  display: block;
-  margin-top: 4px;
 }
 
 /* colour wheel ----------------------------------------------------------- */

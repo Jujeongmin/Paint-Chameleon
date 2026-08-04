@@ -92,17 +92,21 @@ export function PaintTools({
         {/* The slider works in whole centimetres because a range input with a
             0.01 step reads back floating-point dust; brush size itself is world
             units, so the two ends are BRUSH.min and BRUSH.max scaled by 100. */}
+        {/* Same label-above-track-above-readout order and the same track
+            length as ZOOM. It used to pass an empty label and hang its caption
+            underneath instead: the empty label line collapsed, so this whole
+            column sat one text line higher than the one opposite it and the
+            two sliders read as slightly out of true. */}
         <VerticalSlider
-          label=""
+          label="BRUSH SIZE"
           readout={`${Math.round(brushSize * 100)}`}
           value={Math.round(brushSize * 100)}
           min={Math.round(BRUSH.min * 100)}
           max={Math.round(BRUSH.max * 100)}
           onChange={(v) => onBrushSize(v / 100)}
-          height={190}
+          height={200}
           shortcut="SHIFT + WHEEL"
         />
-        <span className="brush-caption">BRUSH SIZE</span>
       </div>
 
       <div className="paint-panel-right">
