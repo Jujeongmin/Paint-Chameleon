@@ -33,6 +33,7 @@ const EN = {
   "app.tagline": "Paint yourself the colour of the room and hold still.\nA good corner, a good angle, and a steady brush.",
   "app.connecting": "Connecting…",
   "app.enteringLobby": "Entering the lobby…",
+  "app.reconnecting": "Connection lost — getting you back in…",
   "app.nickname": "Nickname",
   "app.join": "Play",
   "app.joining": "Joining…",
@@ -190,6 +191,9 @@ const EN = {
 
   // --- errors
   "error.join": "Couldn't get in",
+  // Split from error.join so a report says which half timed out: this one is
+  // the join answering and the room never arriving.
+  "error.roomState": "The server answered but the room never arrived",
   "error.match": "Couldn't find a match",
   "error.hub": "Couldn't get back to the lobby",
 
@@ -206,6 +210,7 @@ const KO: Record<Key, string> = {
   "app.tagline": "주변 색으로 몸을 칠하고 자세를 잡아 술래를 속이세요.\n잘 숨은 곳, 좋은 각도, 그리고 붓질이 전부입니다.",
   "app.connecting": "서버에 연결하는 중…",
   "app.enteringLobby": "로비에 들어가는 중…",
+  "app.reconnecting": "연결이 끊겼습니다 — 다시 들어가는 중…",
   "app.nickname": "닉네임",
   "app.join": "게임 참가",
   "app.joining": "입장 중…",
@@ -352,6 +357,7 @@ const KO: Record<Key, string> = {
 
   "error.join": "입장에 실패했습니다",
   "error.match": "매칭에 실패했습니다",
+  "error.roomState": "서버는 응답했지만 방 정보가 오지 않았습니다",
   "error.hub": "로비로 돌아가지 못했습니다",
 
   "settings.soundOn": "소리 켜기",

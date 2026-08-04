@@ -344,6 +344,10 @@ export function useOfflineGame() {
     connected: true,
     joined,
     joining: false,
+    // Always false: the rehearsal rig holds its room in local state, so there
+    // is no socket to lose and nothing to re-join. The field exists so both
+    // halves of useGame answer the same shape.
+    recovering: false,
     error: null,
     room,
     me: players[0] ?? null,

@@ -34,6 +34,20 @@ const OFFLINE = !import.meta.env.VITE_AGENT8_VERSE;
 export const REMOTE_CALL_TIMEOUT_MS = 12_000;
 /** Room subscriptions can fail independently after the join RPC succeeds. */
 export const ROOM_STATE_TIMEOUT_MS = 12_000;
+/**
+ * How long the room may be missing AFTER we have been in one before the client
+ * treats it as lost rather than as a gap.
+ *
+ * Both things happen. The server replaces the room state between rounds, which
+ * blinks for a tick or two and is not a problem. A dropped socket also empties
+ * it — the SDK reconnects on its own (useGameServer re-runs connect whenever
+ * `connected` goes false) and re-subscribes, but nobody re-joins the ROOM,
+ * because only this client knows which room it wanted to be in.
+ *
+ * This is the line between the two. Long enough that a round transition never
+ * trips it, short enough that a player is not left reading a loading screen.
+ */
+export const ROOM_LOST_GRACE_MS = 5_000;
 
 /** Picks the real Agent8-backed game or the local rehearsal rig. */
 export function useGame() {
@@ -53,8 +67,21 @@ function useOnlineGame() {
   const [joined, setJoined] = useState(false);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** True while the client is trying to get back into a room it lost. */
+  const [recovering, setRecovering] = useState(false);
   const clockOffset = useRef(0);
   const hasReceivedRoom = useRef(false);
+  /**
+   * How to get back where we were. Recorded on every join, because the SDK
+   * restores the socket but not the membership — it has no way to know whether
+   * this player was standing in the hub or in a match.
+   *
+   * Arguments rather than a closure: a stored closure would capture the
+   * `connected` and `joining` of the render that made it, and `call` refuses
+   * on both. A recovery attempt has to be judged against the connection as it
+   * is now, not as it was when the player first pressed Play.
+   */
+  const rejoinRef = useRef<{ fn: string; args: unknown[]; failure: string } | null>(null);
 
   // Re-render once a second so the phase countdown ticks down smoothly.
   const [, forceTick] = useState(0);
@@ -161,18 +188,38 @@ function useOnlineGame() {
       hasReceivedRoom.current = true;
       setJoined(true);
       setError(null);
+      setRecovering(false);
       return;
     }
-    // Room state can briefly disappear while the server replaces one round
-    // with the next. Once this client has entered a real room, that transition
-    // is not a failed join and must never send the player back to NickScreen.
-    if (!joined || hasReceivedRoom.current) return;
+    if (!joined) return;
 
-    const timeout = setTimeout(() => {
-      setJoined(false);
-      setError(t("error.join"));
-    }, ROOM_STATE_TIMEOUT_MS);
-    return () => clearTimeout(timeout);
+    // Never had a room: the join RPC answered but its subscriptions never did.
+    // Back to the nick screen, where pressing the button again is the only
+    // thing that can help.
+    if (!hasReceivedRoom.current) {
+      const timeout = setTimeout(() => {
+        setJoined(false);
+        setError(t("error.roomState"));
+      }, ROOM_STATE_TIMEOUT_MS);
+      return () => clearTimeout(timeout);
+    }
+
+    // Had a room and lost it. This used to return here and do nothing at all,
+    // on the grounds that a round transition blinks the room state — true, but
+    // it made every other cause permanent: the player sat on "entering the
+    // lobby" with no timeout, no error and no retry, because the guard could
+    // not tell a two-tick gap from a dropped connection.
+    //
+    // So: wait out the gap, then re-join. An interval rather than a timeout
+    // because the first attempt can fail too — the socket may still be down,
+    // in which case `call` refuses and the next tick tries again.
+    const retry = setInterval(() => {
+      const last = rejoinRef.current;
+      if (!last) return;
+      setRecovering(true);
+      callRef.current(last.fn, last.args, last.failure);
+    }, ROOM_LOST_GRACE_MS);
+    return () => clearInterval(retry);
   }, [joined, roomReady]);
 
   const secondsLeft = room?.phaseEndsAt
@@ -203,20 +250,41 @@ function useOnlineGame() {
     [connected, joining, server]
   );
 
+  /**
+   * Assigned during render so the recovery timer below always reaches the
+   * current `call` — the same trick myPosRef uses above, and for the same
+   * reason: putting `call` in that effect's deps would tear the timer down and
+   * rebuild it every time `joining` flipped.
+   */
+  const callRef = useRef(call);
+  callRef.current = call;
+
   /** Everyone lands in the hub first; matches start from a portal inside it. */
   const join = useCallback(
-    (nick: string) => call("joinHub", nick, t("error.join")),
+    (nick: string) => {
+      // returnToHub is what recovery replays, not joinHub: it leaves whatever
+      // room the server still believes we are in before joining. joinHub does
+      // not, and a recovery that lands somebody in two rooms is worse than the
+      // fault it was fixing.
+      rejoinRef.current = { fn: "returnToHub", args: [nick], failure: t("error.hub") };
+      return call("joinHub", nick, t("error.join"));
+    },
     [call]
   );
 
   const enterGame = useCallback(
-    (nick: string, mode: GameMode = DEFAULT_MODE) =>
-      call("joinGame", [nick, mode], t("error.match")),
+    (nick: string, mode: GameMode = DEFAULT_MODE) => {
+      rejoinRef.current = { fn: "joinGame", args: [nick, mode], failure: t("error.match") };
+      return call("joinGame", [nick, mode], t("error.match"));
+    },
     [call]
   );
 
   const returnToHub = useCallback(
-    (nick: string) => call("returnToHub", nick, t("error.hub")),
+    (nick: string) => {
+      rejoinRef.current = { fn: "returnToHub", args: [nick], failure: t("error.hub") };
+      return call("returnToHub", nick, t("error.hub"));
+    },
     [call]
   );
 
@@ -280,6 +348,7 @@ function useOnlineGame() {
     account,
     connected,
     joined,
+    recovering,
     joining,
     error,
     room,

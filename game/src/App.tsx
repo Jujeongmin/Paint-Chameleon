@@ -45,7 +45,7 @@ export default function App() {
   useT();
 
   const game = useGame();
-  const { server, account, connected, joined, joining, error, room, me, players, secondsLeft } = game;
+  const { server, account, connected, joined, joining, error, room, me, players, secondsLeft, recovering } = game;
 
   // Held here rather than in each HUD so walking between the hub and a match
   // doesn't bring the tutorial back.
@@ -505,7 +505,11 @@ export default function App() {
         <Settings />
       </>
     );
-  if (!room || !me) return <ConnectingScreen message={t("app.enteringLobby")} />;
+  // Two different waits, and they used to read as one. Entering is the normal
+  // first-time wait; recovering means the room went away underneath a session
+  // that already had one, and useGame is re-joining on a timer.
+  if (!room || !me)
+    return <ConnectingScreen message={t(recovering ? "app.reconnecting" : "app.enteringLobby")} />;
 
   const frozen = paintMode || poseMenuOpen || !!me.caught || roundFreezes(phase, isSeeker);
 
