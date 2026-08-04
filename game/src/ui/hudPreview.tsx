@@ -88,7 +88,7 @@ const SEEKER = player({ account: ACCOUNT, nick: "나", role: "seeker" });
  */
 function fakeWallet(over: Partial<Wallet> = {}): Wallet {
   return {
-    wallet: { coins: 40, owned: ["classic"], equipped: "classic", adOpenedAt: 0, adClaimedAt: 0, adDay: 0, adCount: 0 },
+    wallet: { coins: 40, owned: ["classic"], equipped: "classic", adOpenedAt: 0, adClaimedAt: 0, adDay: 0, adCount: 0, adRequests: [] },
     equipped: "classic",
     message: null,
     busy: false,
@@ -97,6 +97,7 @@ function fakeWallet(over: Partial<Wallet> = {}): Wallet {
     equip: () => {},
     adsLeft: 7,
     adReady: true,
+    adSupported: true,
     watchAd: () => {},
     cancelAd: () => {},
     ...over,

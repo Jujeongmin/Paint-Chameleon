@@ -332,9 +332,24 @@ describe("ads for coins", () => {
     await server.joinHub("adinstant");
 
     await server.startAdWatch();
-    const res = await server.claimAdReward();
+    const res = await server.claimAdReward("req-instant");
     expect(res.ok).toBe(false);
     expect(res.reason).toBe("tooSoon");
+
+    const w = await server.getWallet();
+    expect(w.coins).toBe(0);
+  });
+
+  test("claiming without the SDK's request id pays nothing", async (server) => {
+    server.connect({ account: "user-ad-noid" });
+    await server.joinHub("adnoid");
+
+    // A hand-rolled claim: the ticket is open, the clock could be satisfied by
+    // waiting, but no ad was ever played so there is no request id to show.
+    await server.startAdWatch();
+    const res = await server.claimAdReward("");
+    expect(res.ok).toBe(false);
+    expect(res.reason).toBe("noRequest");
 
     const w = await server.getWallet();
     expect(w.coins).toBe(0);
@@ -344,7 +359,7 @@ describe("ads for coins", () => {
     server.connect({ account: "user-ad-noticket" });
     await server.joinHub("adnoticket");
 
-    const res = await server.claimAdReward();
+    const res = await server.claimAdReward("req-noticket");
     expect(res.ok).toBe(false);
     expect(res.reason).toBe("noAd");
   });

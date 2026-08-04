@@ -313,6 +313,13 @@ export interface WalletState {
   adDay: number;
   /** Claims made on `adDay`. Meaningless once the day has rolled. */
   adCount: number;
+  /**
+   * Request ids already paid out, most recent first. The SDK mints one per
+   * watch, so this is what stops the same watch being cashed twice — the
+   * replay protection the ads guide asks for, kept as a short list rather than
+   * a table because the wallet row is the only per-account storage here.
+   */
+  adRequests: string[];
 }
 
 /** What an account looks like before it has ever finished a round. */
@@ -324,6 +331,7 @@ export const DEFAULT_WALLET: WalletState = {
   adClaimedAt: 0,
   adDay: 0,
   adCount: 0,
+  adRequests: [],
 };
 
 /**
@@ -341,6 +349,20 @@ export function parseOwned(s: string): string[] {
 
 export function serializeOwned(ids: string[]): string {
   return ids.join(",");
+}
+
+/**
+ * Ad request ids travel the same way, for the same reason. They are minted by
+ * the ads SDK, so unlike avatar ids their shape is not ours to promise —
+ * anything containing a comma is dropped on the way in rather than silently
+ * splitting into two ids that each match nothing.
+ */
+export function parseRequestIds(s: string): string[] {
+  return parseOwned(s);
+}
+
+export function serializeRequestIds(ids: string[]): string {
+  return ids.filter((id) => !id.includes(",")).join(",");
 }
 
 export function coinsFor(o: { seeker: boolean; caught: boolean; catches: number }): number {
@@ -434,9 +456,40 @@ export const AD_REWARD = {
    * one free reward per session.
    */
   ticketMs: 300_000,
+  /**
+   * How many spent request ids to remember. Comfortably over dailyCap, so a
+   * day's worth of claims can never age out of the list while they could still
+   * be replayed within that day.
+   */
+  recentRequests: 24,
 };
 
-export type AdFailure = "cooldown" | "cap" | "tooSoon" | "noAd" | "stale";
+export type AdFailure =
+  | "cooldown"
+  | "cap"
+  | "tooSoon"
+  | "noAd"
+  | "stale"
+  | "noRequest"
+  | "replay"
+  | "unverified";
+
+/**
+ * What the client hands in with a claim, plus what the server managed to learn
+ * about it.
+ *
+ * `verified` is deliberately three-valued. `true` and `false` are the ads
+ * verifier's answer. `null` means this runtime could not ask — the game server
+ * is an isolated-vm with no outbound HTTP (server/README.md's limitations), so
+ * until the promised Agent8 helper lands there is nobody to ask. Folding that
+ * into `false` would take the ad button away from every honest player; folding
+ * it into `true` would be a lie in a type. It stays its own case, and the
+ * decision made about it is written down where it is made.
+ */
+export interface AdTicket {
+  requestId: string;
+  verified: boolean | null;
+}
 
 /**
  * Whole days since the epoch. UTC on purpose: the alternative is the server's
@@ -483,10 +536,32 @@ export function startAd(
  */
 export function claimAd(
   w: WalletState,
-  now: number
+  now: number,
+  ticket: AdTicket
 ): { ok: true; wallet: WalletState; coins: number } | { ok: false; reason: AdFailure; wallet?: WalletState } {
   const opened = Number.isFinite(w.adOpenedAt) ? w.adOpenedAt : 0;
   if (opened <= 0) return { ok: false, reason: "noAd" };
+
+  // The SDK mints a request id per watch. No id means the caller never played
+  // one — a hand-rolled claim, or a client old enough to predate this check.
+  const requestId = typeof ticket.requestId === "string" ? ticket.requestId.trim() : "";
+  if (!requestId || requestId.includes(",")) {
+    return { ok: false, reason: "noRequest", wallet: { ...w, owned: [...w.owned], adOpenedAt: 0 } };
+  }
+
+  // Replay: one watch, one payout. Checked before the clock rules so that
+  // resending yesterday's id reads as what it is rather than as "too soon".
+  const spent = Array.isArray(w.adRequests) ? w.adRequests : [];
+  if (spent.includes(requestId)) {
+    return { ok: false, reason: "replay", wallet: { ...w, owned: [...w.owned], adOpenedAt: 0 } };
+  }
+
+  // false is the verifier saying no. null is nobody having been able to ask —
+  // see AdTicket. A null grants, and the time rules below are what stands in
+  // for the verifier until this runtime can reach it.
+  if (ticket.verified === false) {
+    return { ok: false, reason: "unverified", wallet: { ...w, owned: [...w.owned], adOpenedAt: 0 } };
+  }
 
   // Clock went backwards, or the row was written by a different machine. Treat
   // it as abandoned rather than as an instantly-satisfied watch.
@@ -515,6 +590,9 @@ export function claimAd(
       adClaimedAt: now,
       adDay: today,
       adCount: adsToday(w, now) + 1,
+      // Newest first, oldest dropped: the list is a replay guard, and the
+      // claims most worth replaying are the ones that just happened.
+      adRequests: [requestId, ...spent].slice(0, AD_REWARD.recentRequests),
     },
   };
 }

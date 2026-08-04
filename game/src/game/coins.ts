@@ -43,6 +43,7 @@ export const AD_REWARD = {
   cooldownMs: 90_000,
   dailyCap: 10,
   ticketMs: 300_000,
+  recentRequests: 24,
 };
 
 /**
@@ -63,6 +64,7 @@ export const WALLET_FIELDS = [
   "adClaimedAt",
   "adDay",
   "adCount",
+  "adRequests",
 ] as const;
 
 // Both directions, or a field could be missing from one side and go unnoticed.

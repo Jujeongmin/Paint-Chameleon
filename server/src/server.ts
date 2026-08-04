@@ -46,6 +46,8 @@ import {
   type GameMode,
   startAd,
   claimAd,
+  parseRequestIds,
+  serializeRequestIds,
   syncRoomBots,
   type WalletState,
   type PurchaseFailure,
@@ -262,6 +264,7 @@ async function readWallet(account: string): Promise<{ wallet: WalletState; __id:
       adClaimedAt: num(row.adClaimedAt),
       adDay: num(row.adDay),
       adCount: num(row.adCount),
+      adRequests: parseRequestIds(row.adRequests),
     },
     __id: row.__id,
   };
@@ -276,9 +279,50 @@ async function writeWallet(account: string, __id: string | null, wallet: WalletS
     adClaimedAt: wallet.adClaimedAt,
     adDay: wallet.adDay,
     adCount: wallet.adCount,
+    adRequests: serializeRequestIds(wallet.adRequests),
   };
   if (__id) await $global.updateCollectionItem(WALLET_COLLECTION, { __id, ...fields });
   else await $global.addCollectionItem(WALLET_COLLECTION, { account, ...fields });
+}
+
+/**
+ * Ask the ads verifier whether this watch really happened.
+ *
+ * Returns `null` when this runtime cannot ask at all. The game server is an
+ * isolated-vm with no `fetch` and no http module (server/README.md), and the
+ * ads guide's own server-side section is waiting on an Agent8 helper for
+ * exactly this reason. `null` is not "yes" — claimAd treats it as its own case
+ * and leans on the clock rules instead — but it is honest about which check
+ * actually ran, which a boolean would not be.
+ *
+ * Written so that the day `fetch` appears, verification starts working with no
+ * other change: the retry budget, the 202/pending handling and the "anything
+ * else is a no" rule are already the shape the guide asks for.
+ */
+async function verifyAdWatch(requestId: string): Promise<boolean | null> {
+  const call = (globalThis as { fetch?: typeof fetch }).fetch;
+  if (typeof call !== "function") return null;
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const res = await call(
+        `https://ads-verifier.verse8.io/ads/status?requestId=${encodeURIComponent(requestId)}`
+      );
+      if (!res.ok && res.status !== 202) return false;
+
+      const body = (await res.json()) as { status?: string };
+      if (body?.status === "verified") return true;
+      if (body?.status !== "pending") return false;
+
+      await new Promise((r) => setTimeout(r, 1500));
+    } catch {
+      // A network failure is not proof of cheating, but it is also not proof
+      // of a watch. Same three-valued answer as having no fetch at all.
+      return null;
+    }
+  }
+  // Still pending after the budget. Nothing was proven either way.
+  return null;
 }
 
 /** Add a round's earnings to an account's balance. */
@@ -531,14 +575,20 @@ export class Server {
    * A refusal can still carry a wallet to write — a stale or over-cap ticket
    * has to be cleared, or it sits in the row and gets retried forever.
    */
-  async claimAdReward(): Promise<
+  async claimAdReward(requestId: string): Promise<
     | { ok: true; wallet: WalletState; coins: number }
     | { ok: false; reason: AdFailure; wallet: WalletState }
   > {
     const account = $sender.account;
+    const id = typeof requestId === "string" ? requestId.trim().slice(0, 128) : "";
+    // Outside the lock: it is a network wait that touches no wallet state, and
+    // holding this account's lock across it would stall every other write for
+    // the length of the verifier's retry budget.
+    const verified = id ? await verifyAdWatch(id) : null;
+
     return await $lock("wallet:" + account, async () => {
       const { wallet, __id } = await readWallet(account);
-      const result = claimAd(wallet, Date.now());
+      const result = claimAd(wallet, Date.now(), { requestId: id, verified });
 
       if (!result.ok) {
         if (result.wallet) await writeWallet(account, __id, result.wallet);

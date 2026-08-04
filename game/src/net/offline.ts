@@ -71,6 +71,7 @@ export function useOfflineGame() {
     coins: 100,
     owned: [DEFAULT_BODY_ID],
     equipped: DEFAULT_BODY_ID,
+    adRequests: [],
     adOpenedAt: 0,
     adClaimedAt: 0,
     adDay: 0,
@@ -443,8 +444,12 @@ export function useOfflineGame() {
       return { ok: true, wallet: result.wallet };
     },
 
-    claimAdReward: async (): Promise<AdClaimResult> => {
-      const result = claimAd(wallet, Date.now());
+    claimAdReward: async (requestId: string): Promise<AdClaimResult> => {
+      // The rehearsal rig never plays a real ad, so it never has a real
+      // request id — this exists to keep both implementations the same shape.
+      // verified is null for the same reason the deployed server reports null:
+      // nobody was in a position to ask.
+      const result = claimAd(wallet, Date.now(), { requestId, verified: null });
       if (!result.ok) {
         const next = result.wallet ?? wallet;
         if (result.wallet) setWallet(result.wallet);

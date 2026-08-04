@@ -391,11 +391,26 @@ console.log("\nads for coins");
         drift++;
         fail(`startAd disagrees at +${now - NOON}ms: server ${a}, client ${b}`);
       }
-      const c = JSON.stringify(serverClaimAd(w, now));
-      const d = JSON.stringify(clientClaimAd(w, now));
-      if (c !== d) {
-        drift++;
-        fail(`claimAd disagrees at +${now - NOON}ms: server ${c}, client ${d}`);
+      // Every ticket shape, not just the happy one: the two copies have to
+      // agree about a missing id and a denied verification as much as about a
+      // cooldown, or the rehearsal rig pays for something the server refuses.
+      const tickets = [
+        { requestId: "sync-fresh", verified: null },
+        { requestId: "sync-fresh", verified: true },
+        { requestId: "sync-denied", verified: false },
+        { requestId: "", verified: null },
+        { requestId: "spent", verified: null },
+      ] as const;
+      for (const ticket of tickets) {
+        const wallet = ticket.requestId === "spent" ? { ...w, adRequests: ["spent"] } : w;
+        const c = JSON.stringify(serverClaimAd(wallet, now, ticket));
+        const d = JSON.stringify(clientClaimAd(wallet, now, ticket));
+        if (c !== d) {
+          drift++;
+          fail(
+            `claimAd disagrees at +${now - NOON}ms for ${JSON.stringify(ticket)}: server ${c}, client ${d}`
+          );
+        }
       }
     }
   }

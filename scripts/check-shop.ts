@@ -244,6 +244,13 @@ console.log("\nads for coins");
   // the suite was run.
   const NOON = dayIndex(1_700_000_000_000) * 86_400_000 + 43_200_000;
   const clear = (w: Partial<WalletState> = {}) => walletOf({ adClaimedAt: 0, ...w });
+  /**
+   * A claim from an honest client: the SDK's request id, and `null` for
+   * "nobody could verify it" — which is what this runtime reports today (see
+   * verifyAdWatch in server.ts). Every clock-rule case below uses a distinct
+   * id, so none of them can pass or fail for replay reasons by accident.
+   */
+  const ticket = (requestId: string) => ({ requestId, verified: null });
 
   const opened = startAd(clear(), NOON);
   check("a fresh wallet can start an ad", opened.ok === true);
@@ -252,19 +259,19 @@ console.log("\nads for coins");
 
   const started = opened.ok ? opened.wallet : clear();
 
-  const early = claimAd(started, NOON + AD_REWARD.minWatchMs - 1);
+  const early = claimAd(started, NOON + AD_REWARD.minWatchMs - 1, ticket("r-early"));
   check("claiming a millisecond early is refused", early.ok === false);
   check("...with reason 'tooSoon'", early.ok === false && early.reason === "tooSoon");
   check("...and leaves the ad open to finish", early.ok === false && early.wallet === undefined);
 
-  const paid = claimAd(started, NOON + AD_REWARD.minWatchMs);
+  const paid = claimAd(started, NOON + AD_REWARD.minWatchMs, ticket("r-paid"));
   check("watching the full length pays", paid.ok === true);
   check("...exactly the advertised amount", paid.ok === true && paid.coins === AD_REWARD.coins);
   check("...onto the balance", paid.ok === true && paid.wallet.coins === AD_REWARD.coins);
   check("...and closes the ad", paid.ok === true && paid.wallet.adOpenedAt === 0);
 
   // The whole point. One start must not be spendable twice.
-  const twice = paid.ok ? claimAd(paid.wallet, NOON + AD_REWARD.minWatchMs + 1) : null;
+  const twice = paid.ok ? claimAd(paid.wallet, NOON + AD_REWARD.minWatchMs + 1, ticket("r-second")) : null;
   check("the same watch cannot be claimed twice", twice !== null && twice.ok === false);
   check("...with reason 'noAd'", twice !== null && twice.ok === false && twice.reason === "noAd");
 
@@ -280,13 +287,13 @@ console.log("\nads for coins");
   // Abandoned: opened and never claimed. Without the stale window this is one
   // free reward banked indefinitely.
   const abandoned = walletOf({ adOpenedAt: NOON });
-  const late = claimAd(abandoned, NOON + AD_REWARD.ticketMs + 1);
+  const late = claimAd(abandoned, NOON + AD_REWARD.ticketMs + 1, ticket("r-late"));
   check("an ad opened and left is refused later", late.ok === false);
   check("...with reason 'stale'", late.ok === false && late.reason === "stale");
   check("...and is cleared rather than left to retry", late.ok === false && late.wallet?.adOpenedAt === 0);
 
   // Clock skew backwards must not read as an instantly-satisfied watch.
-  const backwards = claimAd(walletOf({ adOpenedAt: NOON + 5000 }), NOON);
+  const backwards = claimAd(walletOf({ adOpenedAt: NOON + 5000 }), NOON, ticket("r-back"));
   check("a start in the future is refused, not treated as watched", backwards.ok === false);
 
   const atCap = walletOf({ adDay: dayIndex(NOON), adCount: AD_REWARD.dailyCap, adClaimedAt: 0 });
@@ -298,14 +305,78 @@ console.log("\nads for coins");
   // open one while there is room, wait for the day's last reward to be taken
   // elsewhere, then claim. claimAd re-checks, which is what actually holds it.
   const openedUnderCap = walletOf({ adOpenedAt: NOON, adDay: dayIndex(NOON), adCount: AD_REWARD.dailyCap });
-  const capAtClaim = claimAd(openedUnderCap, NOON + AD_REWARD.minWatchMs);
+  const capAtClaim = claimAd(openedUnderCap, NOON + AD_REWARD.minWatchMs, ticket("r-cap"));
   check("a ticket opened before the cap filled is still refused at claim", capAtClaim.ok === false);
   check("...with reason 'cap'", capAtClaim.ok === false && capAtClaim.reason === "cap");
 
   // Same argument for the cooldown.
   const openedUnderCooldown = walletOf({ adOpenedAt: NOON, adClaimedAt: NOON });
-  const coolAtClaim = claimAd(openedUnderCooldown, NOON + AD_REWARD.minWatchMs);
+  const coolAtClaim = claimAd(openedUnderCooldown, NOON + AD_REWARD.minWatchMs, ticket("r-cool"));
   check("a ticket that outlived its cooldown window is refused at claim", coolAtClaim.ok === false);
+
+  // --- the ads guide's own requirements: a real request id, and one payout
+  // per id. Without these, a tampered client skips the ad entirely and claims
+  // on the clock alone — 25 coins a go, ten a day, which is the shop.
+  {
+    const openTicket = walletOf({ adOpenedAt: NOON, adClaimedAt: 0 });
+    const at = NOON + AD_REWARD.minWatchMs;
+
+    const noId = claimAd(openTicket, at, { requestId: "", verified: null });
+    check("a claim with no request id is refused", noId.ok === false);
+    check("...with reason 'noRequest'", noId.ok === false && noId.reason === "noRequest");
+    check("...and the ticket is spent, not left to retry", noId.ok === false && noId.wallet?.adOpenedAt === 0);
+
+    // The list is stored comma-joined, so an id containing one would come back
+    // as two ids that match nothing — refuse it rather than store a lie.
+    const comma = claimAd(openTicket, at, { requestId: "a,b", verified: null });
+    check("a request id containing a comma is refused", comma.ok === false && comma.reason === "noRequest");
+
+    const denied = claimAd(openTicket, at, { requestId: "r-denied", verified: false });
+    check("a watch the verifier denies is refused", denied.ok === false);
+    check("...with reason 'unverified'", denied.ok === false && denied.reason === "unverified");
+
+    const first = claimAd(openTicket, at, ticket("r-once"));
+    check("a verified-unknown watch still pays (no verifier in this runtime)", first.ok === true);
+    check(
+      "...and the id is remembered",
+      first.ok === true && first.wallet.adRequests[0] === "r-once"
+    );
+
+    // Reopen the ad, then replay the id that was already paid. Without the
+    // remembered list this is a second 25 coins for one watch.
+    const reopened = first.ok
+      ? { ...first.wallet, adOpenedAt: at + 1, adClaimedAt: 0 }
+      : openTicket;
+    const replayed = claimAd(reopened, at + 1 + AD_REWARD.minWatchMs, ticket("r-once"));
+    check("replaying a spent request id is refused", replayed.ok === false);
+    check("...with reason 'replay'", replayed.ok === false && replayed.reason === "replay");
+
+    // A different id on the same reopened ticket is a different watch.
+    const fresh = claimAd(reopened, at + 1 + AD_REWARD.minWatchMs, ticket("r-twice"));
+    check("a new request id on a new ticket pays", fresh.ok === true);
+    check(
+      "...and the remembered list keeps both, newest first",
+      fresh.ok === true && fresh.wallet.adRequests[0] === "r-twice" && fresh.wallet.adRequests[1] === "r-once"
+    );
+
+    // The list is a replay guard, so it must outlive a day's worth of claims.
+    check(
+      "the remembered list is longer than a day's cap",
+      AD_REWARD.recentRequests > AD_REWARD.dailyCap,
+      `${AD_REWARD.recentRequests} remembered vs ${AD_REWARD.dailyCap}/day`
+    );
+
+    const many = Array.from({ length: AD_REWARD.recentRequests + 5 }, (_, i) => `old-${i}`);
+    const capped = claimAd(
+      { ...walletOf({ adOpenedAt: NOON, adClaimedAt: 0 }), adRequests: many },
+      at,
+      ticket("r-newest")
+    );
+    check(
+      "the list is capped rather than growing without bound",
+      capped.ok === true && capped.wallet.adRequests.length === AD_REWARD.recentRequests
+    );
+  }
 
   check(
     "a full day's worth of ads is worth less than the cheapest avatar",

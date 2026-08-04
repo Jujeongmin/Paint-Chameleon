@@ -155,6 +155,8 @@ const EN = {
   "ad.capReached": "That's every ad for today",
   "ad.tooSoon": "Watch it through to earn the coins",
   "ad.tryAgain": "Ad didn't start — press F again",
+  "ad.failed": "Ad unavailable, please try again later",
+  "ad.unverified": "That ad couldn't be confirmed",
 
   // --- paint
   "paint.picker": "Pick a colour from a wall, the floor, or your own body",
@@ -318,6 +320,8 @@ const KO: Record<Key, string> = {
   "ad.capReached": "오늘 볼 수 있는 광고를 다 봤습니다",
   "ad.tooSoon": "끝까지 봐야 코인을 받습니다",
   "ad.tryAgain": "광고가 시작되지 않았습니다 — F를 다시 누르세요",
+  "ad.failed": "지금은 광고를 불러올 수 없습니다 — 잠시 후 다시",
+  "ad.unverified": "이 광고는 확인되지 않았습니다",
 
   "paint.picker": "주변 벽·바닥이나 자기 몸에서 색을 뽑습니다",
   "paint.fill": "전체를 현재 색으로",

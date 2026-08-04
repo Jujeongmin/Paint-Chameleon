@@ -28,6 +28,12 @@ const AD_REFUSAL: Record<AdFailure, string> = {
   tooSoon: t("ad.tooSoon"),
   noAd: t("ad.tryAgain"),
   stale: t("ad.tryAgain"),
+  // A claim with no request id, or one already paid out. Both mean the same
+  // from where the player stands: that watch is not going to pay, watch a new
+  // one. Only a tampered client should ever see either.
+  noRequest: t("ad.unverified"),
+  replay: t("ad.unverified"),
+  unverified: t("ad.unverified"),
 };
 
 interface Api {
@@ -41,7 +47,7 @@ interface Api {
   buyAvatar: (id: string) => Promise<BuyResult>;
   equipAvatar: (id: string) => Promise<{ ok: boolean }>;
   startAdWatch: () => Promise<AdStartResult>;
-  claimAdReward: () => Promise<AdClaimResult>;
+  claimAdReward: (requestId: string) => Promise<AdClaimResult>;
 }
 
 export interface Wallet {
@@ -61,6 +67,12 @@ export interface Wallet {
   adsLeft: number;
   /** True when an ad can be started right now. */
   adReady: boolean;
+  /**
+   * False once the SDK has reported `unsupported_env` — this page cannot play
+   * an ad at all, so the offer should disappear rather than fail on every
+   * press. Never comes back within a session.
+   */
+  adSupported: boolean;
   watchAd: () => void;
   cancelAd: () => void;
 }
@@ -77,6 +89,7 @@ export function useWallet(api: Api): Wallet {
   const [wallet, setWallet] = useState<WalletView | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [adSupported, setAdSupported] = useState(true);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The remote functions are read through a ref and never used as dependencies.
@@ -241,10 +254,15 @@ export function useWallet(api: Api): Wallet {
         if (run.signal.aborted) return;
 
         const outcome = await showAd(run.signal);
-        // Silent on cancel. The player closed it; they know.
+        // A page that can never play an ad stops offering one. The button is
+        // the only thing that changes: an ad already started on the server
+        // ages out of the wallet row by itself.
+        if (outcome.unsupported) setAdSupported(false);
+        if (outcome.failed) say(t("ad.failed"));
+        // Silent on cancel and on dismissal. The player closed it; they know.
         if (!outcome.completed || run.signal.aborted) return;
 
-        const claimed = await apiRef.current.claimAdReward();
+        const claimed = await apiRef.current.claimAdReward(outcome.requestId);
         setWallet(claimed.wallet);
         if (claimed.ok) say(t("ad.earned", { n: claimed.coins }));
         else say(AD_REFUSAL[claimed.reason]);
@@ -273,9 +291,12 @@ export function useWallet(api: Api): Wallet {
     buy,
     equip,
     adsLeft: left,
-    // Both halves are the client's guess and neither is trusted: the server
-    // re-decides on every start. This only picks the wording on the prompt.
-    adReady: !!wallet && left > 0 && now >= adReadyAt(wallet, now),
+    // All three parts are the client's guess and none is trusted: the server
+    // re-decides on every start. This only picks the wording on the prompt —
+    // except adSupported, which is the SDK's own verdict that this page can
+    // never play an ad, and so takes the offer away entirely.
+    adReady: adSupported && !!wallet && left > 0 && now >= adReadyAt(wallet, now),
+    adSupported,
     watchAd,
     cancelAd,
   };

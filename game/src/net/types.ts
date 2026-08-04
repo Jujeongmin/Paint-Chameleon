@@ -81,6 +81,8 @@ export interface WalletView {
   adClaimedAt: number;
   adDay: number;
   adCount: number;
+  /** Request ids already paid out, newest first. Replay protection; display never reads it. */
+  adRequests: string[];
 }
 
 export type BuyFailure = "unknown" | "owned" | "broke";
@@ -89,7 +91,18 @@ export type BuyResult =
   | { ok: true; wallet: WalletView }
   | { ok: false; reason: BuyFailure };
 
-export type AdFailure = "cooldown" | "cap" | "tooSoon" | "noAd" | "stale";
+export type AdFailure =
+  | "cooldown"
+  | "cap"
+  | "tooSoon"
+  | "noAd"
+  | "stale"
+  /** No SDK request id came with the claim — only a tampered client sends one. */
+  | "noRequest"
+  /** That request id was already paid out. */
+  | "replay"
+  /** The ads verifier said the watch did not happen. */
+  | "unverified";
 
 /** A refusal still carries a wallet — the server may have cleared a stale ad. */
 export type AdStartResult =

@@ -20,7 +20,24 @@
 import type { WalletView } from "../net/types";
 import { AD_REWARD } from "./coins";
 
-export type AdFailure = "cooldown" | "cap" | "tooSoon" | "noAd" | "stale";
+export type AdFailure =
+  | "cooldown"
+  | "cap"
+  | "tooSoon"
+  | "noAd"
+  | "stale"
+  | "noRequest"
+  | "replay"
+  | "unverified";
+
+/**
+ * Mirrors AdTicket in server/src/rules.ts — see there for why `verified` has
+ * three values rather than two.
+ */
+export interface AdTicket {
+  requestId: string;
+  verified: boolean | null;
+}
 
 export function dayIndex(now: number): number {
   return Math.floor(now / 86_400_000);
@@ -50,12 +67,27 @@ export function startAd(
 
 export function claimAd(
   w: WalletView,
-  now: number
+  now: number,
+  ticket: AdTicket
 ):
   | { ok: true; wallet: WalletView; coins: number }
   | { ok: false; reason: AdFailure; wallet?: WalletView } {
   const opened = Number.isFinite(w.adOpenedAt) ? w.adOpenedAt : 0;
   if (opened <= 0) return { ok: false, reason: "noAd" };
+
+  const requestId = typeof ticket.requestId === "string" ? ticket.requestId.trim() : "";
+  if (!requestId || requestId.includes(",")) {
+    return { ok: false, reason: "noRequest", wallet: { ...w, owned: [...w.owned], adOpenedAt: 0 } };
+  }
+
+  const spent = Array.isArray(w.adRequests) ? w.adRequests : [];
+  if (spent.includes(requestId)) {
+    return { ok: false, reason: "replay", wallet: { ...w, owned: [...w.owned], adOpenedAt: 0 } };
+  }
+
+  if (ticket.verified === false) {
+    return { ok: false, reason: "unverified", wallet: { ...w, owned: [...w.owned], adOpenedAt: 0 } };
+  }
 
   const watched = now - opened;
   if (watched > AD_REWARD.ticketMs || watched < 0) {
@@ -82,6 +114,7 @@ export function claimAd(
       adClaimedAt: now,
       adDay: today,
       adCount: adsToday(w, now) + 1,
+      adRequests: [requestId, ...spent].slice(0, AD_REWARD.recentRequests),
     },
   };
 }

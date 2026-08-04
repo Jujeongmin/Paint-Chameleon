@@ -270,7 +270,8 @@ function useOnlineGame() {
   );
 
   const claimAdReward = useCallback(
-    async (): Promise<AdClaimResult> => await server.remoteFunction("claimAdReward", []),
+    async (requestId: string): Promise<AdClaimResult> =>
+      await server.remoteFunction("claimAdReward", [requestId]),
     [server]
   );
 
