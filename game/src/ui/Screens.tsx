@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { PlayerState, RoomInfo } from "../net/types";
 import { unlockAudio } from "../audio/sound";
 import { t, type Key } from "./i18n";
@@ -9,6 +9,43 @@ export function ConnectingScreen({ message }: { message?: string }) {
       <div className="card" style={{ textAlign: "center" }}>
         <h1 className="title">{t("app.title")}</h1>
         <p className="subtitle" style={{ margin: 0 }}>{message ?? t("app.connecting")}</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The platform's room switch was measured at 17-20 seconds (rejoin.ts keeps
+ * the numbers), and a bare "entering…" line over that stretch reads as a hang.
+ * This screen makes the wait legible instead of shorter: which door the player
+ * took, a bar paced to the measured switch, and a running count of seconds so
+ * a stall and a normal wait stop looking identical.
+ */
+export function RoomSwitchScreen({ message }: { message: string }) {
+  const [elapsedMs, setElapsedMs] = useState(0);
+  useEffect(() => {
+    const startedAt = Date.now();
+    const id = setInterval(() => setElapsedMs(Date.now() - startedAt), 250);
+    return () => clearInterval(id);
+  }, []);
+
+  // Paced to the measured switch, and parked short of full: a bar that reaches
+  // the end while the wait continues is a lie that makes everything after it
+  // feel broken. Completion is the room arriving, at which point this screen
+  // is unmounted rather than finished.
+  const TYPICAL_SWITCH_MS = 20_000;
+  const pct = Math.min(92, (elapsedMs / TYPICAL_SWITCH_MS) * 92);
+
+  return (
+    <div className="screen">
+      <div className="card" style={{ textAlign: "center" }}>
+        <h1 className="title">{t("app.title")}</h1>
+        <p className="subtitle" style={{ margin: "0 0 18px" }}>{message}</p>
+        <div className="load-bar">
+          <div className="load-fill" style={{ width: `${pct}%` }} />
+        </div>
+        <div className="load-count">{Math.floor(elapsedMs / 1000)}s</div>
+        <p className="switch-hint">{t("app.switchHint")}</p>
       </div>
     </div>
   );

@@ -16,7 +16,7 @@ import { PaintTools } from "./ui/PaintTools";
 import { Settings } from "./ui/Settings";
 import { PoseMenu } from "./ui/PoseMenu";
 import { hsvToRgb, rgbToHsv } from "./ui/ColorWheel";
-import { ConnectingScreen, LoadingScreen, NickScreen, ResultsOverlay, WaitingBanner } from "./ui/Screens";
+import { ConnectingScreen, LoadingScreen, NickScreen, ResultsOverlay, RoomSwitchScreen, WaitingBanner } from "./ui/Screens";
 import { runWarmup, type WarmupProgress } from "./game/warmup";
 import { fetchSavedNick, saveNick } from "./net/profile";
 import { DEFAULT_MODE, canLeaveNow, canPoseNow, caughtIsOut, roundFreezes } from "./game/modes";
@@ -45,7 +45,7 @@ export default function App() {
   useT();
 
   const game = useGame();
-  const { server, account, connected, joined, joining, error, room, me, players, secondsLeft, recovering } = game;
+  const { server, account, connected, joined, joining, error, room, me, players, secondsLeft, recovering, switching } = game;
 
   // Held here rather than in each HUD so walking between the hub and a match
   // doesn't bring the tutorial back.
@@ -514,11 +514,22 @@ export default function App() {
         <Settings />
       </>
     );
-  // Two different waits, and they used to read as one. Entering is the normal
-  // first-time wait; recovering means the room went away underneath a session
-  // that already had one, and useGame is re-joining on a timer.
-  if (!room || !me)
-    return <ConnectingScreen message={t(recovering ? "app.reconnecting" : "app.enteringLobby")} />;
+  // Four different waits, and they used to read as one. Recovering means the
+  // room went away underneath a session that already had one; switching means
+  // the player themself walked through a door and the platform is moving them
+  // (about twenty seconds, measured — rejoin.ts). The switch gets a screen
+  // that shows the wait passing, because a bare line over twenty seconds
+  // reads as a hang.
+  if (!room || !me) {
+    if (recovering) return <ConnectingScreen message={t("app.reconnecting")} />;
+    if (switching)
+      return (
+        <RoomSwitchScreen
+          message={t(switching === "match" ? "app.enteringMatch" : "app.returningHub")}
+        />
+      );
+    return <ConnectingScreen message={t("app.enteringLobby")} />;
+  }
 
   const frozen = paintMode || poseMenuOpen || !!me.caught || roundFreezes(phase, isSeeker);
 

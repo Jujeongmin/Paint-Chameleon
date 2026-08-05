@@ -348,6 +348,9 @@ export function useOfflineGame() {
     // is no socket to lose and nothing to re-join. The field exists so both
     // halves of useGame answer the same shape.
     recovering: false,
+    // Room changes are local state writes here, so there is no twenty-second
+    // switch for a screen to narrate.
+    switching: null,
     error: null,
     room,
     me: players[0] ?? null,

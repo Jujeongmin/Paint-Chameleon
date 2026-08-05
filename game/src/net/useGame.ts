@@ -63,6 +63,14 @@ function useOnlineGame() {
   const [error, setError] = useState<string | null>(null);
   /** True while the client is trying to get back into a room it lost. */
   const [recovering, setRecovering] = useState(false);
+  /**
+   * Which way the player is travelling while the room state is empty. The
+   * platform's room switch takes on the order of twenty seconds (measured; see
+   * rejoin.ts), and for that whole stretch the only honest thing to show is
+   * which door they walked through — "finding a match" and "returning to the
+   * lobby" are different waits to the person sitting in them.
+   */
+  const [switching, setSwitching] = useState<"match" | "hub" | null>(null);
   const clockOffset = useRef(0);
   const hasReceivedRoom = useRef(false);
   /**
@@ -201,6 +209,7 @@ function useOnlineGame() {
       setJoined(true);
       setError(null);
       setRecovering(false);
+      setSwitching(null);
       return;
     }
     if (!joined) return;
@@ -312,6 +321,7 @@ function useOnlineGame() {
   const enterGame = useCallback(
     (nick: string, mode: GameMode = DEFAULT_MODE) => {
       rejoinRef.current = { fn: "joinGame", args: [nick, mode], failure: t("error.match") };
+      setSwitching("match");
       return call("joinGame", [nick, mode], t("error.match"));
     },
     [call]
@@ -320,6 +330,7 @@ function useOnlineGame() {
   const returnToHub = useCallback(
     (nick: string) => {
       rejoinRef.current = { fn: "returnToHub", args: [nick], failure: t("error.hub") };
+      setSwitching("hub");
       return call("returnToHub", nick, t("error.hub"));
     },
     [call]
@@ -386,6 +397,7 @@ function useOnlineGame() {
     connected,
     joined,
     recovering,
+    switching,
     joining,
     error,
     room,
