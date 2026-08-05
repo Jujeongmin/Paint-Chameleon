@@ -1072,6 +1072,9 @@ body.hide-cursor canvas {
 }
 
 .hub-return {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   position: absolute;
   top: 16px;
   right: 16px;
@@ -1083,6 +1086,19 @@ body.hide-cursor canvas {
   font-size: 13px;
   cursor: pointer;
   backdrop-filter: blur(8px);
+}
+
+/* Same chip the leave button wears — the two are the same action in two
+   phases, so the key should look the same in both places. */
+.hub-return kbd {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
 }
 
 .hub-return:hover {

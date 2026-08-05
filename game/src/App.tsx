@@ -302,12 +302,21 @@ export default function App() {
         e.preventDefault();
         toggleReadyRef.current();
       }
-      // The same key ends the session on the results screen. The two never
-      // coexist — one is the lobby, the other is the end of a round — and the
-      // seeker now keeps pointer lock through the results, so without a key
-      // the leave button would be visible and unclickable until they pressed
-      // Escape first.
-      if (e.code === "Enter" && !inHub && phase === "results" && !poseMenuOpen) {
+      // The same key ends the session whenever the leave button is on screen —
+      // the results screen, and a caught-out spectator mid-hunt. It cannot
+      // collide with the ready toggle above: canLeave is never true in the
+      // lobby. The seeker keeps pointer lock through the results, and a caught
+      // spectator may still hold it too, so without a key the leave button
+      // would be visible and unclickable until they pressed Escape first.
+      if (e.code === "Enter" && !inHub && canLeave && !poseMenuOpen) {
+        e.preventDefault();
+        leaveRef.current();
+      }
+      // The lobby's own way back. Enter is taken by the ready toggle there, so
+      // the back-to-the-lobby button gets its own key — and it obeys the same
+      // conditions the button renders under, so the key never works while the
+      // control that advertises it is hidden.
+      if (e.code === "KeyL" && !inHub && phase === "lobby" && !paintMode && !poseMenuOpen) {
         e.preventDefault();
         leaveRef.current();
       }
@@ -322,7 +331,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [canPaint, canPose, charLocked, paintMode, poseMenuOpen, inHub, phase]);
+  }, [canPaint, canPose, canLeave, charLocked, paintMode, poseMenuOpen, inHub, phase]);
 
   // Batch dabs rather than sending one message per brush movement.
   //
@@ -629,7 +638,8 @@ export default function App() {
               className="hub-return"
               onClick={() => game.returnToHub(nick || me.nick || t("app.anon"))}
             >
-              {t("paint.backToHub")}
+              <span>{t("paint.backToHub")}</span>
+              <kbd>L</kbd>
             </button>
           )}
 
